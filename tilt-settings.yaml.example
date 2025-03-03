@@ -1,0 +1,4 @@
+operator: 
+    image: <your-repository>/operator
+daemon: 
+    image: <your-repository>/daemon

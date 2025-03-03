@@ -1,0 +1,16 @@
+FROM registry.suse.com/bci/golang:1.24 AS builder
+WORKDIR /src
+COPY api/ /src/api
+COPY cmd/ /src/cmd
+COPY pkg/ /src/pkg
+COPY internal/ /src/internal
+COPY go.mod go.sum /src/
+COPY Makefile /src/
+RUN make daemon
+
+FROM scratch
+WORKDIR /
+COPY --from=builder /src/bin/daemon /daemon
+
+USER 65532:65532
+ENTRYPOINT ["/daemon"]

@@ -50,7 +50,7 @@ jobs:
 
       - name: Create tarball for the attestation files
         run: |
-          for arch in "amd64" "arm64"; do
+          for arch in "amd64"; do
             for component in "operator" "daemon" ; do
               tar -czf attestation-RuntimeEnforcement-$component-$arch.tar.gz $(ls RuntimeEnforcement-$component-attestation-$arch-*)
             done
@@ -65,8 +65,6 @@ jobs:
             let files = [
                 'attestation-RuntimeEnforcement-operator-amd64.tar.gz',
                 'attestation-RuntimeEnforcement-daemon-amd64.tar.gz',
-                'attestation-RuntimeEnforcement-operator-arm64.tar.gz',
-                'attestation-RuntimeEnforcement-daemon-arm64.tar.gz',
                 ]
             const {RELEASE_ID} = process.env
             for (const file of files) {

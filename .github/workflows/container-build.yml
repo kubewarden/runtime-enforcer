@@ -14,14 +14,11 @@ jobs:
     strategy:
       matrix:
         component: [operator, daemon]
-        arch: [amd64, arm64]
+        arch: [amd64]
         include:
           - arch: amd64
             runner: ubuntu-latest
             platform: linux/amd64
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-            platform: linux/arm64
     permissions:
       packages: write # Pushing images to ghcr.io
     runs-on: ${{ matrix.runner }}
@@ -108,12 +105,10 @@ jobs:
         working-directory: ${{ runner.temp }}/digests
         run: |
           amd64_digest=$(cat ${{ matrix.component }}-amd64.txt)
-          arm64_digest=$(cat ${{ matrix.component }}-arm64.txt)
 
           docker buildx imagetools create \
             -t ghcr.io/${{ github.repository_owner }}/runtime-enforcement/${{ matrix.component }}:${{ env.TAG_NAME }} \
             ghcr.io/${{ github.repository_owner }}/runtime-enforcement/${{ matrix.component }}@${amd64_digest} \
-            ghcr.io/${{ github.repository_owner }}/runtime-enforcement/${{ matrix.component }}@${arm64_digest}
 
           docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/runtime-enforcement/${{ matrix.component }}:${{ env.TAG_NAME }}
 
@@ -127,14 +122,11 @@ jobs:
     strategy:
       matrix:
         component: [operator, daemon]
-        arch: [amd64, arm64]
+        arch: [amd64]
         include:
           - arch: amd64
             runner: ubuntu-latest
             platform: linux/amd64
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-            platform: linux/arm64
     with:
       component: ${{ matrix.component }}
       arch: ${{ matrix.arch }}

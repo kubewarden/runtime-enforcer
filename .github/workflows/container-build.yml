@@ -20,6 +20,7 @@ jobs:
             runner: ubuntu-latest
             platform: linux/amd64
     permissions:
+      contents: read
       packages: write # Pushing images to ghcr.io
     runs-on: ${{ matrix.runner }}
     steps:

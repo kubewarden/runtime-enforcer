@@ -2,8 +2,8 @@ name: Update helm charts
 on:
   workflow_call:
 jobs:
-  update-sbombastic-charts:
-    name: Update SBOMbastic charts
+  update-runtime-enforcement-charts:
+    name: Update RuntimeEnforcement charts
     runs-on: ubuntu-latest
     permissions:
       contents: write # for updatecli to update the repository
@@ -15,8 +15,8 @@ jobs:
       - name: Install Updatecli in the runner
         uses: updatecli/updatecli-action@307ce72e224b82157cc31c78828f168b8e55d47d # v2.84.0
 
-      - name: Update SBOMbastic charts
+      - name: Update RuntimeEnforcement charts
         env:
           UPDATECLI_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           UPDATECLI_GITHUB_OWNER: ${{ github.repository_owner }}
-        run: "updatecli apply --config ./updatecli/updatecli.d/helm-chart-update.yaml --values updatecli/values.yaml"
+        run: "updatecli apply --config ./.github/updatecli/updatecli.d/helm-chart-update.yaml --values .github/updatecli/values.yaml"

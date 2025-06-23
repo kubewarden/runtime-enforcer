@@ -13,7 +13,7 @@ jobs:
   build:
     strategy:
       matrix:
-        component: [controller, worker, storage]
+        component: [operator, daemon]
         arch: [amd64, arm64]
         include:
           - arch: amd64
@@ -40,19 +40,19 @@ jobs:
         id: meta
         uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
         with:
-          images: ghcr.io/${{ github.repository_owner }}/sbombastic/${{ matrix.component }}
+          images: ghcr.io/${{ github.repository_owner }}/runtime-enforcement/${{ matrix.component }}
       - name: Build and push ${{ matrix.component }} for ${{ matrix.arch }}
         id: build-image
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
-          file: ./Dockerfile.${{ matrix.component }}
+          file: ./package/Dockerfile.${{ matrix.component }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.platform }}
           push: true
           sbom: true
           provenance: mode=max
-          tags: ghcr.io/${{ github.repository_owner }}/sbombastic/${{ matrix.component }}
+          tags: ghcr.io/${{ github.repository_owner }}/runtime-enforcement/${{ matrix.component }}
           outputs: |
             type=image,push=true,push-by-digest=true,name-canonical=true
       - name: Export digest
@@ -74,7 +74,7 @@ jobs:
       packages: write # Pushing multi-arch manifest to ghcr.io
     strategy:
       matrix:
-        component: [controller, worker, storage]
+        component: [operator, daemon]
     steps:
       - name: Download all digests
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -111,11 +111,11 @@ jobs:
           arm64_digest=$(cat ${{ matrix.component }}-arm64.txt)
 
           docker buildx imagetools create \
-            -t ghcr.io/${{ github.repository_owner }}/sbombastic/${{ matrix.component }}:${{ env.TAG_NAME }} \
-            ghcr.io/${{ github.repository_owner }}/sbombastic/${{ matrix.component }}@${amd64_digest} \
-            ghcr.io/${{ github.repository_owner }}/sbombastic/${{ matrix.component }}@${arm64_digest}
+            -t ghcr.io/${{ github.repository_owner }}/runtime-enforcement/${{ matrix.component }}:${{ env.TAG_NAME }} \
+            ghcr.io/${{ github.repository_owner }}/runtime-enforcement/${{ matrix.component }}@${amd64_digest} \
+            ghcr.io/${{ github.repository_owner }}/runtime-enforcement/${{ matrix.component }}@${arm64_digest}
 
-          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/sbombastic/${{ matrix.component }}:${{ env.TAG_NAME }}
+          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/runtime-enforcement/${{ matrix.component }}:${{ env.TAG_NAME }}
 
   attest:
     needs: [merge]
@@ -126,7 +126,7 @@ jobs:
       packages: write # Pushing attestations to ghcr.io
     strategy:
       matrix:
-        component: [controller, worker, storage]
+        component: [operator, daemon]
         arch: [amd64, arm64]
         include:
           - arch: amd64

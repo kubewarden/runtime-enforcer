@@ -107,11 +107,11 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 
 .PHONY: operator
 operator: fmt vet ## Build manager binary.
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/operator ./cmd/operator
+	CGO_ENABLED=0 GOOS=linux go build -o bin/operator ./cmd/operator
 
 .PHONY: daemon
 daemon: fmt vet ## Build daemon binary.
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/daemon ./cmd/daemon
+	CGO_ENABLED=0 GOOS=linux go build -o bin/daemon ./cmd/daemon
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

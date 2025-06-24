@@ -43,10 +43,10 @@ help: ## Display this help.
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=operator-role crd webhook paths="./api/v1alpha1" paths="./internal/controller" output:crd:artifacts:config=chart/templates/crd output:rbac:artifacts:config=chart/templates/operator
-	$(CONTROLLER_GEN) rbac:roleName=daemon-role paths="./internal/policy" paths="./internal/tetragon" paths="./internal/learner" output:rbac:artifacts:config=chart/templates/daemon
-	sed -i 's/operator-role/{{ include "runtime-enforcement.fullname" . }}-operator/' chart/templates/operator/role.yaml
-	sed -i 's/daemon-role/{{ include "runtime-enforcement.fullname" . }}-daemon/' chart/templates/daemon/role.yaml
+	$(CONTROLLER_GEN) rbac:roleName=operator-role crd webhook paths="./api/v1alpha1" paths="./internal/controller" output:crd:artifacts:config=charts/runtime-enforcement/templates/crd output:rbac:artifacts:config=charts/runtime-enforcement/templates/operator
+	$(CONTROLLER_GEN) rbac:roleName=daemon-role paths="./internal/policy" paths="./internal/tetragon" paths="./internal/learner" output:rbac:artifacts:config=charts/runtime-enforcement/templates/daemon
+	sed -i 's/operator-role/{{ include "runtime-enforcement.fullname" . }}-operator/' charts/runtime-enforcement/templates/operator/role.yaml
+	sed -i 's/daemon-role/{{ include "runtime-enforcement.fullname" . }}-daemon/' charts/runtime-enforcement/templates/daemon/role.yaml
 
 REPO ?= ghcr.io/neuvector/runtime-enforcement
 TAG ?= latest
@@ -82,7 +82,7 @@ test: vet setup-envtest ## Run tests.
 
 .PHONY: helm-unittest
 helm-unittest:
-	helm unittest chart/ --file "tests/**/*_test.yaml"
+	helm unittest charts/runtime-enforcement/ --file "tests/**/*_test.yaml"
 
 .PHONY: test-e2e
 test-e2e: vet

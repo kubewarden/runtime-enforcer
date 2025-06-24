@@ -35,7 +35,7 @@ func InstallRuntimeEnforcement(ctx context.Context, t *testing.T, config *envcon
 	manager := helm.New(config.KubeconfigFile())
 	err := manager.RunInstall(helm.WithName("runtime-enforcement"),
 		helm.WithNamespace(namespace),
-		helm.WithChart("../../chart/"),
+		helm.WithChart("../../charts/runtime-enforcement/"),
 		helm.WithWait(),
 		helm.WithTimeout("3m"))
 

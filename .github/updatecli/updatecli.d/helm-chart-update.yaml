@@ -7,7 +7,7 @@ sources:
     transformers:
       - semverinc: patch
     spec:
-      file: chart/Chart.yaml
+      file: charts/runtime-enforcement/Chart.yaml
       key: $.version
   releaseVersion:
     name: "Get latest runtime-enforcement version"
@@ -60,7 +60,7 @@ targets:
     kind: yaml
     sourceid: chartVersion
     spec:
-      file: chart/Chart.yaml
+      file: charts/runtime-enforcement/Chart.yaml
       key: $.version
   update_appversion:
     scmid: default
@@ -68,7 +68,7 @@ targets:
     kind: yaml
     sourceid: releaseVersion
     spec:
-      file: chart/Chart.yaml
+      file: charts/runtime-enforcement/Chart.yaml
       key: $.appVersion
   update_operator_version:
     scmid: default
@@ -76,7 +76,7 @@ targets:
     kind: yaml
     sourceid: releaseVersion
     spec:
-      file: chart/values.yaml
+      file: charts/runtime-enforcement/values.yaml
       key: $.operator.manager.image.tag
   update_daemon_version:
     scmid: default
@@ -84,5 +84,5 @@ targets:
     kind: yaml
     sourceid: releaseVersion
     spec:
-      file: chart/values.yaml
+      file: charts/runtime-enforcement/values.yaml
       key: $.daemon.daemon.image.tag

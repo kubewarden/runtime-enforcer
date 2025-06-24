@@ -16,7 +16,7 @@ helm_remote('tetragon',
     set='tetragonOperator.enabled=false,crds.installMethod=helm')
 
 yaml = helm(
-    "./chart",
+    "./charts/runtime-enforcement",
     name="runtime-enforcement",
     namespace="runtime-enforcement",
     set=[

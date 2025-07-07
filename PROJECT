@@ -68,4 +68,13 @@ resources:
   kind: Job
   path: k8s.io/api/batch/v1
   version: v1
+- api:
+    crdVersion: v1
+    namespaced: false
+  controller: true
+  domain: rancher.io
+  group: security
+  kind: ClusterWorkloadSecurityPolicy
+  path: github.com/neuvector/runtime-enforcement/api/v1alpha1
+  version: v1alpha1
 version: "3"

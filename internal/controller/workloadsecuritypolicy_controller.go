@@ -18,9 +18,58 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// UpdateTetragonPolicy updates a tetragon policy based on WorkloadSecurityPolicy.
+func UpdateTetragonPolicy(
+	spec *securityv1alpha1.WorkloadSecurityPolicySpec,
+	tetragonSpec *tetragonv1alpha1.TracingPolicySpec,
+) error {
+	// KProbe only for now
+	kprobe, err := GenerateKProbeEnforcePolicy(spec)
+	if err != nil {
+		return fmt.Errorf("failed to generate kprobe enforce policy: %w", err)
+	}
+
+	kprobe.Tags = spec.Tags
+	kprobe.Message = fmt.Sprintf("[%d] %s", spec.Severity, spec.Message)
+
+	tetragonSpec.KProbes = []tetragonv1alpha1.KProbeSpec{
+		kprobe,
+	}
+	tetragonSpec.Options = []tetragonv1alpha1.OptionSpec{
+		{
+			Name:  "disable-kprobe-multi",
+			Value: "1",
+		},
+	}
+
+	// Append pod selector
+	if spec.Selector != nil {
+		tetragonSpec.PodSelector = &slimv1.LabelSelector{
+			MatchLabels:      spec.Selector.MatchLabels,
+			MatchExpressions: ConvertMatchExpressions(spec.Selector.MatchExpressions),
+		}
+	}
+
+	return nil
+}
+
+func ConvertMatchExpressions(
+	matchExpressions []metav1.LabelSelectorRequirement,
+) []slimv1.LabelSelectorRequirement {
+	var ret []slimv1.LabelSelectorRequirement
+	for _, labelSelectorRequirement := range matchExpressions {
+		ret = append(ret, slimv1.LabelSelectorRequirement{
+			Key:      labelSelectorRequirement.Key,
+			Operator: slimv1.LabelSelectorOperator(labelSelectorRequirement.Operator),
+			Values:   labelSelectorRequirement.Values,
+		})
+	}
+	return ret
+}
+
 // GenerateKProbeEnforcePolicy creates a tetragon KprobeSpec based workload security policy.
 func GenerateKProbeEnforcePolicy(
-	policy *securityv1alpha1.WorkloadSecurityPolicy,
+	spec *securityv1alpha1.WorkloadSecurityPolicySpec,
 ) (tetragonv1alpha1.KProbeSpec, error) {
 	ret := tetragonv1alpha1.KProbeSpec{
 		Call:    "security_bprm_creds_for_exec",
@@ -33,7 +82,6 @@ func GenerateKProbeEnforcePolicy(
 		},
 		Selectors: []tetragonv1alpha1.KProbeSelector{},
 	}
-	spec := policy.Spec
 
 	var kprobeSelector tetragonv1alpha1.KProbeSelector
 
@@ -72,55 +120,6 @@ type WorkloadSecurityPolicyReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-func (r *WorkloadSecurityPolicyReconciler) convertMatchExpressions(
-	matchExpressions []metav1.LabelSelectorRequirement,
-) []slimv1.LabelSelectorRequirement {
-	var ret []slimv1.LabelSelectorRequirement
-	for _, labelSelectorRequirement := range matchExpressions {
-		ret = append(ret, slimv1.LabelSelectorRequirement{
-			Key:      labelSelectorRequirement.Key,
-			Operator: slimv1.LabelSelectorOperator(labelSelectorRequirement.Operator),
-			Values:   labelSelectorRequirement.Values,
-		})
-	}
-	return ret
-}
-
-// UpdateTetragonPolicy updates a tetragon policy based on WorkloadSecurityPolicy.
-func (r *WorkloadSecurityPolicyReconciler) UpdateTetragonPolicy(
-	policy *securityv1alpha1.WorkloadSecurityPolicy,
-	tetragonPolicy *tetragonv1alpha1.TracingPolicyNamespaced,
-) error {
-	// KProbe only for now
-	kprobe, err := GenerateKProbeEnforcePolicy(policy)
-	if err != nil {
-		return fmt.Errorf("failed to generate kprobe enforce policy: %w", err)
-	}
-
-	kprobe.Tags = policy.Spec.Tags
-	kprobe.Message = fmt.Sprintf("[%d] %s", policy.Spec.Severity, policy.Spec.Message)
-
-	tetragonPolicy.Spec.KProbes = []tetragonv1alpha1.KProbeSpec{
-		kprobe,
-	}
-	tetragonPolicy.Spec.Options = []tetragonv1alpha1.OptionSpec{
-		{
-			Name:  "disable-kprobe-multi",
-			Value: "1",
-		},
-	}
-
-	// Append pod selector
-	if policy.Spec.Selector != nil {
-		tetragonPolicy.Spec.PodSelector = &slimv1.LabelSelector{
-			MatchLabels:      policy.Spec.Selector.MatchLabels,
-			MatchExpressions: r.convertMatchExpressions(policy.Spec.Selector.MatchExpressions),
-		}
-	}
-
-	return nil
-}
-
 //nolint:lll // kubebuilder markers
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicies/status,verbs=get;update;patch
@@ -128,6 +127,7 @@ func (r *WorkloadSecurityPolicyReconciler) UpdateTetragonPolicy(
 // +kubebuilder:rbac:groups=cilium.io,resources=tracingpoliciesnamespaced,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cilium.io,resources=tracingpolicies,verbs=get;list;watch;create;update;patch;delete
 
+//nolint:dupl // we're more tolerant with controller code.
 func (r *WorkloadSecurityPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
@@ -144,7 +144,7 @@ func (r *WorkloadSecurityPolicyReconciler) Reconcile(ctx context.Context, req ct
 	tetragonPolicy.Namespace = policy.Namespace
 	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		_, err = controllerutil.CreateOrUpdate(ctx, r.Client, &tetragonPolicy, func() error {
-			err = r.UpdateTetragonPolicy(&policy, &tetragonPolicy)
+			err = UpdateTetragonPolicy(&policy.Spec, &tetragonPolicy.Spec)
 			if err != nil {
 				return fmt.Errorf("failed to update Tetragon Policy: %w", err)
 			}

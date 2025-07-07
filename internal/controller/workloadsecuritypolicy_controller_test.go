@@ -204,7 +204,7 @@ var _ = Describe("WorkloadSecurityPolicy Controller", func() {
 				log := log.FromContext(ctx)
 				log.Info(tc.Name)
 				kprobespec, err := controller.GenerateKProbeEnforcePolicy(
-					&tc.Policy,
+					&tc.Policy.Spec,
 				)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(kprobespec).To(Equal(tc.Expected))

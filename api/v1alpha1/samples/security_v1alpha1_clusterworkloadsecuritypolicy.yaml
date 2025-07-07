@@ -1,0 +1,20 @@
+apiVersion: security.rancher.io/v1alpha1
+kind: ClusterWorkloadSecurityPolicy
+metadata:
+  name: clusterworkloadsecuritypolicy-sample
+spec:
+  mode: monitor # monitor/protect
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: ingress-nginx
+      app.kubernetes.io/name: ingress-nginx
+  rules:
+    executables:
+      allowed:
+        - /nginx-ingress-controller
+      allowedPrefixes:
+        - /usr/bin/
+  severity: 1 # optional a number between 1 and 10
+  tags: ["MITRE"] # optional
+  message: "custom error message in events" # optional

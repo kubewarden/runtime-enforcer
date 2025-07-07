@@ -5,14 +5,6 @@ metadata:
   name: {{ include "runtime-enforcement.fullname" . }}-daemon
 rules:
 - apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
   - security.rancher.io
   resources:
   - workloadsecuritypolicyproposals

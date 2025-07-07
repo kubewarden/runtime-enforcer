@@ -38,7 +38,6 @@ type WorkloadSecurityPolicyRules struct {
 	Executables WorkloadSecurityPolicyExecutables `json:"executables,omitempty"`
 }
 
-// WorkloadSecurityPolicySpec defines the desired state of WorkloadSecurityPolicy.
 type WorkloadSecurityPolicySpec struct {
 	// mode decides the behavior of this policy.
 	// +kubebuilder:validation:Enum=monitor;protect
@@ -73,7 +72,6 @@ type WorkloadSecurityPolicySpec struct {
 	Message string `json:"message"`
 }
 
-// WorkloadSecurityPolicyStatus defines the observed state of WorkloadSecurityPolicy.
 type WorkloadSecurityPolicyStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
@@ -96,7 +94,10 @@ type WorkloadSecurityPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   WorkloadSecurityPolicySpec   `json:"spec,omitempty"`
+	// Spec defines the desired state of this custom resource.
+	Spec WorkloadSecurityPolicySpec `json:"spec,omitempty"`
+
+	// Status defines the observed state of this custom resource.
 	Status WorkloadSecurityPolicyStatus `json:"status,omitempty"`
 }
 

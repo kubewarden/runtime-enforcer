@@ -40,6 +40,7 @@ rules:
 - apiGroups:
   - security.rancher.io
   resources:
+  - clusterworkloadsecuritypolicies
   - workloadsecuritypolicies
   - workloadsecuritypolicyproposals
   verbs:
@@ -53,6 +54,7 @@ rules:
 - apiGroups:
   - security.rancher.io
   resources:
+  - clusterworkloadsecuritypolicies/finalizers
   - workloadsecuritypolicies/finalizers
   - workloadsecuritypolicyproposals/finalizers
   verbs:
@@ -60,6 +62,7 @@ rules:
 - apiGroups:
   - security.rancher.io
   resources:
+  - clusterworkloadsecuritypolicies/status
   - workloadsecuritypolicies/status
   - workloadsecuritypolicyproposals/status
   verbs:

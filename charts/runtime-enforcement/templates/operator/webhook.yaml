@@ -1,0 +1,35 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "runtime-enforcement.fullname" . }}-mutating-webhook-configuration
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "runtime-enforcement.fullname" . }}-ca
+  labels:
+  {{- include "runtime-enforcement.labels" . | nindent 4 }}
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: {{ include "runtime-enforcement.fullname" . }}-mutating-webhook
+      namespace: {{ .Release.Namespace }}
+      path: /mutate-security-rancher-io-v1alpha1-workloadsecuritypolicyproposal
+  failurePolicy: Fail
+  name: workloadsecuritypolicyproposals.rancher.io
+  rules:
+  - apiGroups:
+    - security.rancher.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - workloadsecuritypolicyproposals
+  sideEffects: None
+  matchConditions:
+  - name: no-selector
+    expression: '!has(object.spec.selector) || object.spec.selector.size() == 0'
+  - name: no-owner-reference-uid
+    expression: '!has(object.metadata.ownerReferences) || object.metadata.ownerReferences.size() == 0 || object.metadata.ownerReferences[0].uid.size() == 0'

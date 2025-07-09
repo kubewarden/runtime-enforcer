@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ubuntu-daemonset
+  namespace: default
+  labels:
+    app: ubuntu
+spec:
+  selector:
+    matchLabels:
+      app: ubuntu
+      type: daemonset
+  template:
+    metadata:
+      labels:
+        app: ubuntu
+        type: daemonset
+    spec:
+      containers:
+      - name: ubuntu
+        image: ubuntu
+        command: ["bash", "-c", "while true; do sleep 5; ls; done"]

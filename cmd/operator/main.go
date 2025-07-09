@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -97,55 +98,7 @@ func SetupControllers(logger logr.Logger,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create workload security policy controller: %w", err)
 	}
-	if err = (&controller.DeploymentReconciler{
-		CommonReconciler: controller.CommonReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		},
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create deployment controller: %w", err)
-	}
-	if err = (&controller.ReplicaSetReconciler{
-		CommonReconciler: controller.CommonReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		},
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create replica set controller: %w", err)
-	}
 
-	if err = (&controller.DaemonSetReconciler{
-		CommonReconciler: controller.CommonReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		},
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create daemonset controller: %w", err)
-	}
-	if err = (&controller.StatefulSetReconciler{
-		CommonReconciler: controller.CommonReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		},
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create statefulset controller: %w", err)
-	}
-	if err = (&controller.CronJobReconciler{
-		CommonReconciler: controller.CommonReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		},
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create cronjob controller: %w", err)
-	}
-	if err = (&controller.JobReconciler{
-		CommonReconciler: controller.CommonReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		},
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create job controller: %w", err)
-	}
 	if err = (&controller.ClusterWorkloadSecurityPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
@@ -179,24 +132,14 @@ func SetupControllers(logger logr.Logger,
 	return nil
 }
 
-func main() {
-	setupLog := ctrl.Log.WithName("setup")
-
-	var config Config
-	parseArgs(setupLog, &config)
-
-	scheme := runtime.NewScheme()
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(securityv1alpha1.AddToScheme(scheme))
-
-	// Create watchers for metrics and webhooks certificates
-	var metricsCertWatcher, webhookCertWatcher *certwatcher.CertWatcher
+func parseWebhookOptions(logger *logr.Logger, config *Config) (*certwatcher.CertWatcher, []func(*tls.Config)) {
+	var webhookCertWatcher *certwatcher.CertWatcher
 
 	// Initial webhook TLS options
 	webhookTLSOpts := config.tlsOpts
 
 	if len(config.webhookCertPath) > 0 {
-		setupLog.Info("Initializing webhook certificate watcher using provided certificates",
+		logger.Info("Initializing webhook certificate watcher using provided certificates",
 			"webhook-cert-path",
 			config.webhookCertPath,
 			"webhook-cert-name",
@@ -210,7 +153,7 @@ func main() {
 			filepath.Join(config.webhookCertPath, config.webhookCertKey),
 		)
 		if err != nil {
-			setupLog.Error(err, "Failed to initialize webhook certificate watcher")
+			logger.Error(err, "Failed to initialize webhook certificate watcher")
 			os.Exit(1)
 		}
 
@@ -219,6 +162,23 @@ func main() {
 		})
 	}
 
+	return webhookCertWatcher, webhookTLSOpts
+}
+
+func main() {
+	setupLog := ctrl.Log.WithName("setup")
+
+	var config Config
+	parseArgs(setupLog, &config)
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(securityv1alpha1.AddToScheme(scheme))
+
+	// Create watchers for metrics and webhooks certificates
+	var metricsCertWatcher *certwatcher.CertWatcher
+
+	webhookCertWatcher, webhookTLSOpts := parseWebhookOptions(&setupLog, &config)
 	webhookServer := webhook.NewServer(webhook.Options{
 		TLSOpts: webhookTLSOpts,
 	})
@@ -288,6 +248,15 @@ func main() {
 
 	if err = SetupControllers(setupLog, mgr, metricsCertWatcher, webhookCertWatcher); err != nil {
 		setupLog.Error(err, "unable to setup controllers")
+		os.Exit(1)
+	}
+
+	err = builder.WebhookManagedBy(mgr).
+		For(&securityv1alpha1.WorkloadSecurityPolicyProposal{}).
+		WithDefaulter(&controller.ProposalWebhook{Client: mgr.GetClient()}).
+		Complete()
+	if err != nil {
+		setupLog.Error(err, "unable to create a webhook")
 		os.Exit(1)
 	}
 

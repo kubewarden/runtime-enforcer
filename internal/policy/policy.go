@@ -1,7 +1,6 @@
 package policy
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -46,7 +45,7 @@ func GetWorkloadSecurityPolicyProposalName(kind string, resourceName string) (st
 	case "StatefulSet":
 		shortname = "sts"
 	default:
-		return "", errors.New("unknown kind")
+		return "", fmt.Errorf("unknown kind: %s", kind)
 	}
 	return shortname + "-" + resourceName, nil
 }

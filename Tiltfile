@@ -1,6 +1,16 @@
 tilt_settings_file = "./tilt-settings.yaml"
 settings = read_yaml(tilt_settings_file)
 
+update_settings(
+	k8s_upsert_timeout_secs=180,
+)
+
+# while it takes some time to install cert manager, it's okay to wait 
+# because we rely on its ca injector to setup our mutating webhook.
+load('ext://cert_manager', 'deploy_cert_manager')
+
+deploy_cert_manager(version="v1.18.2")
+
 # Create the namespace
 # This is required since the helm() function doesn't support the create_namespace flag
 load("ext://namespace", "namespace_create")

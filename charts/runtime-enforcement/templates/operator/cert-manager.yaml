@@ -1,0 +1,60 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "runtime-enforcement.fullname" . }}-selfsigned-issuer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "runtime-enforcement.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "runtime-enforcement.fullname" . }}-ca
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "runtime-enforcement.labels" . | nindent 4 }}
+spec:
+  isCA: true
+  commonName: {{ include "runtime-enforcement.fullname" . }}-ca
+  secretName: runtime-enforcement-ca
+  duration: 8736h # 1 year
+  renewBefore: 240h # 10 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: {{ include "runtime-enforcement.fullname" . }}-selfsigned-issuer
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "runtime-enforcement.fullname" . }}-ca
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "runtime-enforcement.labels" . | nindent 4 }}
+spec:
+  ca:
+    secretName: runtime-enforcement-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "runtime-enforcement.fullname" . }}-operator-webhook-tls
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "runtime-enforcement.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "runtime-enforcement.fullname" . }}-operator-webhook-tls
+  dnsNames:
+    - {{ include "runtime-enforcement.fullname" . }}-mutating-webhook.{{ .Release.Namespace }}.svc
+  duration: 2160h # 90 days
+  renewBefore: 240h # 10 days
+  issuerRef:
+    name: {{ include "runtime-enforcement.fullname" . }}-ca
+    kind: Issuer
+    group: cert-manager.io

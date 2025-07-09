@@ -13,8 +13,6 @@ rules:
   - statefulsets
   verbs:
   - get
-  - list
-  - watch
 - apiGroups:
   - batch
   resources:
@@ -22,8 +20,6 @@ rules:
   - jobs
   verbs:
   - get
-  - list
-  - watch
 - apiGroups:
   - cilium.io
   resources:
@@ -42,7 +38,6 @@ rules:
   resources:
   - clusterworkloadsecuritypolicies
   - workloadsecuritypolicies
-  - workloadsecuritypolicyproposals
   verbs:
   - create
   - delete
@@ -56,7 +51,6 @@ rules:
   resources:
   - clusterworkloadsecuritypolicies/finalizers
   - workloadsecuritypolicies/finalizers
-  - workloadsecuritypolicyproposals/finalizers
   verbs:
   - update
 - apiGroups:
@@ -64,7 +58,6 @@ rules:
   resources:
   - clusterworkloadsecuritypolicies/status
   - workloadsecuritypolicies/status
-  - workloadsecuritypolicyproposals/status
   verbs:
   - get
   - patch

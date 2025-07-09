@@ -3,21 +3,25 @@ package learner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	securityv1alpha1 "github.com/neuvector/runtime-enforcement/api/v1alpha1"
 	"github.com/neuvector/runtime-enforcement/internal/event"
 	"github.com/neuvector/runtime-enforcement/internal/policy"
 	"github.com/neuvector/runtime-enforcement/pkg/generated/clientset/versioned"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 )
 
 const (
 	EventAggregatorFlushTimeout = time.Second * 10
+	MaxExecutables              = 100
 )
 
 type Learner struct {
@@ -50,39 +54,93 @@ func (l *Learner) Start(ctx context.Context) error {
 	return nil
 }
 
-func (l *Learner) learn(ae event.AggregatableEvent) error {
+// addProcessToProposal adds a process into the policy proposal.
+func (l *Learner) addProcessToProposal(
+	obj *securityv1alpha1.WorkloadSecurityPolicyProposal,
+	processEvent *event.ProcessEvent,
+) error {
+	if len(obj.Spec.Rules.Executables.Allowed) >= MaxExecutables {
+		return errors.New("the number of executables has exceeded its maximum")
+	}
+	if slices.Contains(obj.Spec.Rules.Executables.Allowed, processEvent.ExecutablePath) {
+		return nil
+	}
+
+	obj.Spec.Rules.Executables.Allowed = append(obj.Spec.Rules.Executables.Allowed, processEvent.ExecutablePath)
+
+	return nil
+}
+
+func (l *Learner) mutateProposal(
+	policyProposal *securityv1alpha1.WorkloadSecurityPolicyProposal,
+	processEvent *event.ProcessEvent,
+) error {
+	if len(policyProposal.OwnerReferences) == 0 {
+		policyProposal.OwnerReferences = []metav1.OwnerReference{
+			{
+				Kind: processEvent.WorkloadKind,
+				Name: processEvent.Workload,
+			},
+		}
+	}
+
+	err := l.addProcessToProposal(policyProposal, processEvent)
+	if err != nil {
+		return fmt.Errorf("failed to mutate proposal: %w", err)
+	}
+
+	return nil
+}
+
+func (l *Learner) learn(ctx context.Context, ae event.AggregatableEvent) error {
 	var err error
-	var pg *securityv1alpha1.WorkloadSecurityPolicyProposal
 	var proposalName string
 
+	processEvent, ok := ae.(*event.ProcessEvent)
+	if !ok {
+		return errors.New("unknown type: %T, expected: ProcessEvent")
+	}
+
 	// TODO: Rethink the interface.
-	proposalName, err = ae.GetProposalName()
+	proposalName, err = processEvent.GetProposalName()
 	if err != nil {
 		return fmt.Errorf("no group ID is associated with this event: %w", err)
 	}
 
-	l.logger.Debug("the proposal is found", "proposal", proposalName)
+	l.logger.DebugContext(ctx, "the proposal is found", "proposal", proposalName)
 
+	policyProposal := &securityv1alpha1.WorkloadSecurityPolicyProposal{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      proposalName,
+			Namespace: processEvent.Namespace,
+		},
+	}
+
+	// Here implements a GetOrUpdate.
 	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		var proposal *securityv1alpha1.WorkloadSecurityPolicyProposal
 		proposalClient := l.client.SecurityV1alpha1().WorkloadSecurityPolicyProposals(ae.GetNamespace())
-		pg, err = proposalClient.Get(context.TODO(), proposalName, v1.GetOptions{})
-		if err != nil {
+		if proposal, err = proposalClient.Get(ctx, proposalName, metav1.GetOptions{}); err != nil {
+			if !k8sErrors.IsNotFound(err) {
+				return fmt.Errorf("failed to get proposal: %w", err)
+			}
+
+			if err = l.mutateProposal(policyProposal, processEvent); err != nil {
+				return err
+			}
+
+			_, err = proposalClient.Create(ctx, policyProposal, metav1.CreateOptions{})
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+
+		if err = l.mutateProposal(proposal, processEvent); err != nil {
 			return err
 		}
-		pg.Spec.Rules.Executables.Allowed = append(pg.Spec.Rules.Executables.Allowed, ae.GetExecutablePath())
 
-		dedup := map[string]bool{}
-		for _, v := range pg.Spec.Rules.Executables.Allowed {
-			dedup[v] = true
-		}
-
-		pg.Spec.Rules.Executables.Allowed = nil
-
-		for k := range dedup {
-			pg.Spec.Rules.Executables.Allowed = append(pg.Spec.Rules.Executables.Allowed, k)
-		}
-
-		_, err = proposalClient.Update(context.TODO(), pg, v1.UpdateOptions{})
+		_, err = proposalClient.Update(ctx, proposal, metav1.UpdateOptions{})
 		if err != nil {
 			return err
 		}
@@ -96,7 +154,7 @@ func (l *Learner) learn(ae event.AggregatableEvent) error {
 }
 
 //nolint:lll // kubebuilder markers
-// +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals,verbs=create;get;list;watch;update;patch
 
 func (l *Learner) LearnLoop(ctx context.Context) error {
 	for {
@@ -115,7 +173,7 @@ func (l *Learner) LearnLoop(ctx context.Context) error {
 
 			l.logger.Info("Getting events", "event", string(eb))
 
-			if err = l.learn(ae); err != nil {
+			if err = l.learn(ctx, ae); err != nil {
 				return true, fmt.Errorf("failed to learn process: %w", err)
 			}
 			return true, nil

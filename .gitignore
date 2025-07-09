@@ -29,3 +29,6 @@ go.work
 
 # tilt settings
 tilt-settings.yaml
+
+# local development tools
+.husky

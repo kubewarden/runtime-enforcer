@@ -9,6 +9,7 @@ rules:
   resources:
   - workloadsecuritypolicyproposals
   verbs:
+  - create
   - get
   - list
   - patch

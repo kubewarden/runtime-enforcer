@@ -50,6 +50,14 @@ spec:
           }}
         securityContext: {{- toYaml .Values.operator.manager.containerSecurityContext
           | nindent 10 }}
+        volumeMounts:
+          - mountPath: /tmp/k8s-webhook-server/serving-certs/
+            name: webhook-certs
+            readOnly: true
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: {{ include "runtime-enforcement.fullname" . }}-operator-webhook-tls
       securityContext: {{- toYaml .Values.operator.podSecurityContext | nindent
         8 }}
       serviceAccountName: {{ include "runtime-enforcement.fullname" . }}-controller-manager

@@ -86,7 +86,8 @@
         "printcolumn",
         "gochecknoinits",
         "genclient",
-        "subresource"
+        "subresource",
+        "externalversions"
     ],
     "import": []
 }

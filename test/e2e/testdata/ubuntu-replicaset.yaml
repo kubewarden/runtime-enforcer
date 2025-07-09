@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: ubuntu-replicaset
+  namespace: default
+  labels:
+    app: ubuntu-replicaset
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ubuntu
+      type: replicaset
+  template:
+    metadata:
+      labels:
+        app: ubuntu
+        type: replicaset
+    spec:
+      containers:
+      - name: ubuntu
+        image: ubuntu
+        command: ["bash", "-c", "while true; do sleep 5; ls; done"]

@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ubuntu-job
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - name: hello
+        image: ubuntu
+        command: ["bash", "-c", "while true; do sleep 5; ls; done"]
+      restartPolicy: OnFailure

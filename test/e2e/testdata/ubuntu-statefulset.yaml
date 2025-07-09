@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ubuntu-statefulset
+  namespace: default
+  labels:
+    app: ubuntu
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ubuntu
+      type: statefulset
+  template:
+    metadata:
+      labels:
+        app: ubuntu
+        type: statefulset
+    spec:
+      containers:
+      - name: ubuntu
+        image: ubuntu
+        command: ["bash", "-c", "while true; do sleep 5; ls; done"]

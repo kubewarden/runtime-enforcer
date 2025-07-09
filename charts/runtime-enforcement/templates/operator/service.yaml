@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "runtime-enforcement.fullname" . }}-mutating-webhook
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{ include "runtime-enforcement.labels" .| nindent 4 }}
+    app.kubernetes.io/component: operator
+spec:
+  ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 9443
+  selector:
+    {{ include "runtime-enforcement.selectorLabels" .| nindent 4 }}
+    app.kubernetes.io/component: operator

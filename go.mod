@@ -13,10 +13,10 @@ require (
 	github.com/onsi/gomega v1.37.0
 	github.com/stretchr/testify v1.10.0
 	google.golang.org/grpc v1.73.0
-	k8s.io/api v0.33.2
-	k8s.io/apimachinery v0.33.2
-	k8s.io/client-go v0.33.2
-	k8s.io/code-generator v0.33.2
+	k8s.io/api v0.33.3
+	k8s.io/apimachinery v0.33.3
+	k8s.io/client-go v0.33.3
+	k8s.io/code-generator v0.33.3
 	sigs.k8s.io/controller-runtime v0.21.0
 	sigs.k8s.io/e2e-framework v0.6.0
 	sigs.k8s.io/structured-merge-diff/v4 v4.7.0

@@ -18,10 +18,7 @@ type ClusterWorkloadSecurityPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// Spec defines the desired state of this custom resource.
-	Spec WorkloadSecurityPolicySpec `json:"spec,omitempty"`
-
-	// Status defines the observed state of this custom resource.
+	Spec   WorkloadSecurityPolicySpec   `json:"spec,omitempty"`
 	Status WorkloadSecurityPolicyStatus `json:"status,omitempty"`
 }
 

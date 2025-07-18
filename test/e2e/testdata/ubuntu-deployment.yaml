@@ -18,4 +18,8 @@ spec:
       containers:
       - name: ubuntu
         image: ubuntu
+        # We create a while loop to continually run sleep and ls.
+        # This way we can detect two groups of processes in our test:
+        # - process snapshot (bash)
+        # - process events (sleep and ls).
         command: ["bash", "-c", "while true; do sleep 5; ls; done"]

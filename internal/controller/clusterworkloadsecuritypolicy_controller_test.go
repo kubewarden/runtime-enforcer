@@ -7,7 +7,6 @@ import (
 	. "github.com/onsi/ginkgo/v2" //nolint:revive // Required for testing
 	. "github.com/onsi/gomega"    //nolint:revive // Required for testing
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -27,42 +26,38 @@ var _ = Describe("ClusterWorkloadSecurityPolicy Controller", func() {
 		typeNamespacedName := types.NamespacedName{
 			Name: resourceName,
 		}
-		clusterworkloadsecuritypolicy := &securityv1alpha1.ClusterWorkloadSecurityPolicy{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind ClusterWorkloadSecurityPolicy")
-			err := k8sClient.Get(ctx, typeNamespacedName, clusterworkloadsecuritypolicy)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &securityv1alpha1.ClusterWorkloadSecurityPolicy{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: resourceName,
+			resource := &securityv1alpha1.ClusterWorkloadSecurityPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: resourceName,
+				},
+				Spec: securityv1alpha1.WorkloadSecurityPolicySpec{
+					Mode: "monitor",
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"app": "ubuntu",
+						},
 					},
-					Spec: securityv1alpha1.WorkloadSecurityPolicySpec{
-						Mode: "monitor",
-						Selector: &metav1.LabelSelector{
-							MatchLabels: map[string]string{
-								"app": "ubuntu",
+					Rules: securityv1alpha1.WorkloadSecurityPolicyRules{
+						Executables: securityv1alpha1.WorkloadSecurityPolicyExecutables{
+							Allowed: []string{
+								"/usr/bin/sleep",
+							},
+							AllowedPrefixes: []string{
+								"/bin/",
 							},
 						},
-						Rules: securityv1alpha1.WorkloadSecurityPolicyRules{
-							Executables: securityv1alpha1.WorkloadSecurityPolicyExecutables{
-								Allowed: []string{
-									"/usr/bin/sleep",
-								},
-								AllowedPrefixes: []string{
-									"/bin/",
-								},
-							},
-						},
-						Severity: 10,
-						Tags: []string{
-							"tag",
-						},
-						Message: "TEST_RULE",
 					},
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+					Severity: 10,
+					Tags: []string{
+						"tag",
+					},
+					Message: "TEST_RULE",
+				},
 			}
+			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 		})
 
 		AfterEach(func() {
@@ -73,6 +68,7 @@ var _ = Describe("ClusterWorkloadSecurityPolicy Controller", func() {
 			By("Cleanup the specific resource instance ClusterWorkloadSecurityPolicy")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
+
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
 
@@ -113,7 +109,7 @@ var _ = Describe("ClusterWorkloadSecurityPolicy Controller", func() {
 					Name: "Test protect mode",
 					Policy: securityv1alpha1.ClusterWorkloadSecurityPolicy{
 						Spec: securityv1alpha1.WorkloadSecurityPolicySpec{
-							Mode:     string(securityv1alpha1.ProtectMode),
+							Mode:     securityv1alpha1.ProtectMode,
 							Selector: &metav1.LabelSelector{},
 							Rules: securityv1alpha1.WorkloadSecurityPolicyRules{
 								Executables: securityv1alpha1.WorkloadSecurityPolicyExecutables{
@@ -154,13 +150,15 @@ var _ = Describe("ClusterWorkloadSecurityPolicy Controller", func() {
 								},
 							},
 						},
+						Message: "[0] ",
+						Tags:    []string{},
 					},
 				},
 				{
 					Name: "Test monitor mode",
 					Policy: securityv1alpha1.ClusterWorkloadSecurityPolicy{
 						Spec: securityv1alpha1.WorkloadSecurityPolicySpec{
-							Mode:     string(securityv1alpha1.MonitorMode),
+							Mode:     securityv1alpha1.MonitorMode,
 							Selector: &metav1.LabelSelector{},
 							Rules: securityv1alpha1.WorkloadSecurityPolicyRules{
 								Executables: securityv1alpha1.WorkloadSecurityPolicyExecutables{
@@ -195,6 +193,8 @@ var _ = Describe("ClusterWorkloadSecurityPolicy Controller", func() {
 								},
 							},
 						},
+						Message: "[0] ",
+						Tags:    []string{},
 					},
 				},
 			}
@@ -202,13 +202,9 @@ var _ = Describe("ClusterWorkloadSecurityPolicy Controller", func() {
 			for _, tc := range tcs {
 				log := log.FromContext(ctx)
 				log.Info(tc.Name)
-				kprobespec, err := controller.GenerateKProbeEnforcePolicy(
-					&tc.Policy.Spec,
-				)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(kprobespec).To(Equal(tc.Expected))
+				tetragonPolicySpec := tc.Policy.Spec.IntoTetragonPolicySpec()
+				Expect(tetragonPolicySpec.KProbes[0]).To(Equal(tc.Expected))
 			}
-
 		})
 	})
 })

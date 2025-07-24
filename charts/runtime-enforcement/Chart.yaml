@@ -4,3 +4,8 @@ description: SUSE Security Runtime Enforcement helm chart
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
+
+dependencies:
+  - name: tetragon
+    version: "1.4.1"
+    repository: "https://helm.cilium.io"

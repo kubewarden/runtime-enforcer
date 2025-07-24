@@ -19,6 +19,10 @@ spec:
       annotations:
         kubectl.kubernetes.io/default-container: manager
     spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
       containers:
       - args: {{- toYaml .Values.operator.manager.args | nindent 8 }}
         command:

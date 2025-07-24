@@ -3,13 +3,14 @@
 package v1alpha1
 
 import (
+	apiv1alpha1 "github.com/neuvector/runtime-enforcement/api/v1alpha1"
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
 // WorkloadSecurityPolicySpecApplyConfiguration represents a declarative configuration of the WorkloadSecurityPolicySpec type for use
 // with apply.
 type WorkloadSecurityPolicySpecApplyConfiguration struct {
-	Mode     *string                                        `json:"mode,omitempty"`
+	Mode     *apiv1alpha1.PolicyMode                        `json:"mode,omitempty"`
 	Selector *v1.LabelSelectorApplyConfiguration            `json:"selector,omitempty"`
 	Rules    *WorkloadSecurityPolicyRulesApplyConfiguration `json:"rules,omitempty"`
 	Severity *int                                           `json:"severity,omitempty"`
@@ -26,7 +27,7 @@ func WorkloadSecurityPolicySpec() *WorkloadSecurityPolicySpecApplyConfiguration 
 // WithMode sets the Mode field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Mode field is set to the value of the last call.
-func (b *WorkloadSecurityPolicySpecApplyConfiguration) WithMode(value string) *WorkloadSecurityPolicySpecApplyConfiguration {
+func (b *WorkloadSecurityPolicySpecApplyConfiguration) WithMode(value apiv1alpha1.PolicyMode) *WorkloadSecurityPolicySpecApplyConfiguration {
 	b.Mode = &value
 	return b
 }

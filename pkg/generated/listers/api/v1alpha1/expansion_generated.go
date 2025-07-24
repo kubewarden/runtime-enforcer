@@ -2,6 +2,14 @@
 
 package v1alpha1
 
+// ClusterWorkloadSecurityPolicyListerExpansion allows custom methods to be added to
+// ClusterWorkloadSecurityPolicyLister.
+type ClusterWorkloadSecurityPolicyListerExpansion interface{}
+
+// ClusterWorkloadSecurityPolicyNamespaceListerExpansion allows custom methods to be added to
+// ClusterWorkloadSecurityPolicyNamespaceLister.
+type ClusterWorkloadSecurityPolicyNamespaceListerExpansion interface{}
+
 // WorkloadSecurityPolicyListerExpansion allows custom methods to be added to
 // WorkloadSecurityPolicyLister.
 type WorkloadSecurityPolicyListerExpansion interface{}

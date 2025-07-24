@@ -8,6 +8,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// ClusterWorkloadSecurityPolicies returns a ClusterWorkloadSecurityPolicyInformer.
+	ClusterWorkloadSecurityPolicies() ClusterWorkloadSecurityPolicyInformer
 	// WorkloadSecurityPolicies returns a WorkloadSecurityPolicyInformer.
 	WorkloadSecurityPolicies() WorkloadSecurityPolicyInformer
 	// WorkloadSecurityPolicyProposals returns a WorkloadSecurityPolicyProposalInformer.
@@ -23,6 +25,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// ClusterWorkloadSecurityPolicies returns a ClusterWorkloadSecurityPolicyInformer.
+func (v *version) ClusterWorkloadSecurityPolicies() ClusterWorkloadSecurityPolicyInformer {
+	return &clusterWorkloadSecurityPolicyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // WorkloadSecurityPolicies returns a WorkloadSecurityPolicyInformer.

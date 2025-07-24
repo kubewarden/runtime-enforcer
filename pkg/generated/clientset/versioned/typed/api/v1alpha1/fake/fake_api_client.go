@@ -12,6 +12,10 @@ type FakeSecurityV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeSecurityV1alpha1) ClusterWorkloadSecurityPolicies(namespace string) v1alpha1.ClusterWorkloadSecurityPolicyInterface {
+	return newFakeClusterWorkloadSecurityPolicies(c, namespace)
+}
+
 func (c *FakeSecurityV1alpha1) WorkloadSecurityPolicies(namespace string) v1alpha1.WorkloadSecurityPolicyInterface {
 	return newFakeWorkloadSecurityPolicies(c, namespace)
 }

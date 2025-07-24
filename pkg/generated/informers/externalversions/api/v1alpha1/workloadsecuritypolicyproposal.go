@@ -46,13 +46,25 @@ func NewFilteredWorkloadSecurityPolicyProposalInformer(client versioned.Interfac
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SecurityV1alpha1().WorkloadSecurityPolicyProposals(namespace).List(context.TODO(), options)
+				return client.SecurityV1alpha1().WorkloadSecurityPolicyProposals(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SecurityV1alpha1().WorkloadSecurityPolicyProposals(namespace).Watch(context.TODO(), options)
+				return client.SecurityV1alpha1().WorkloadSecurityPolicyProposals(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.SecurityV1alpha1().WorkloadSecurityPolicyProposals(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.SecurityV1alpha1().WorkloadSecurityPolicyProposals(namespace).Watch(ctx, options)
 			},
 		},
 		&runtimeenforcementapiv1alpha1.WorkloadSecurityPolicyProposal{},

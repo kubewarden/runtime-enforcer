@@ -16,6 +16,8 @@ import (
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
 	// Group=security.rancher.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("ClusterWorkloadSecurityPolicy"):
+		return &apiv1alpha1.ClusterWorkloadSecurityPolicyApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadSecurityPolicy"):
 		return &apiv1alpha1.WorkloadSecurityPolicyApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadSecurityPolicyExecutables"):

@@ -49,7 +49,6 @@ spec:
           metadata:
             type: object
           spec:
-            description: Spec defines the desired state of this custom resource.
             properties:
               message:
                 description: message defines the human readable message that will
@@ -146,7 +145,6 @@ spec:
             - mode
             type: object
           status:
-            description: Status defines the observed state of this custom resource.
             properties:
               conditions:
                 items:

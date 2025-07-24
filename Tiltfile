@@ -9,12 +9,6 @@ namespace_create("runtime-enforcement")
 operator_image = settings.get("operator").get("image")
 daemon_image = settings.get("daemon").get("image")
 
-load('ext://helm_remote', 'helm_remote')
-helm_remote('tetragon',
-    repo_url='https://helm.cilium.io',
-    namespace='kube-system',
-    set='tetragonOperator.enabled=false,crds.installMethod=helm')
-
 yaml = helm(
     "./charts/runtime-enforcement",
     name="runtime-enforcement",

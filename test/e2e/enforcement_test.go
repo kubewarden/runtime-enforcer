@@ -22,13 +22,11 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 	"sigs.k8s.io/e2e-framework/pkg/features"
 	"sigs.k8s.io/e2e-framework/pkg/types"
-	"sigs.k8s.io/e2e-framework/third_party/helm"
 )
 
 func getEnforcementTest() types.Feature {
 	return features.New("Enforcement").
 		Setup(InstallRuntimeEnforcement).
-		Setup(InstallTetragon).
 		Setup(func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
 			t.Log("setup shared k8s client")
 
@@ -312,11 +310,5 @@ func getEnforcementTest() types.Feature {
 
 			return ctx
 		}).
-		Teardown(func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
-			manager := helm.New(cfg.KubeconfigFile())
-			err := manager.RunRepo(helm.WithArgs("remove", ciliumRepo))
-			require.NoError(t, err, "failed to apply test data")
-
-			return ctx
-		}).Feature()
+		Feature()
 }

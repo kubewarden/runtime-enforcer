@@ -15,7 +15,6 @@ var (
 	testEnv         env.Environment
 	kindClusterName string
 	namespace       string
-	ciliumRepo      string
 )
 
 func TestMain(m *testing.M) {
@@ -23,7 +22,6 @@ func TestMain(m *testing.M) {
 	testEnv = env.NewWithConfig(cfg)
 	kindClusterName = envconf.RandomName("test-controller-e2e", 32)
 	namespace = envconf.RandomName("namespace", 16)
-	ciliumRepo = envconf.RandomName("cilium", 16)
 
 	testEnv.Setup(
 		envfuncs.CreateCluster(kind.NewProvider(), kindClusterName),

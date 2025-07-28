@@ -60,6 +60,10 @@ kubernetesClusterDomain: cluster.local
 ## Optional array of imagePullSecrets containing private registry credentials
 ## Ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
+
+# NOTE: This section is used to configure Tetragon and its components
+# deployed by the Tetragon chart dependency.
+# Do not edit this section manually.
 tetragon:
   tetragonOperator:
     enabled: false

@@ -12,7 +12,7 @@ operator:
         - ALL
     image:
       repository: ghcr.io/neuvector/runtime-enforcement/operator
-      tag: latest
+      tag: v0.0.2
       pullPolicy: IfNotPresent
     resources:
       limits:

@@ -6,7 +6,7 @@ toolchain go1.24.1
 
 require (
 	github.com/cilium/cilium v1.17.6
-	github.com/cilium/tetragon/api v1.4.1
+	github.com/cilium/tetragon/api v1.5.0
 	github.com/cilium/tetragon/pkg/k8s v0.0.0-20250303175605-fb54043d0c63
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.23.4
@@ -88,7 +88,7 @@ require (
 	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.15.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.26.0 // indirect
 	golang.org/x/time v0.11.0 // indirect

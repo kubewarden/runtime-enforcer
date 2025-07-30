@@ -63,7 +63,7 @@ func IfRequiredResourcesAreCreated(ctx context.Context, t *testing.T, _ *envconf
 	err = wait.For(conditions.New(r).DaemonSetReady(
 		&appsv1.DaemonSet{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "runtime-enforcement",
+				Name:      "tetragon",
 				Namespace: namespace,
 			},
 		}),

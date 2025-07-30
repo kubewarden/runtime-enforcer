@@ -65,6 +65,8 @@ imagePullSecrets: []
 # deployed by the Tetragon chart dependency.
 # Do not edit this section manually.
 tetragon:
+  tetragon:
+    nameOverride: tetragon
   tetragonOperator:
     enabled: false
   crds:

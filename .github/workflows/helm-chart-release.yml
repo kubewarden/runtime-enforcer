@@ -20,6 +20,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Add Helm dependency repos
+        run: |
+          helm repo add cilium https://helm.cilium.io
+
       - name: Configure Git
         run: |
           git config user.name "$GITHUB_ACTOR"

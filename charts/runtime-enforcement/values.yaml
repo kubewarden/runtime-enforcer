@@ -40,7 +40,7 @@ daemon:
         - ALL
     image:
       repository: ghcr.io/neuvector/runtime-enforcement/daemon
-      tag: latest
+      tag: v0.0.2
       pullPolicy: IfNotPresent
     resources:
       limits:

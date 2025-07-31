@@ -98,6 +98,8 @@ func InstallRuntimeEnforcement() env.Func {
 		err := manager.RunInstall(helm.WithName("runtime-enforcement"),
 			helm.WithNamespace(namespace),
 			helm.WithChart("../../charts/runtime-enforcement/"),
+			helm.WithArgs("--set", "operator.manager.image.tag=latest"),
+			helm.WithArgs("--set", "daemon.daemon.image.tag=latest"),
 			helm.WithWait(),
 			helm.WithTimeout(DefaultTimeout.String()))
 

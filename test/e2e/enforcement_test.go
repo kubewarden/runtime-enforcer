@@ -60,6 +60,8 @@ func getEnforcementTest() types.Feature {
 						AllowedExecutables: v1alpha1.WorkloadSecurityPolicyExecutables{
 							Allowed: []string{
 								"/usr/bin/ls",
+								"/usr/bin/bash",
+								"/usr/bin/sleep",
 							},
 							AllowedPrefixes: []string{},
 						},
@@ -72,7 +74,7 @@ func getEnforcementTest() types.Feature {
 								Allowed:  true,
 							},
 							{
-								Commands: []string{"/usr/bin/bash", "-c", "echo hello"},
+								Commands: []string{"/usr/bin/apt", "update"},
 								Allowed:  false,
 							},
 						},

@@ -18,6 +18,7 @@
     "dictionaryDefinitions": [],
     "dictionaries": [],
     "words": [
+        "neuvector",
         "aggregatable",
         "clientset",
         "controllerutil",
@@ -58,7 +59,8 @@
         "binprm",
         "syscall",
         "syscalls",
-        "STIG"
+        "STIG",
+        "apimachinery"
     ],
     "ignoreWords": [
         "clientgoscheme",

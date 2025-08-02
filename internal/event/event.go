@@ -1,6 +1,7 @@
 package event
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -59,7 +60,7 @@ func (l *LocalEventAggregator) Flush(flushFunc func(AggregatableEvent) (bool, er
 	for k, v := range l.aggregatedEvents {
 		cont, err := flushFunc(v)
 		if err != nil {
-			l.logger.Warn("failed to handle an event", "error", err)
+			l.logger.WarnContext(context.Background(), "failed to handle an event", "error", err)
 		}
 		if !cont {
 			return errors.New("operation cancelled")

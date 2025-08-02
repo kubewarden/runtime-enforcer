@@ -6,7 +6,6 @@ import (
 
 	"github.com/neuvector/runtime-enforcement/internal/event"
 	"github.com/neuvector/runtime-enforcement/internal/learner"
-	"github.com/neuvector/runtime-enforcement/internal/policy"
 
 	"log/slog"
 
@@ -35,15 +34,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create policy manager to receive configs from CRDs.
-	policyMgr := policy.CreatePolicyManager(logger)
-	if err = policyMgr.Start(conf); err != nil {
-		logger.Error("failed to start policy manager", "error", err)
-		os.Exit(1)
-	}
-
-	logger.Info("policy manager is created")
-
 	eventAggregator := event.CreateEventAggregator(logger)
 
 	connector, err = internalTetragon.CreateConnector(logger)
@@ -62,7 +52,7 @@ func main() {
 
 	// Create learner, which will receive events from event aggregator and perform actions based on policy.
 	// TODO: Use a channel?
-	ruleLearner := learner.CreateLearner(logger, conf, eventAggregator, policyMgr)
+	ruleLearner := learner.CreateLearner(logger, conf, eventAggregator)
 	if err = ruleLearner.Start(ctx); err != nil {
 		logger.Error("failed to handle events", "error", err)
 		os.Exit(1)

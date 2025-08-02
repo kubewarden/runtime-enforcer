@@ -11,7 +11,6 @@ import (
 
 	securityv1alpha1 "github.com/neuvector/runtime-enforcement/api/v1alpha1"
 	"github.com/neuvector/runtime-enforcement/internal/event"
-	"github.com/neuvector/runtime-enforcement/internal/policy"
 	"github.com/neuvector/runtime-enforcement/pkg/generated/clientset/versioned"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,20 +27,17 @@ type Learner struct {
 	logger          *slog.Logger
 	client          *versioned.Clientset
 	eventAggregator event.Aggregator
-	policyMgr       *policy.Manager
 }
 
 func CreateLearner(
 	logger *slog.Logger,
 	conf *rest.Config,
 	eventAggregator event.Aggregator,
-	policyMgr *policy.Manager,
 ) *Learner {
 	return &Learner{
 		logger:          logger.With("component", "learner"),
 		client:          versioned.NewForConfigOrDie(conf),
 		eventAggregator: eventAggregator,
-		policyMgr:       policyMgr,
 	}
 }
 

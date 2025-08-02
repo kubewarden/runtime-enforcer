@@ -18,6 +18,7 @@ import (
 // ClusterWorkloadSecurityPolicyReconciler reconciles a ClusterWorkloadSecurityPolicy object.
 type ClusterWorkloadSecurityPolicyReconciler struct {
 	client.Client
+
 	Scheme *runtime.Scheme
 }
 

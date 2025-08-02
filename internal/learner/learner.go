@@ -44,7 +44,7 @@ func CreateLearner(
 func (l *Learner) Start(ctx context.Context) error {
 	go func() {
 		if err := l.LearnLoop(ctx); err != nil {
-			l.logger.Error("LearnLoop failed", "error", err)
+			l.logger.ErrorContext(ctx, "LearnLoop failed", "error", err)
 		}
 	}()
 	return nil
@@ -149,7 +149,6 @@ func (l *Learner) learn(ctx context.Context, ae event.AggregatableEvent) error {
 	return nil
 }
 
-//nolint:lll // kubebuilder markers
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals,verbs=create;get;list;watch;update;patch
 
 func (l *Learner) LearnLoop(ctx context.Context) error {
@@ -167,7 +166,7 @@ func (l *Learner) LearnLoop(ctx context.Context) error {
 				return true, fmt.Errorf("failed to marshal event: %w", err)
 			}
 
-			l.logger.Info("Getting events", "event", string(eb))
+			l.logger.InfoContext(ctx, "Getting events", "event", string(eb))
 
 			if err = l.learn(ctx, ae); err != nil {
 				return true, fmt.Errorf("failed to learn process: %w", err)

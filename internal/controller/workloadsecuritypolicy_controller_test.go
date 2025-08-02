@@ -94,7 +94,7 @@ var _ = Describe("WorkloadSecurityPolicy Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(tracingpolicy.Spec.PodSelector.MatchLabels).To(Equal(resource.Spec.Selector.MatchLabels))
-			Expect(len(tracingpolicy.Spec.KProbes)).To(Equal(1))
+			Expect(tracingpolicy.Spec.KProbes).To(HaveLen(1))
 			Expect(tracingpolicy.Spec.KProbes[0].Message).To(Equal("[10] TEST_RULE"))
 			Expect(tracingpolicy.Spec.KProbes[0].Tags).To(Equal([]string{"tag"}))
 

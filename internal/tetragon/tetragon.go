@@ -197,7 +197,7 @@ func (c *Connector) StartEventloop(ctx context.Context,
 			default:
 			}
 			if err := c.eventloop(ctx, eventAggregator); err != nil {
-				c.logger.Warn("failed to get events", "error", err)
+				c.logger.WarnContext(ctx, "failed to get events", "error", err)
 			}
 		}
 	}()

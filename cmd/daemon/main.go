@@ -30,7 +30,7 @@ func main() {
 	ctx := context.Background()
 	conf, err = rest.InClusterConfig()
 	if err != nil {
-		logger.Error("failed to get in-cluster config", "error", err)
+		logger.ErrorContext(ctx, "failed to get in-cluster config", "error", err)
 		os.Exit(1)
 	}
 
@@ -38,27 +38,27 @@ func main() {
 
 	connector, err = internalTetragon.CreateConnector(logger)
 	if err != nil {
-		logger.Error("failed to create tetragon connector", "error", err)
+		logger.ErrorContext(ctx, "failed to create tetragon connector", "error", err)
 		os.Exit(1)
 	}
 
 	// Retrieve events from Tetragon.
 	if err = connector.StartEventloop(ctx, eventAggregator, conf); err != nil {
-		logger.Error("failed to start event loop", "error", err)
+		logger.ErrorContext(ctx, "failed to start event loop", "error", err)
 		os.Exit(1)
 	}
 
-	logger.Info("security event loop has started")
+	logger.InfoContext(ctx, "security event loop has started")
 
 	// Create learner, which will receive events from event aggregator and perform actions based on policy.
 	// TODO: Use a channel?
 	ruleLearner := learner.CreateLearner(logger, conf, eventAggregator)
 	if err = ruleLearner.Start(ctx); err != nil {
-		logger.Error("failed to handle events", "error", err)
+		logger.ErrorContext(ctx, "failed to handle events", "error", err)
 		os.Exit(1)
 	}
 
-	logger.Info("event learner has started")
+	logger.InfoContext(ctx, "event learner has started")
 
 	<-ctx.Done()
 }

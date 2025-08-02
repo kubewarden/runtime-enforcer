@@ -18,10 +18,10 @@ import (
 // WorkloadSecurityPolicyReconciler reconciles a WorkloadSecurityPolicy object.
 type WorkloadSecurityPolicyReconciler struct {
 	client.Client
+
 	Scheme *runtime.Scheme
 }
 
-//nolint:lll // kubebuilder markers
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicies/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicies/finalizers,verbs=update

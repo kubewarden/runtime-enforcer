@@ -24,8 +24,21 @@ import (
 )
 
 func getMainTest() types.Feature {
+	workloadNamespace := envconf.RandomName("main-namespace", 32)
+
 	return features.New("Main").
 		Setup(SetupSharedK8sClient).
+		Setup(func(ctx context.Context, t *testing.T, _ *envconf.Config) context.Context {
+			t.Log("creating test namespace")
+			r := ctx.Value(key("client")).(*resources.Resources)
+
+			namespace := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: workloadNamespace}}
+
+			err := r.Create(ctx, &namespace)
+			assert.NoError(t, err, "failed to create test namespace")
+
+			return ctx
+		}).
 		Setup(func(ctx context.Context, t *testing.T, _ *envconf.Config) context.Context {
 			t.Log("installing test Ubuntu deployment")
 

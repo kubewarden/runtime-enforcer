@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/e2e-framework/klient/decoder"
 	"sigs.k8s.io/e2e-framework/klient/k8s"
@@ -24,8 +25,21 @@ import (
 )
 
 func getLearningModeTest() types.Feature {
+	workloadNamespace := envconf.RandomName("learning-namespace", 32)
+
 	return features.New("LearningMode").
 		Setup(SetupSharedK8sClient).
+		Setup(func(ctx context.Context, t *testing.T, _ *envconf.Config) context.Context {
+			t.Log("creating test namespace")
+			r := ctx.Value(key("client")).(*resources.Resources)
+
+			namespace := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: workloadNamespace}}
+
+			err := r.Create(ctx, &namespace)
+			assert.NoError(t, err, "failed to create test namespace")
+
+			return ctx
+		}).
 		Setup(func(ctx context.Context, t *testing.T, _ *envconf.Config) context.Context {
 			t.Log("installing test resources")
 

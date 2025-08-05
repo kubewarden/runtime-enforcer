@@ -15,11 +15,10 @@ import (
 
 //nolint:gochecknoglobals // provided by e2e-framework
 var (
-	testEnv           env.Environment
-	kindClusterName   string
-	namespace         string
-	workloadNamespace string
-	certManagerRepo   string
+	testEnv         env.Environment
+	kindClusterName string
+	namespace       string
+	certManagerRepo string
 )
 
 const (
@@ -31,13 +30,11 @@ func TestMain(m *testing.M) {
 	testEnv = env.NewWithConfig(cfg)
 	kindClusterName = envconf.RandomName("test-controller-e2e", 32)
 	namespace = envconf.RandomName("enforcer-namespace", 16)
-	workloadNamespace = envconf.RandomName("workload-namespace", 16)
 	certManagerRepo = envconf.RandomName("cert-manager", 16)
 
 	testEnv.Setup(
 		envfuncs.CreateCluster(kind.NewProvider(), kindClusterName),
 		envfuncs.CreateNamespace(namespace),
-		envfuncs.CreateNamespace(workloadNamespace),
 		envfuncs.LoadImageToCluster(kindClusterName,
 			"ghcr.io/neuvector/runtime-enforcement/operator:latest",
 			"--verbose",

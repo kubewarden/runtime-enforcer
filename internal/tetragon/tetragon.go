@@ -8,10 +8,8 @@ import (
 	"log/slog"
 	"time"
 
-	"k8s.io/client-go/rest"
-
 	"github.com/cilium/tetragon/api/v1/tetragon"
-	"github.com/neuvector/runtime-enforcement/internal/event"
+	"github.com/neuvector/runtime-enforcement/internal/eventhandler"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -24,11 +22,15 @@ const (
 )
 
 type Connector struct {
-	logger *slog.Logger
-	client tetragon.FineGuidanceSensorsClient
+	logger      *slog.Logger
+	client      tetragon.FineGuidanceSensorsClient
+	enqueueFunc func(context.Context, eventhandler.ProcessLearningEvent)
 }
 
-func CreateConnector(logger *slog.Logger) (*Connector, error) {
+func CreateConnector(
+	logger *slog.Logger,
+	enqueueFunc func(context.Context, eventhandler.ProcessLearningEvent),
+) (*Connector, error) {
 	conn, err := grpc.NewClient("unix:///var/run/tetragon/tetragon.sock",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
@@ -39,15 +41,14 @@ func CreateConnector(logger *slog.Logger) (*Connector, error) {
 	tetragonClient := tetragon.NewFineGuidanceSensorsClient(conn)
 
 	return &Connector{
-		logger: logger.With("component", "tetragon_connector"),
-		client: tetragonClient,
+		logger:      logger.With("component", "tetragon_connector"),
+		client:      tetragonClient,
+		enqueueFunc: enqueueFunc,
 	}, nil
 }
 
 // FillInitialProcesses gets the existing process list from Tetragon and generate process events.
-func (c *Connector) FillInitialProcesses(ctx context.Context,
-	eventAggregator event.Aggregator,
-) error {
+func (c *Connector) FillInitialProcesses(ctx context.Context) error {
 	timeout, cancel := context.WithTimeout(ctx, GRPCWaitForReadyTimeout)
 	defer cancel()
 
@@ -79,30 +80,19 @@ func (c *Connector) FillInitialProcesses(ctx context.Context,
 		// "workload":"ubuntu-privileged", "workload_kind":"Pod"
 		eventPod := v.GetProcess().GetPod()
 		if eventPod != nil {
-			pe := event.ProcessEvent{
-				ClusterName:    "", // TODO: how?
+			c.enqueueFunc(ctx, eventhandler.ProcessLearningEvent{
 				Namespace:      eventPod.GetNamespace(),
-				PodID:          eventPod.GetName(),
-				ContainerID:    eventPod.GetContainer().GetId(),
 				ContainerName:  eventPod.GetContainer().GetName(),
-				Labels:         eventPod.GetPodLabels(),
 				Workload:       eventPod.GetWorkload(),
 				WorkloadKind:   eventPod.GetWorkloadKind(),
 				ExecutablePath: v.GetProcess().GetBinary(),
-				Arguments:      v.GetProcess().GetArguments(),
-				Repeat:         0,
-			}
-
-			if err = eventAggregator.HandleEvent(&pe); err != nil {
-				// TODO: add metrics
-				c.logger.ErrorContext(ctx, "failed to handle event", "error", err)
-			}
+			})
 		}
 	}
 	return nil
 }
 
-func ConvertTetragonEvent(e *tetragon.GetEventsResponse) (*event.ProcessEvent, error) {
+func ConvertTetragonEvent(e *tetragon.GetEventsResponse) (*eventhandler.ProcessLearningEvent, error) {
 	exec := e.GetProcessExec()
 
 	if exec == nil {
@@ -119,29 +109,21 @@ func ConvertTetragonEvent(e *tetragon.GetEventsResponse) (*event.ProcessEvent, e
 		return nil, errors.New("ignore events that don't come with pod info")
 	}
 
-	pe := event.ProcessEvent{
-		ClusterName:    e.GetClusterName(),
+	processEvent := eventhandler.ProcessLearningEvent{
 		Namespace:      pod.GetNamespace(),
-		PodID:          pod.GetName(),
-		ContainerID:    pod.GetContainer().GetId(),
 		ContainerName:  pod.GetContainer().GetId(),
-		Labels:         pod.GetPodLabels(),
 		Workload:       pod.GetWorkload(),
 		WorkloadKind:   pod.GetWorkloadKind(),
 		ExecutablePath: proc.GetBinary(),
-		Arguments:      proc.GetArguments(),
-		Repeat:         0,
 	}
 
-	return &pe, nil
+	return &processEvent, nil
 }
 
 // Read Tetragon events and feed into event aggregator.
-func (c *Connector) eventloop(ctx context.Context,
-	eventAggregator event.Aggregator,
-) error {
+func (c *Connector) eventLoop(ctx context.Context) error {
 	var res *tetragon.GetEventsResponse
-	var pe *event.ProcessEvent
+	var processEvent *eventhandler.ProcessLearningEvent
 	var err error
 
 	// Getting stream first.
@@ -171,23 +153,17 @@ func (c *Connector) eventloop(ctx context.Context,
 		}
 
 		// Learn the behavior
-		pe, err = ConvertTetragonEvent(res)
+		processEvent, err = ConvertTetragonEvent(res)
 		if err != nil {
 			c.logger.DebugContext(ctx, "failed to handle event", "error", err)
 			continue
 		}
 
-		if err = eventAggregator.HandleEvent(pe); err != nil {
-			// TODO: add metrics
-			c.logger.ErrorContext(ctx, "failed to handle event", "error", err)
-		}
+		c.enqueueFunc(ctx, *processEvent)
 	}
 }
 
-func (c *Connector) StartEventloop(ctx context.Context,
-	eventAggregator event.Aggregator,
-	_ *rest.Config,
-) error {
+func (c *Connector) Start(ctx context.Context) error {
 	go func() {
 		for {
 			select {
@@ -195,14 +171,14 @@ func (c *Connector) StartEventloop(ctx context.Context,
 				return
 			default:
 			}
-			if err := c.eventloop(ctx, eventAggregator); err != nil {
+			if err := c.eventLoop(ctx); err != nil {
 				c.logger.WarnContext(ctx, "failed to get events", "error", err)
 			}
 		}
 	}()
 
 	// TODO: we have to wait until a message from go routine is received, so we won't miss any events in between.
-	if err := c.FillInitialProcesses(ctx, eventAggregator); err != nil {
+	if err := c.FillInitialProcesses(ctx); err != nil {
 		return fmt.Errorf("failed to get all running processes: %w", err)
 	}
 

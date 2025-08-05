@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/neuvector/runtime-enforcement/api/v1alpha1"
-	"github.com/neuvector/runtime-enforcement/internal/policy"
+	"github.com/neuvector/runtime-enforcement/internal/eventhandler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -114,7 +114,7 @@ func getLearningModeTest() types.Feature {
 					obj := tc.ParseFunc()
 					t.Log("verifying if a proposal resource can be created: ", kind)
 
-					proposalName, err := policy.GetWorkloadSecurityPolicyProposalName(kind, obj.GetName())
+					proposalName, err := eventhandler.GetWorkloadSecurityPolicyProposalName(kind, obj.GetName())
 					require.NoError(t, err)
 
 					proposal := v1alpha1.WorkloadSecurityPolicyProposal{

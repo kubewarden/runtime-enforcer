@@ -42,6 +42,7 @@
         "deepcopy",
         "kprobe",
         "kprobes",
+        "apimachinery",
         "rolebinding",
         "rolebindings",
         "creds",
@@ -59,8 +60,7 @@
         "binprm",
         "syscall",
         "syscalls",
-        "STIG",
-        "apimachinery"
+        "STIG"
     ],
     "ignoreWords": [
         "clientgoscheme",
@@ -89,7 +89,9 @@
         "gochecknoinits",
         "genclient",
         "subresource",
-        "externalversions"
+        "externalversions",
+        "workqueue",
+        "eventhandler"
     ],
     "import": []
 }

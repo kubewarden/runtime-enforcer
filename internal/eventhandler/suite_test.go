@@ -1,4 +1,4 @@
-package controller_test
+package eventhandler_test
 
 import (
 	"context"
@@ -39,11 +39,11 @@ var (
 	k8sClient client.Client
 )
 
-func TestControllers(t *testing.T) {
+func TestEventHandler(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	suiteConfig, reporterConfig := GinkgoConfiguration()
-	RunSpecs(t, "Controller Suite", suiteConfig, reporterConfig)
+	RunSpecs(t, "EventHandler Suite", suiteConfig, reporterConfig)
 }
 
 var _ = BeforeSuite(func() {

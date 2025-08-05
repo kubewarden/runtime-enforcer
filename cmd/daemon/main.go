@@ -2,68 +2,82 @@ package main
 
 import (
 	"context"
+	"flag"
 	"os"
 
-	"github.com/neuvector/runtime-enforcement/internal/event"
-	"github.com/neuvector/runtime-enforcement/internal/learner"
+	"github.com/neuvector/runtime-enforcement/internal/eventhandler"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	securityv1alpha1 "github.com/neuvector/runtime-enforcement/api/v1alpha1"
+	internalTetragon "github.com/neuvector/runtime-enforcement/internal/tetragon"
 
 	"log/slog"
-
-	"k8s.io/client-go/rest"
-
-	internalTetragon "github.com/neuvector/runtime-enforcement/internal/tetragon"
 )
 
-func main() {
-	// TODO: retry and default policies
-	// TODO: parse flags
+const DefaultEventChannelBufferSize = 100
 
-	var connector *internalTetragon.Connector
-	var conf *rest.Config
+func main() {
 	var err error
+	var connector *internalTetragon.Connector
+
+	opts := zap.Options{
+		Development: true,
+	}
+	opts.BindFlags(flag.CommandLine)
+	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})).With("component", "daemon")
 
-	// TODO: Only in-cluster config right now.
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
 	ctx := context.Background()
-	conf, err = rest.InClusterConfig()
+
+	scheme := runtime.NewScheme()
+	err = securityv1alpha1.AddToScheme(scheme)
 	if err != nil {
-		logger.ErrorContext(ctx, "failed to get in-cluster config", "error", err)
+		logger.ErrorContext(ctx, "failed to initialize scheme", "error", err)
 		os.Exit(1)
 	}
 
-	eventAggregator := event.CreateEventAggregator(logger)
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "unable to start manager", "error", err)
+		os.Exit(1)
+	}
 
-	connector, err = internalTetragon.CreateConnector(logger)
+	tetragonEventReconciler := eventhandler.TetragonEventReconciler{
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		EventChan: make(chan event.TypedGenericEvent[eventhandler.ProcessLearningEvent], DefaultEventChannelBufferSize),
+	}
+
+	if err = tetragonEventReconciler.SetupWithManager(mgr); err != nil {
+		logger.ErrorContext(ctx, "unable to create tetragon event reconciler", "error", err)
+		os.Exit(1)
+	}
+
+	connector, err = internalTetragon.CreateConnector(logger, tetragonEventReconciler.EnqueueEvent)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to create tetragon connector", "error", err)
 		os.Exit(1)
 	}
 
-	// Retrieve events from Tetragon.
-	if err = connector.StartEventloop(ctx, eventAggregator, conf); err != nil {
+	// StartEventLoop will receive events from Tetragon and send to event handler for process learning.
+	if err = connector.Start(ctx); err != nil {
 		logger.ErrorContext(ctx, "failed to start event loop", "error", err)
 		os.Exit(1)
 	}
 
-	logger.InfoContext(ctx, "security event loop has started")
-
-	// Create learner, which will receive events from event aggregator and perform actions based on policy.
-	// TODO: Use a channel?
-	ruleLearner, err := learner.CreateLearner(logger, eventAggregator)
-	if err != nil {
-		logger.ErrorContext(ctx, "failed to create learner", "error", err)
+	logger.InfoContext(ctx, "starting manager")
+	if err = mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		logger.ErrorContext(ctx, "failed to run manager", "error", err)
 		os.Exit(1)
 	}
-
-	if err = ruleLearner.Start(ctx); err != nil {
-		logger.ErrorContext(ctx, "failed to handle events", "error", err)
-		os.Exit(1)
-	}
-
-	logger.InfoContext(ctx, "event learner has started")
-
-	<-ctx.Done()
 }

@@ -46,8 +46,6 @@ local_resource(
         "cmd/operator",
         "api",
         "internal/controller",
-        "internal/learner",
-        "internal/policy",
 	"pkg",
     ],
 )
@@ -79,9 +77,7 @@ local_resource(
         "go.sum",
         "cmd/daemon",
         "api",
-        "internal/event",
-        "internal/learner",
-        "internal/policy",
+        "internal/eventhandler",
         "internal/tetragon",
         "pkg"
     ],

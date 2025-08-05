@@ -11,11 +11,14 @@ import (
 
 	securityv1alpha1 "github.com/neuvector/runtime-enforcement/api/v1alpha1"
 	"github.com/neuvector/runtime-enforcement/internal/event"
-	"github.com/neuvector/runtime-enforcement/pkg/generated/clientset/versioned"
-	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
+	"github.com/neuvector/runtime-enforcement/internal/policy"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const (
@@ -25,28 +28,70 @@ const (
 
 type Learner struct {
 	logger          *slog.Logger
-	client          *versioned.Clientset
+	Client          client.Client
+	Cache           cache.Cache
 	eventAggregator event.Aggregator
 }
 
 func CreateLearner(
 	logger *slog.Logger,
-	conf *rest.Config,
 	eventAggregator event.Aggregator,
-) *Learner {
+) (*Learner, error) {
+	var err error
+	var proposalCache cache.Cache
+	var proposalClient client.Client
+
+	scheme := runtime.NewScheme()
+	err = securityv1alpha1.AddToScheme(scheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add API scheme: %w", err)
+	}
+
+	proposalCache, err = cache.New(config.GetConfigOrDie(), cache.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create controller runtime cache: %w", err)
+	}
+
+	proposalClient, err = client.New(config.GetConfigOrDie(), client.Options{
+		Cache: &client.CacheOptions{
+			Reader: proposalCache,
+		},
+		Scheme: scheme,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create controller runtime client: %w", err)
+	}
+
 	return &Learner{
 		logger:          logger.With("component", "learner"),
-		client:          versioned.NewForConfigOrDie(conf),
+		Cache:           proposalCache,
+		Client:          proposalClient,
 		eventAggregator: eventAggregator,
-	}
+	}, nil
 }
 
 func (l *Learner) Start(ctx context.Context) error {
+	if l.Cache != nil {
+		go func() {
+			if err := l.Cache.Start(ctx); err != nil {
+				l.logger.ErrorContext(ctx, "failed to start cache", "error", err)
+				return
+			}
+		}()
+
+		if synced := l.Cache.WaitForCacheSync(ctx); !synced {
+			return errors.New("cache can't be synced")
+		}
+	}
+
 	go func() {
 		if err := l.LearnLoop(ctx); err != nil {
 			l.logger.ErrorContext(ctx, "LearnLoop failed", "error", err)
 		}
 	}()
+
 	return nil
 }
 
@@ -71,7 +116,8 @@ func (l *Learner) mutateProposal(
 	policyProposal *securityv1alpha1.WorkloadSecurityPolicyProposal,
 	processEvent *event.ProcessEvent,
 ) error {
-	if len(policyProposal.OwnerReferences) == 0 {
+	// Send all the information we have for operator to fill in others.
+	if len(policyProposal.OwnerReferences) == 0 && policyProposal.Spec.Selector == nil {
 		policyProposal.OwnerReferences = []metav1.OwnerReference{
 			{
 				Kind: processEvent.WorkloadKind,
@@ -97,13 +143,17 @@ func (l *Learner) learn(ctx context.Context, ae event.AggregatableEvent) error {
 		return errors.New("unknown type: %T, expected: ProcessEvent")
 	}
 
-	// TODO: Rethink the interface.
-	proposalName, err = processEvent.GetProposalName()
+	logger := l.logger.With("namespace", processEvent.Namespace, "executable", processEvent.ExecutablePath)
+
+	proposalName, err = policy.GetWorkloadSecurityPolicyProposalName(processEvent.WorkloadKind, processEvent.Workload)
 	if err != nil {
-		return fmt.Errorf("no group ID is associated with this event: %w", err)
+		logger.ErrorContext(ctx, "failed to get proposal name", "error", err)
+		return err
 	}
 
-	l.logger.DebugContext(ctx, "the proposal is found", "proposal", proposalName)
+	logger = logger.With("proposal", proposalName)
+
+	logger.InfoContext(ctx, "handling process event")
 
 	policyProposal := &securityv1alpha1.WorkloadSecurityPolicyProposal{
 		ObjectMeta: metav1.ObjectMeta{
@@ -112,35 +162,12 @@ func (l *Learner) learn(ctx context.Context, ae event.AggregatableEvent) error {
 		},
 	}
 
-	// Here implements a GetOrUpdate.
 	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		var proposal *securityv1alpha1.WorkloadSecurityPolicyProposal
-		proposalClient := l.client.SecurityV1alpha1().WorkloadSecurityPolicyProposals(ae.GetNamespace())
-		if proposal, err = proposalClient.Get(ctx, proposalName, metav1.GetOptions{}); err != nil {
-			if !k8sErrors.IsNotFound(err) {
-				return fmt.Errorf("failed to get proposal: %w", err)
-			}
-
-			if err = l.mutateProposal(policyProposal, processEvent); err != nil {
-				return err
-			}
-
-			_, err = proposalClient.Create(ctx, policyProposal, metav1.CreateOptions{})
-			if err != nil {
-				return err
-			}
-			return nil
+		if _, err = controllerutil.CreateOrUpdate(ctx, l.Client, policyProposal, func() error {
+			return l.mutateProposal(policyProposal, processEvent)
+		}); err != nil {
+			return fmt.Errorf("failed to run CreateOrUpdate: %w", err)
 		}
-
-		if err = l.mutateProposal(proposal, processEvent); err != nil {
-			return err
-		}
-
-		_, err = proposalClient.Update(ctx, proposal, metav1.UpdateOptions{})
-		if err != nil {
-			return err
-		}
-
 		return nil
 	}); err != nil {
 		return fmt.Errorf("failed to update security policy proposal with %s: %w", ae.GetExecutablePath(), err)

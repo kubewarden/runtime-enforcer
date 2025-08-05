@@ -52,7 +52,12 @@ func main() {
 
 	// Create learner, which will receive events from event aggregator and perform actions based on policy.
 	// TODO: Use a channel?
-	ruleLearner := learner.CreateLearner(logger, conf, eventAggregator)
+	ruleLearner, err := learner.CreateLearner(logger, eventAggregator)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to create learner", "error", err)
+		os.Exit(1)
+	}
+
 	if err = ruleLearner.Start(ctx); err != nil {
 		logger.ErrorContext(ctx, "failed to handle events", "error", err)
 		os.Exit(1)

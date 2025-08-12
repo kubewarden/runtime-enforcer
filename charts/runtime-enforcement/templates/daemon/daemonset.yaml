@@ -31,7 +31,13 @@ spec:
         name: daemon
         resources: {{- toYaml .Values.daemon.daemon.resources | nindent 10 }}
         securityContext: {{- toYaml .Values.daemon.daemon.containerSecurityContext | nindent 10 }}
+        volumeMounts:
+        - name: tetragon-sock
+          mountPath: /var/run/tetragon/
       securityContext: {{- toYaml .Values.daemon.podSecurityContext | nindent 8 }}
       serviceAccountName: {{ include "runtime-enforcement.fullname" . }}-daemon
       terminationGracePeriodSeconds: 10
-      hostNetwork: true
+      volumes:
+      - name: tetragon-sock
+        hostPath:
+          path: /var/run/tetragon/

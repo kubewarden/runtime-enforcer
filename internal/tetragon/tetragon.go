@@ -29,8 +29,7 @@ type Connector struct {
 }
 
 func CreateConnector(logger *slog.Logger) (*Connector, error) {
-	// TODO: make it configurable
-	conn, err := grpc.NewClient("localhost:54321",
+	conn, err := grpc.NewClient("unix:///var/run/tetragon/tetragon.sock",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {

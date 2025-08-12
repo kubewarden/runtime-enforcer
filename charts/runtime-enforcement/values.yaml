@@ -67,7 +67,12 @@ imagePullSecrets: []
 tetragon:
   tetragon:
     nameOverride: tetragon
+    grpc:
+      address: unix:///var/run/tetragon/tetragon.sock
   tetragonOperator:
     enabled: false
   crds:
     installMethod: helm
+  extraHostPathMounts:
+    - name: tetragon-socket
+      mountPath: /var/run/tetragon/

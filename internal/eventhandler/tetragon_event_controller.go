@@ -3,8 +3,12 @@ package eventhandler
 import (
 	"context"
 	"fmt"
+	"time"
 
 	securityv1alpha1 "github.com/neuvector/runtime-enforcement/api/v1alpha1"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -17,6 +21,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
+
+const DefaultEventChannelBufferSize = 100
 
 type ProcessLearningEvent struct {
 	Namespace      string `json:"namespace"`
@@ -59,9 +65,18 @@ func GetWorkloadSecurityPolicyProposalName(kind string, resourceName string) (st
 type TetragonEventReconciler struct {
 	client.Client
 
-	Scheme *runtime.Scheme
+	Scheme    *runtime.Scheme
+	eventChan chan event.TypedGenericEvent[ProcessLearningEvent]
+	tracer    trace.Tracer
+}
 
-	EventChan chan event.TypedGenericEvent[ProcessLearningEvent]
+func NewTetragonEventReconciler(client client.Client, scheme *runtime.Scheme) *TetragonEventReconciler {
+	return &TetragonEventReconciler{
+		Client:    client,
+		Scheme:    scheme,
+		eventChan: make(chan event.TypedGenericEvent[ProcessLearningEvent], DefaultEventChannelBufferSize),
+		tracer:    otel.Tracer("runtime-enforcement-learner"),
+	}
 }
 
 // kubebuilder annotations for accessing policy proposals.
@@ -94,9 +109,11 @@ func (r *TetragonEventReconciler) Reconcile(
 		},
 	}
 
-	if _, err = controllerutil.CreateOrUpdate(ctx, r.Client, policyProposal, func() error {
-		if innErr := policyProposal.AddProcess(req.ExecutablePath); innErr != nil {
-			return fmt.Errorf("failed to add process to policy proposal: %w", innErr)
+	var result controllerutil.OperationResult
+
+	if result, err = controllerutil.CreateOrUpdate(ctx, r.Client, policyProposal, func() error {
+		if innerErr := policyProposal.AddProcess(req.ExecutablePath); err != nil {
+			return fmt.Errorf("failed to add process to policy proposal: %w", innerErr)
 		}
 
 		// We do not inject partial owner reference when selector is available.
@@ -109,6 +126,23 @@ func (r *TetragonEventReconciler) Reconcile(
 		return ctrl.Result{}, fmt.Errorf("failed to run CreateOrUpdate: %w", err)
 	}
 
+	// Emit trace when a new process is learned.
+	if result != controllerutil.OperationResultNone {
+		var span trace.Span
+		now := time.Now()
+		_, span = r.tracer.Start(ctx, "process learned")
+		span.SetAttributes(
+			attribute.String("evt.time", now.Format(time.RFC3339)),
+			attribute.Int64("evt.rawtime", now.UnixNano()),
+			attribute.String("k8s.ns.name", req.Namespace),
+			attribute.String("k8s.workload.kind", req.WorkloadKind),
+			attribute.String("k8s.workload.name", req.Workload),
+			attribute.String("container.name", req.ContainerName),
+			attribute.String("proc.exepath", req.ExecutablePath),
+		)
+		span.End()
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -116,7 +150,7 @@ func (r *TetragonEventReconciler) EnqueueEvent(
 	_ context.Context,
 	evt ProcessLearningEvent,
 ) {
-	r.EventChan <- event.TypedGenericEvent[ProcessLearningEvent]{Object: evt}
+	r.eventChan <- event.TypedGenericEvent[ProcessLearningEvent]{Object: evt}
 }
 
 // ProcessEventHandler implements handler.TypedEventHandler[ProcessLearningEvent, ProcessLearningEvent].
@@ -161,7 +195,7 @@ func (r *TetragonEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Named("tetragonEvent").
 		WatchesRawSource(
 			source.TypedChannel(
-				r.EventChan,
+				r.eventChan,
 				&ProcessEventHandler{},
 			),
 		).

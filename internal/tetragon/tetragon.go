@@ -2,11 +2,16 @@ package tetragon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/cilium/tetragon/api/v1/tetragon"
 	"github.com/neuvector/runtime-enforcement/internal/eventhandler"
@@ -24,6 +29,7 @@ const (
 type Connector struct {
 	logger      *slog.Logger
 	client      tetragon.FineGuidanceSensorsClient
+	tracer      trace.Tracer
 	enqueueFunc func(context.Context, eventhandler.ProcessLearningEvent)
 }
 
@@ -44,6 +50,7 @@ func CreateConnector(
 		logger:      logger.With("component", "tetragon_connector"),
 		client:      tetragonClient,
 		enqueueFunc: enqueueFunc,
+		tracer:      otel.Tracer("runtime-enforcement-enforcer"),
 	}, nil
 }
 
@@ -73,11 +80,6 @@ func (c *Connector) FillInitialProcesses(ctx context.Context) error {
 	c.logger.InfoContext(ctx, "Receiving process list", "num", len(procs.GetProcesses()))
 
 	for _, v := range procs.GetProcesses() {
-		// TODO: review if we should include host processes.
-
-		// TODO: Tetragon only provides the labels when the Pod starts
-		// but we're supposed to be able to use workload field instead.
-		// "workload":"ubuntu-privileged", "workload_kind":"Pod"
 		eventPod := v.GetProcess().GetPod()
 		if eventPod != nil {
 			c.enqueueFunc(ctx, eventhandler.ProcessLearningEvent{
@@ -92,7 +94,7 @@ func (c *Connector) FillInitialProcesses(ctx context.Context) error {
 	return nil
 }
 
-func ConvertTetragonEvent(e *tetragon.GetEventsResponse) (*eventhandler.ProcessLearningEvent, error) {
+func ConvertTetragonProcEvent(e *tetragon.GetEventsResponse) (*eventhandler.ProcessLearningEvent, error) {
 	exec := e.GetProcessExec()
 
 	if exec == nil {
@@ -111,7 +113,7 @@ func ConvertTetragonEvent(e *tetragon.GetEventsResponse) (*eventhandler.ProcessL
 
 	processEvent := eventhandler.ProcessLearningEvent{
 		Namespace:      pod.GetNamespace(),
-		ContainerName:  pod.GetContainer().GetId(),
+		ContainerName:  pod.GetContainer().GetName(),
 		Workload:       pod.GetWorkload(),
 		WorkloadKind:   pod.GetWorkloadKind(),
 		ExecutablePath: proc.GetBinary(),
@@ -152,15 +154,120 @@ func (c *Connector) eventLoop(ctx context.Context) error {
 			return nil
 		}
 
-		// Learn the behavior
-		processEvent, err = ConvertTetragonEvent(res)
-		if err != nil {
-			c.logger.DebugContext(ctx, "failed to handle event", "error", err)
-			continue
-		}
+		// Ignore all unknown events
+		switch res.GetEvent().(type) {
+		case *tetragon.GetEventsResponse_ProcessExec:
+			// Learn the behavior
+			processEvent, err = ConvertTetragonProcEvent(res)
+			if err != nil {
+				c.logger.DebugContext(ctx, "failed to handle event", "error", err)
+				continue
+			}
 
-		c.enqueueFunc(ctx, *processEvent)
+			c.enqueueFunc(ctx, *processEvent)
+		case *tetragon.GetEventsResponse_ProcessKprobe:
+			// Emit OpenTelemetry traces
+			c.handleKProbeEvent(ctx, res.GetProcessKprobe())
+		case *tetragon.GetEventsResponse_ProcessLsm:
+			// Emit OpenTelemetry traces
+			c.handleLsmEvent(ctx, res.GetProcessLsm())
+		}
 	}
+}
+
+func (c *Connector) emitEnforcementEvent(
+	ctx context.Context,
+	policyName string,
+	proc *tetragon.Process,
+	exepath string,
+	action Action,
+) {
+	now := time.Now()
+
+	pod := proc.GetPod()
+
+	var span trace.Span
+	_, span = c.tracer.Start(ctx, string(action))
+	span.SetAttributes(
+		attribute.String("evt.time", now.Format(time.RFC3339)),
+		attribute.Int64("evt.rawtime", now.UnixNano()),
+		attribute.String("policy.name", policyName),
+		attribute.String("k8s.ns.name", pod.GetNamespace()),
+		attribute.String("k8s.workload.name", pod.GetWorkload()),
+		attribute.String("k8s.workload.kind", pod.GetWorkloadKind()),
+		attribute.String("k8s.pod.name", pod.GetName()),
+		attribute.String("container.full_id", pod.GetContainer().GetId()),
+		attribute.String("container.name", pod.GetContainer().GetName()),
+		attribute.Int64("proc.pid", int64(proc.GetPid().GetValue())),
+		attribute.String("proc.pexepath", proc.GetBinary()),
+		attribute.String("proc.exepath", exepath),
+		attribute.String("action", string(action)),
+	)
+	span.End()
+}
+
+func (c *Connector) handleLsmEvent(ctx context.Context, evt *tetragon.ProcessLsm) {
+	args := evt.GetArgs()
+
+	// TODO: make sure that the event is from the rule we created.
+	if len(args) == 0 {
+		c.logger.ErrorContext(ctx, "invalid LSM events")
+	}
+
+	eb, err := json.Marshal(evt)
+	if err != nil {
+		c.logger.ErrorContext(ctx, "invalid LSM events", "error", err)
+		return
+	}
+
+	c.logger.DebugContext(ctx, "Getting LSM event", "event", string(eb))
+
+	var action Action
+	action, err = GetAction(evt.GetAction().String())
+	if err != nil {
+		c.logger.ErrorContext(ctx, "unknown tetragon action", "error", err)
+		return
+	}
+
+	c.emitEnforcementEvent(
+		ctx,
+		evt.GetPolicyName(),
+		evt.GetProcess(),
+		evt.GetArgs()[0].GetLinuxBinprmArg().GetPath(),
+		action,
+	)
+}
+
+func (c *Connector) handleKProbeEvent(ctx context.Context, evt *tetragon.ProcessKprobe) {
+	args := evt.GetArgs()
+
+	// TODO: make sure that the event is from the rule we created.
+	if len(args) == 0 {
+		c.logger.ErrorContext(ctx, "invalid kprobe events")
+	}
+
+	eb, err := json.Marshal(evt)
+	if err != nil {
+		c.logger.ErrorContext(ctx, "invalid kprobe events", "error", err)
+		return
+	}
+
+	c.logger.DebugContext(ctx, "Getting kprobe event", "event", string(eb))
+
+	var action Action
+	action, err = GetAction(evt.GetAction().String())
+	if err != nil {
+		c.logger.ErrorContext(ctx, "unknown tetragon action", "error", err)
+		return
+	}
+
+	c.emitEnforcementEvent(
+		ctx,
+		evt.GetPolicyName(),
+		evt.GetProcess(),
+		evt.GetArgs()[0].GetLinuxBinprmArg().GetPath(),
+		action,
+	)
 }
 
 func (c *Connector) Start(ctx context.Context) error {

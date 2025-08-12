@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -134,11 +133,7 @@ var _ = Describe("Tetragon", func() {
 					})
 					Expect(err).NotTo(HaveOccurred())
 
-					reconciler := &eventhandler.TetragonEventReconciler{
-						Client:    perWorkerClient,
-						Scheme:    perWorkerClient.Scheme(),
-						EventChan: make(chan event.TypedGenericEvent[eventhandler.ProcessLearningEvent]),
-					}
+					reconciler := eventhandler.NewTetragonEventReconciler(perWorkerClient, perWorkerClient.Scheme())
 
 					for _, learningEvent := range eventsToProcess {
 						var lastErr error
@@ -247,11 +242,7 @@ var _ = Describe("Tetragon", func() {
 				},
 			}
 
-			reconciler := &eventhandler.TetragonEventReconciler{
-				Client:    k8sClient,
-				Scheme:    k8sClient.Scheme(),
-				EventChan: make(chan event.TypedGenericEvent[eventhandler.ProcessLearningEvent]),
-			}
+			reconciler := eventhandler.NewTetragonEventReconciler(k8sClient, k8sClient.Scheme())
 
 			for _, tc := range tcs {
 				// Create an empty policy proposal

@@ -2,7 +2,7 @@ tilt_settings_file = "./tilt-settings.yaml"
 settings = read_yaml(tilt_settings_file)
 
 update_settings(
-	k8s_upsert_timeout_secs=180,
+    k8s_upsert_timeout_secs=180,
 )
 
 # while it takes some time to install cert manager, it's okay to wait 
@@ -16,6 +16,30 @@ deploy_cert_manager(version="v1.18.2")
 load("ext://namespace", "namespace_create")
 namespace_create("runtime-enforcement")
 
+# Install open telemetry collector
+load("ext://helm_resource", "helm_resource", "helm_repo")
+helm_repo("open-telemetry", "http://open-telemetry.github.io/opentelemetry-helm-charts")
+helm_resource(
+    "open-telemetry-collector",
+    "open-telemetry/opentelemetry-collector",
+    namespace="runtime-enforcement",
+    flags=[
+        "--set",
+        "image.repository=otel/opentelemetry-collector-k8s",
+        "--set",
+        "mode=deployment",
+        "--set",
+        "config.exporters.file.path=/dev/stdout",
+        "--set",
+        "config.service.pipelines.traces.exporters[0]=file",
+        "--set",
+        "config.service.pipelines.metrics=null",
+        "--set",
+        "config.service.pipelines.logs=null",
+    ]
+)
+
+
 operator_image = settings.get("operator").get("image")
 daemon_image = settings.get("daemon").get("image")
 
@@ -27,10 +51,14 @@ yaml = helm(
         "operator.manager.image.repository=" + operator_image,
         "daemon.daemon.image.repository=" + daemon_image,
         "operator.replicas=1",
-	"operator.manager.containerSecurityContext.runAsUser=null",
-	"operator.podSecurityContext.runAsNonRoot=false",
-	"daemon.daemon.containerSecurityContext.runAsUser=null",
-	"daemon.podSecurityContext.runAsNonRoot=false"
+        "operator.manager.containerSecurityContext.runAsUser=null",
+        "operator.podSecurityContext.runAsNonRoot=false",
+        "daemon.daemon.containerSecurityContext.runAsUser=null",
+        "daemon.podSecurityContext.runAsNonRoot=false",
+        "telemetry.mode=custom",
+        "telemetry.tracing=true",
+        "telemetry.custom.endpoint=http://open-telemetry-collector-opentelemetry-collector.runtime-enforcement.svc.cluster.local:4317",
+        "telemetry.custom.insecure=true",
     ]
 )
 
@@ -46,7 +74,6 @@ local_resource(
         "cmd/operator",
         "api",
         "internal/controller",
-	"pkg",
     ],
 )
 

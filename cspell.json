@@ -91,7 +91,10 @@
         "subresource",
         "externalversions",
         "workqueue",
-        "eventhandler"
+        "eventhandler",
+        "rawtime",
+        "exepath",
+        "pexepath"
     ],
     "import": []
 }

@@ -22,9 +22,32 @@ spec:
       {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       {{- end }}
       containers:
-      - args: {{- toYaml .Values.daemon.daemon.args | nindent 8 }}
+      - args:
+        {{- if .Values.telemetry.tracing }}
+        - --enable-tracing
+        {{- end }}
+        {{- toYaml .Values.daemon.daemon.args | nindent 8 }}
         command:
         - /daemon
+        env:
+        {{- if or .Values.telemetry.metrics .Values.telemetry.tracing }}
+        {{- if eq .Values.telemetry.mode "custom" }}
+          - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            value: {{.Values.telemetry.custom.endpoint}}
+          - name: OTEL_EXPORTER_OTLP_INSECURE
+            value: {{ .Values.telemetry.custom.insecure | default false | quote }}
+        {{- if and (not .Values.telemetry.custom.insecure) .Values.telemetry.custom.otelCollectorCertificateSecret }}
+          - name: OTEL_EXPORTER_OTLP_CERTIFICATE
+            value: /tmp/otel-collector-certs/ca.crt 
+        {{- end }}
+        {{- if and (not .Values.telemetry.custom.insecure) .Values.telemetry.custom.otelCollectorClientCertificateSecret }}
+          - name: OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE
+            value: /tmp/otel-collector-client-certs/tls.crt
+          - name: OTEL_EXPORTER_OTLP_CLIENT_KEY
+            value: /tmp/otel-collector-client-certs/tls.key
+        {{- end }}
+        {{- end }}
+        {{- end }}
         image: {{ .Values.daemon.daemon.image.repository }}:{{ .Values.daemon.daemon.image.tag
           | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.daemon.daemon.image.pullPolicy }}

@@ -77,7 +77,7 @@ func getMainTest() types.Feature {
 						}
 						return false
 					}),
-					wait.WithTimeout(DefaultTimeout),
+					wait.WithTimeout(DefaultOperationTimeout),
 				)
 				require.NoError(t, err)
 
@@ -113,7 +113,7 @@ func getMainTest() types.Feature {
 
 						return false
 					}),
-					wait.WithTimeout(DefaultTimeout),
+					wait.WithTimeout(DefaultOperationTimeout),
 				)
 				require.NoError(t, err)
 
@@ -159,7 +159,7 @@ func getMainTest() types.Feature {
 
 				err = wait.For(conditions.New(r).ResourceMatch(&tp, func(_ k8s.Object) bool {
 					return true
-				}), wait.WithTimeout(DefaultTimeout))
+				}), wait.WithTimeout(DefaultOperationTimeout))
 				require.NoError(t, err)
 				assert.Len(t, "1", len(tp.Spec.KProbes))
 				assert.Equal(t, []string{"test-policy"}, tp.Spec.KProbes[0].Tags)
@@ -237,7 +237,7 @@ func getMainTest() types.Feature {
 
 				err = wait.For(conditions.New(r).ResourceMatch(&tp, func(_ k8s.Object) bool {
 					return true
-				}), wait.WithTimeout(DefaultTimeout))
+				}), wait.WithTimeout(DefaultOperationTimeout))
 				require.NoError(t, err)
 
 				assert.Len(t, "1", len(tp.Spec.KProbes))

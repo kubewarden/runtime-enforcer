@@ -80,7 +80,7 @@ func InstallCertManager() env.Func {
 			helm.WithArgs("--version", certManagerVersion),
 			helm.WithArgs("--set", "installCRDs=true"),
 			helm.WithWait(),
-			helm.WithTimeout(DefaultTimeout.String()))
+			helm.WithTimeout(DefaultHelmTimeout.String()))
 		if err != nil {
 			return ctx, fmt.Errorf("failed to install cert manager: %w", err)
 		}
@@ -98,7 +98,7 @@ func InstallRuntimeEnforcement() env.Func {
 			helm.WithArgs("--set", "operator.manager.image.tag=latest"),
 			helm.WithArgs("--set", "daemon.daemon.image.tag=latest"),
 			helm.WithWait(),
-			helm.WithTimeout(DefaultTimeout.String()))
+			helm.WithTimeout(DefaultHelmTimeout.String()))
 
 		if err != nil {
 			return ctx, fmt.Errorf("failed to install Tetragon: %w", err)

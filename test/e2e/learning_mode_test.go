@@ -128,7 +128,7 @@ func getLearningModeTest() types.Feature {
 						func(_ k8s.Object) bool {
 							return true
 						}),
-						wait.WithTimeout(DefaultTimeout),
+						wait.WithTimeout(DefaultOperationTimeout),
 					)
 					require.NoError(t, err)
 					require.Len(t, proposal.OwnerReferences, 1)
@@ -147,7 +147,7 @@ func getLearningModeTest() types.Feature {
 
 							return false
 						}),
-						wait.WithTimeout(DefaultTimeout),
+						wait.WithTimeout(DefaultOperationTimeout),
 					)
 					require.NoError(t, err)
 				}

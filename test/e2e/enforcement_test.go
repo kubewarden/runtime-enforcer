@@ -145,7 +145,7 @@ func getEnforcementTest() types.Feature {
 
 					err = wait.For(conditions.New(r).ResourceMatch(&tp, func(_ k8s.Object) bool {
 						return true
-					}), wait.WithTimeout(DefaultTimeout))
+					}), wait.WithTimeout(DefaultOperationTimeout))
 					require.NoError(t, err)
 
 					assert.Len(t, "1", len(tp.Spec.KProbes))

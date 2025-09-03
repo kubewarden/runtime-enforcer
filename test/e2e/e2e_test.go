@@ -16,7 +16,8 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 )
 
-const DefaultTimeout = time.Minute * 5
+const DefaultHelmTimeout = time.Minute * 5
+const DefaultOperationTimeout = time.Minute
 
 type key string
 
@@ -45,7 +46,7 @@ func IfRequiredResourcesAreCreated(ctx context.Context, t *testing.T, _ *envconf
 			"runtime-enforcement-controller-manager",
 			namespace,
 		),
-		wait.WithTimeout(DefaultTimeout),
+		wait.WithTimeout(DefaultOperationTimeout),
 	)
 	require.NoError(t, err)
 
@@ -56,7 +57,7 @@ func IfRequiredResourcesAreCreated(ctx context.Context, t *testing.T, _ *envconf
 				Namespace: namespace,
 			},
 		}),
-		wait.WithTimeout(DefaultTimeout),
+		wait.WithTimeout(DefaultOperationTimeout),
 	)
 	require.NoError(t, err)
 
@@ -67,7 +68,7 @@ func IfRequiredResourcesAreCreated(ctx context.Context, t *testing.T, _ *envconf
 				Namespace: namespace,
 			},
 		}),
-		wait.WithTimeout(DefaultTimeout),
+		wait.WithTimeout(DefaultOperationTimeout),
 	)
 	require.NoError(t, err)
 	return ctx

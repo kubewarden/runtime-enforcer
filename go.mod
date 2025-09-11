@@ -13,14 +13,14 @@ require (
 	github.com/onsi/gomega v1.38.2
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.75.0
-	k8s.io/api v0.34.0
-	k8s.io/apimachinery v0.34.0
-	k8s.io/client-go v0.34.0
-	k8s.io/code-generator v0.34.0
+	k8s.io/api v0.34.1
+	k8s.io/apimachinery v0.34.1
+	k8s.io/client-go v0.34.1
+	k8s.io/code-generator v0.34.1
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
-	sigs.k8s.io/controller-runtime v0.22.0
+	sigs.k8s.io/controller-runtime v0.22.1
 	sigs.k8s.io/e2e-framework v0.6.0
-	sigs.k8s.io/structured-merge-diff/v4 v4.7.0
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.0
 )
 
 require (
@@ -113,6 +113,5 @@ require (
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )

@@ -19,4 +19,4 @@ jobs:
         env:
           UPDATECLI_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           UPDATECLI_GITHUB_OWNER: ${{ github.repository_owner }}
-        run: "updatecli apply --config ./.github/updatecli/updatecli.d/helm-chart-update.yaml --values .github/updatecli/values.yaml"
+        run: "updatecli compose apply --file updatecli/updatecli-compose.release.yaml"

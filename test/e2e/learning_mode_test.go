@@ -164,7 +164,9 @@ func getLearningModeTest() types.Feature {
 				r,
 				"./testdata",
 				"*",
-				[]resources.DeleteOption{},
+				[]resources.DeleteOption{
+					resources.WithDeletePropagation("Foreground"),
+				},
 				decoder.MutateNamespace(workloadNamespace),
 			)
 			assert.NoError(t, err, "failed to delete test data")

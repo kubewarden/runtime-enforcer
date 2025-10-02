@@ -91,3 +91,9 @@ func TestLearning(t *testing.T) {
 
 	testEnv.Test(t, getLearningModeTest())
 }
+
+func TestMonitoring(t *testing.T) {
+	t.Log("test monitoring")
+
+	testEnv.Test(t, getMonitoringTest())
+}

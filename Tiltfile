@@ -1,6 +1,8 @@
 tilt_settings_file = "./tilt-settings.yaml"
 settings = read_yaml(tilt_settings_file)
 
+allow_k8s_contexts(settings.get("clusters"))
+
 update_settings(
     k8s_upsert_timeout_secs=180,
 )
@@ -43,11 +45,7 @@ helm_resource(
 operator_image = settings.get("operator").get("image")
 daemon_image = settings.get("daemon").get("image")
 
-yaml = helm(
-    "./charts/runtime-enforcement",
-    name="runtime-enforcement",
-    namespace="runtime-enforcement",
-    set=[
+helm_options = [
         "operator.manager.image.repository=" + operator_image,
         "daemon.daemon.image.repository=" + daemon_image,
         "operator.replicas=1",
@@ -55,11 +53,21 @@ yaml = helm(
         "operator.podSecurityContext.runAsNonRoot=false",
         "daemon.daemon.containerSecurityContext.runAsUser=null",
         "daemon.podSecurityContext.runAsNonRoot=false",
+]
+
+if settings.get("daemon").get("enable-otel-tracing"):
+    helm_options += [
         "telemetry.mode=custom",
         "telemetry.tracing=true",
         "telemetry.custom.endpoint=http://open-telemetry-collector-opentelemetry-collector.runtime-enforcement.svc.cluster.local:4317",
         "telemetry.custom.insecure=true",
     ]
+
+yaml = helm(
+    "./charts/runtime-enforcement",
+    name="runtime-enforcement",
+    namespace="runtime-enforcement",
+    set=helm_options
 )
 
 k8s_yaml(yaml)

@@ -1,4 +1,8 @@
 operator: 
     image: <your-repository>/operator
+    enforce-mode: # lsm or kprobe
 daemon: 
     image: <your-repository>/daemon
+    enable-otel-tracing: true/false
+clusters:
+    - <your non-kind cluster>

@@ -62,17 +62,13 @@ kubernetesClusterDomain: cluster.local
 imagePullSecrets: []
 
 telemetry:
-  # Runtime-enforcement telemetry configuration allow two OpenTelemetry
+  # Runtime-enforcement telemetry configuration allow one OpenTelemetry
   # collector communication options: 
-  # - sidecar: It will create a Otel collector sidecar and configure the
-  # controller and policy server to send metrics and traces to it. 
   # - custom: It will configure the controller and policy server to send metrics
-  # and traces to a custom collector that is not running as a sidecar.
+  # and traces to a custom collector
 
-  # The default configuration is to use the sidecar option. Therefore, if
-  # telemetry.metrics or telemetry.tracing are set to true, the sidecar will be
-  # deployed. If you want to use a custom collector, set mode to "custom"
-  mode: sidecar
+  # The default configuration is to use the custom option.
+  mode: custom
   # telemetry.metrics is used to enable/disable the metrics collection and
   # exportation to the OpenTelemetry collector.
   metrics: false
@@ -82,7 +78,7 @@ telemetry:
 
   # The following settings are mandatory to configure the OpenTelemetry
   # exporter in the controller and policy server to send metrics and traces to
-  # a custom collector. These settings are ignored when sidecar mode is used
+  # a custom collector.
   custom:
     # telemetry.custom.endpoint is the Otel collector endpoint to send metrics and
     # traces to. It should be in the format https://<hostname>:<port>.
@@ -104,23 +100,6 @@ telemetry:
     # (mTLS). It should contains two keys: tls.crt and tls.key storing the client
     # certificate and key respectively.
     otelCollectorClientCertificateSecret: ""
-
-  # The following settings are used to configure the Prometheus metrics and
-  # Jaeger tracing when sidecar mode is used. Otherwise, these settings are ignored 
-  sidecar:
-    # telemetry.sidecar.metrics is used to configure the Prometheus metrics exporter
-    # in the Otel collector sidecar
-    metrics:
-      # port of the prometheus exporter and PolicyServer metric service
-      port: 8080
-    # telemetry.sidecar.tracing is used to configure the Jaeger tracing exporter
-    # in the Otel collector sidecar
-    tracing:
-      jaeger: {}
-      # OTLP/Jaeger endpoint to send traces to
-      # endpoint: "all-in-one-collector.jaeger.svc.cluster.local:4317"
-      # tls:
-      #  insecure: true
 
 # NOTE: This section is used to configure Tetragon and its components
 # deployed by the Tetragon chart dependency.

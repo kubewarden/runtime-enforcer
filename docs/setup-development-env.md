@@ -9,9 +9,17 @@ Runtime enforcement supports Tilt to run development environment in your local.
 
 ## Steps
 
-1. Install [tilt](https://docs.tilt.dev/install.html)
-2. Create `tilt-settings.yaml` based on `tilt-settings.yaml.example`.
-3. Run `tilt up`.  Related resources should be built and deployed.
+1. Install [kubectl](https://kubernetes.io/docs/reference/kubectl/) and [helm](https://helm.sh/).
+2. Install [tilt](https://docs.tilt.dev/install.html).
+3. Create `tilt-settings.yaml` based on `tilt-settings.yaml.example`. You should use 
+4. Run `tilt up`.  Related resources should be built and deployed.
+
+
+You can use this command to list the policy proposals:
+
+```sh
+kubectl get workloadsecuritypolicyproposals.security.rancher.io -A
+```
 
 ## Verified environment
 

@@ -9,6 +9,8 @@ import (
 )
 
 const (
+	// PolicyProposalMaxExecutables defines the maximum number of executables that we can learn.
+	// This is a arbitrary number right now and can be fine-tuned made configurable in the future.
 	PolicyProposalMaxExecutables = 100
 )
 

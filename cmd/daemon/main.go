@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"os"
 
@@ -17,6 +16,8 @@ import (
 	"log/slog"
 )
 
+// DefaultEventChannelBufferSize defines the channel buffer size used to
+// deliver Tetragon events to tetragon_event_controller.
 const DefaultEventChannelBufferSize = 100
 
 func main() {
@@ -35,7 +36,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	ctx := context.Background()
+	ctx := ctrl.SetupSignalHandler()
 
 	scheme := runtime.NewScheme()
 	err = securityv1alpha1.AddToScheme(scheme)
@@ -76,7 +77,7 @@ func main() {
 	}
 
 	logger.InfoContext(ctx, "starting manager")
-	if err = mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err = mgr.Start(ctx); err != nil {
 		logger.ErrorContext(ctx, "failed to run manager", "error", err)
 		os.Exit(1)
 	}

@@ -7,6 +7,7 @@ import (
 	securityv1alpha1 "github.com/neuvector/runtime-enforcement/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -45,6 +46,13 @@ func GetWorkloadSecurityPolicyProposalName(kind string, resourceName string) (st
 	default:
 		return "", fmt.Errorf("unknown kind: %s", kind)
 	}
+	ret := shortname + "-" + resourceName
+
+	// The max name length in k8s
+	if len(ret) > validation.DNS1123SubdomainMaxLength {
+		return "", fmt.Errorf("the name %s exceeds the maximum name length", ret)
+	}
+
 	return shortname + "-" + resourceName, nil
 }
 
@@ -87,9 +95,12 @@ func (r *TetragonEventReconciler) Reconcile(
 	}
 
 	if _, err = controllerutil.CreateOrUpdate(ctx, r.Client, policyProposal, func() error {
-		if err = policyProposal.AddProcess(req.ExecutablePath); err != nil {
-			return fmt.Errorf("failed to add process to policy proposal: %w", err)
+		if innErr := policyProposal.AddProcess(req.ExecutablePath); innErr != nil {
+			return fmt.Errorf("failed to add process to policy proposal: %w", innErr)
 		}
+
+		// We do not inject partial owner reference when selector is available.
+		// This is to facilitate unit tests.
 		if len(policyProposal.OwnerReferences) == 0 && policyProposal.Spec.Selector == nil {
 			policyProposal.AddPartialOwnerReferenceDetails(req.WorkloadKind, req.Workload)
 		}

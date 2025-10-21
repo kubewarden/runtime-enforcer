@@ -140,16 +140,17 @@ var _ = Describe("Tetragon", func() {
 						EventChan: make(chan event.TypedGenericEvent[eventhandler.ProcessLearningEvent]),
 					}
 
-					for _, event := range eventsToProcess {
+					for _, learningEvent := range eventsToProcess {
 						var lastErr error
 						for range 5 {
-							if _, lastErr = reconciler.Reconcile(ctx, event); lastErr != nil {
+							if _, lastErr = reconciler.Reconcile(ctx, learningEvent); lastErr != nil {
 								logf.Log.Info("error:", "error", lastErr)
 							} else {
+								lastErr = nil
 								break
 							}
 						}
-						Expect(err).NotTo(HaveOccurred())
+						Expect(lastErr).NotTo(HaveOccurred())
 					}
 
 					logf.Log.Info("worker finished", "name", name)
@@ -259,9 +260,9 @@ var _ = Describe("Tetragon", func() {
 				testProposal.Name = testProposalName
 				Expect(k8sClient.Create(ctx, testProposal)).To(Succeed())
 
-				for _, event := range tc.processEvents {
+				for _, learningEvent := range tc.processEvents {
 					var result ctrl.Result
-					result, err = reconciler.Reconcile(ctx, event)
+					result, err = reconciler.Reconcile(ctx, learningEvent)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(result).To(Equal(ctrl.Result{}))
 				}

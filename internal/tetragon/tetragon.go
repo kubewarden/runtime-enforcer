@@ -168,9 +168,6 @@ func (c *Connector) eventLoop(ctx context.Context) error {
 		case *tetragon.GetEventsResponse_ProcessKprobe:
 			// Emit OpenTelemetry traces
 			c.handleKProbeEvent(ctx, res.GetProcessKprobe())
-		case *tetragon.GetEventsResponse_ProcessLsm:
-			// Emit OpenTelemetry traces
-			c.handleLsmEvent(ctx, res.GetProcessLsm())
 		}
 	}
 }
@@ -206,44 +203,20 @@ func (c *Connector) emitEnforcementEvent(
 	span.End()
 }
 
-func (c *Connector) handleLsmEvent(ctx context.Context, evt *tetragon.ProcessLsm) {
-	args := evt.GetArgs()
-
-	// TODO: make sure that the event is from the rule we created.
-	if len(args) == 0 {
-		c.logger.ErrorContext(ctx, "invalid LSM events")
-	}
-
-	eb, err := json.Marshal(evt)
-	if err != nil {
-		c.logger.ErrorContext(ctx, "invalid LSM events", "error", err)
-		return
-	}
-
-	c.logger.DebugContext(ctx, "Getting LSM event", "event", string(eb))
-
-	var action Action
-	action, err = GetAction(evt.GetAction().String())
-	if err != nil {
-		c.logger.ErrorContext(ctx, "unknown tetragon action", "error", err)
-		return
-	}
-
-	c.emitEnforcementEvent(
-		ctx,
-		evt.GetPolicyName(),
-		evt.GetProcess(),
-		evt.GetArgs()[0].GetLinuxBinprmArg().GetPath(),
-		action,
-	)
-}
-
 func (c *Connector) handleKProbeEvent(ctx context.Context, evt *tetragon.ProcessKprobe) {
 	args := evt.GetArgs()
 
 	// TODO: make sure that the event is from the rule we created.
 	if len(args) == 0 {
 		c.logger.ErrorContext(ctx, "invalid kprobe events")
+		return
+	}
+
+	linuxBprmArg := args[0].GetLinuxBinprmArg()
+
+	if linuxBprmArg == nil {
+		c.logger.ErrorContext(ctx, "no linux bprm arg is available")
+		return
 	}
 
 	eb, err := json.Marshal(evt)
@@ -265,7 +238,7 @@ func (c *Connector) handleKProbeEvent(ctx context.Context, evt *tetragon.Process
 		ctx,
 		evt.GetPolicyName(),
 		evt.GetProcess(),
-		evt.GetArgs()[0].GetLinuxBinprmArg().GetPath(),
+		linuxBprmArg.GetPath(),
 		action,
 	)
 }

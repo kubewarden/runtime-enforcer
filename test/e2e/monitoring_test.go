@@ -77,6 +77,8 @@ func waitExpectedEvent(
 
 	t.Log("waiting for otel events:", expectedEvent)
 	err = otelLogStream.WaitUntil(ctx, DefaultOperationTimeout, func(span *ptrace.Span) (bool, error) {
+		assert.NotNil(t, span)
+
 		value, ok = span.Attributes().Get("proc.exepath")
 		if !ok {
 			// unexpected event type. ignore it.

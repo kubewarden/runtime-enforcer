@@ -22,6 +22,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
+// DefaultEventChannelBufferSize defines the channel buffer size used to
+// deliver Tetragon events to tetragon_event_controller.
+// This is a arbitrary number right now and can be fine-tuned or made configurable in the future.
 const DefaultEventChannelBufferSize = 100
 
 type ProcessLearningEvent struct {

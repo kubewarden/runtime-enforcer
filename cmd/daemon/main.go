@@ -18,10 +18,6 @@ import (
 	"log/slog"
 )
 
-// DefaultEventChannelBufferSize defines the channel buffer size used to
-// deliver Tetragon events to tetragon_event_controller.
-const DefaultEventChannelBufferSize = 100
-
 type Config struct {
 	enableTracing     bool
 	enableOtelSidecar bool

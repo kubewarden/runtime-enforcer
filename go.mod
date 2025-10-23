@@ -3,7 +3,7 @@ module github.com/neuvector/runtime-enforcement
 go 1.25.1
 
 require (
-	github.com/cilium/cilium v1.18.2
+	github.com/cilium/cilium v1.18.3
 	github.com/cilium/tetragon/api v1.5.0
 	github.com/cilium/tetragon/pkg/k8s v0.0.0-20250303175605-fb54043d0c63
 	github.com/go-logr/logr v1.4.3

@@ -1,6 +1,6 @@
 module github.com/neuvector/runtime-enforcement
 
-go 1.25.1
+go 1.25.3
 
 require (
 	github.com/cilium/cilium v1.18.3

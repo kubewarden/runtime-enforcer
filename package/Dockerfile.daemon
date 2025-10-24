@@ -1,4 +1,4 @@
-FROM registry.suse.com/bci/golang:1.25.1 AS builder
+FROM registry.suse.com/bci/golang:1.25.3 AS builder
 WORKDIR /src
 COPY api/ /src/api
 COPY cmd/ /src/cmd

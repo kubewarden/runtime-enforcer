@@ -97,3 +97,9 @@ func TestMonitoring(t *testing.T) {
 
 	testEnv.Test(t, getMonitoringTest())
 }
+
+func TestPromotion(t *testing.T) {
+	t.Log("test promotion")
+
+	testEnv.Test(t, getPromotionTest())
+}

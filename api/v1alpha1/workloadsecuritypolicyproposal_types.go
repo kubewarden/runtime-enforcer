@@ -12,6 +12,7 @@ const (
 	// PolicyProposalMaxExecutables defines the maximum number of executables that we can learn.
 	// This is a arbitrary number right now and can be fine-tuned or made configurable in the future.
 	PolicyProposalMaxExecutables = 100
+	MaximumSeverity              = 10
 )
 
 type WorkloadSecurityPolicyProposalExecutables struct {
@@ -24,12 +25,6 @@ type WorkloadSecurityPolicyProposalExecutables struct {
 	AllowedPrefixes []string `json:"allowedPrefixes,omitempty"`
 }
 
-type WorkloadSecurityPolicyProposalRules struct {
-	// executables defines a security policy used for executables.
-	// +optional
-	Executables WorkloadSecurityPolicyProposalExecutables `json:"executables,omitempty"`
-}
-
 // WorkloadSecurityPolicyProposalSpec defines the desired state of WorkloadSecurityPolicyProposal.
 type WorkloadSecurityPolicyProposalSpec struct {
 	// selector is a kubernetes label selector used to match
@@ -38,7 +33,7 @@ type WorkloadSecurityPolicyProposalSpec struct {
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 
 	// rules specifies the rules this policy contains
-	Rules WorkloadSecurityPolicyProposalRules `json:"rules,omitempty"`
+	Rules WorkloadSecurityPolicyRules `json:"rules,omitempty"`
 }
 
 type WorkloadSecurityPolicyProposalCondition struct {
@@ -110,6 +105,16 @@ func (p *WorkloadSecurityPolicyProposal) AddPartialOwnerReferenceDetails(workloa
 			Kind: workloadKind,
 			Name: workload,
 		},
+	}
+}
+
+func (p *WorkloadSecurityPolicyProposalSpec) IntoWorkloadSecurityPolicySpec() WorkloadSecurityPolicySpec {
+	// Setting severity to 10 and enforcement mode to "monitor" by default.
+	return WorkloadSecurityPolicySpec{
+		Rules:    p.Rules,
+		Severity: MaximumSeverity,
+		Mode:     MonitorMode,
+		Selector: p.Selector,
 	}
 }
 

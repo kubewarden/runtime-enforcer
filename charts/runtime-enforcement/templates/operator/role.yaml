@@ -38,6 +38,7 @@ rules:
   resources:
   - clusterworkloadsecuritypolicies
   - workloadsecuritypolicies
+  - workloadsecuritypolicyproposals
   verbs:
   - create
   - delete
@@ -51,6 +52,7 @@ rules:
   resources:
   - clusterworkloadsecuritypolicies/finalizers
   - workloadsecuritypolicies/finalizers
+  - workloadsecuritypolicyproposals/finalizers
   verbs:
   - update
 - apiGroups:
@@ -58,6 +60,7 @@ rules:
   resources:
   - clusterworkloadsecuritypolicies/status
   - workloadsecuritypolicies/status
+  - workloadsecuritypolicyproposals/status
   verbs:
   - get
   - patch

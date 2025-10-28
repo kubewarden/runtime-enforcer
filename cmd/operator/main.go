@@ -105,6 +105,13 @@ func SetupControllers(logger logr.Logger,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create ClusterWorkloadSecurityPolicyReconciler controller: %w", err)
 	}
+
+	if err = (&controller.WorkloadSecurityPolicyProposalReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("unable to create WorkloadSecurityProposalPolicyReconciler controller: %w", err)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {

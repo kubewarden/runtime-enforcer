@@ -1,3 +1,10 @@
+- [Setup Development Environments](#setup-development-environments)
+  - [Pre-requisite](#pre-requisite)
+  - [Steps](#steps)
+  - [Optional](#optional)
+    - [golangci-lint](#golangci-lint)
+  - [Verified environment](#verified-environment)
+
 # Setup Development Environments
 
 Runtime enforcement supports Tilt to run development environment in your local.
@@ -19,6 +26,22 @@ You can use this command to list the policy proposals:
 
 ```sh
 kubectl get workloadsecuritypolicyproposals.security.rancher.io -A
+```
+
+## Optional
+
+### golangci-lint
+
+You may want to install a pre-commit hook for golangci-lint, so you can fix linter issues at your local.
+1. Install golangci-lint, e.g., `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.0`
+2. Install pre-commit hooks. You can also use tools like [husky](https://typicode.github.io/husky/) or [pre-commit](https://pre-commit.com/). 
+
+```
+cat << EOF > .git/hooks/pre-commit
+#!/bin/sh
+golangci-lint-v2 run
+EOF
+chmod +x .git/hooks/pre-commit
 ```
 
 ## Verified environment

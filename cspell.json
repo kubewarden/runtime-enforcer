@@ -60,7 +60,8 @@
         "binprm",
         "syscall",
         "syscalls",
-        "STIG"
+        "STIG",
+        "golangci"
     ],
     "ignoreWords": [
         "clientgoscheme",

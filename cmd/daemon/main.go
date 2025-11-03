@@ -41,28 +41,29 @@ func startTetragonEventController(ctx context.Context, logger *slog.Logger, enab
 		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
-	// Initialize with a no-op enqueue function, replaced when learning is enabled
-	f := func(_ context.Context, _ eventhandler.ProcessLearningEvent) {}
+	// Initialize with a panic function, replaced when learning is enabled
+	enqueueFunc := func(_ context.Context, _ eventhandler.ProcessLearningEvent) {
+		panic("enqueue function should be never called when learning is disabled")
+	}
 
 	if enableLearning {
 		tetragonEventReconciler := eventhandler.NewTetragonEventReconciler(mgr.GetClient(), mgr.GetScheme())
 		if err = tetragonEventReconciler.SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("unable to create tetragon event reconciler: %w", err)
 		}
-		f = tetragonEventReconciler.EnqueueEvent
+		enqueueFunc = tetragonEventReconciler.EnqueueEvent
 		logger.InfoContext(ctx, "learning mode is enabled")
 	} else {
 		logger.InfoContext(ctx, "learning mode is disabled")
 	}
 
-	connector, err = internalTetragon.CreateConnector(logger, f, enableLearning)
+	connector, err = internalTetragon.CreateConnector(logger, enqueueFunc, enableLearning)
 	if err != nil {
 		return fmt.Errorf("failed to create tetragon connector: %w", err)
 	}
 
-	// StartEventLoop will receive events from Tetragon
-	if err = connector.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start tetragon connector: %w", err)
+	if err = mgr.Add(connector); err != nil {
+		return fmt.Errorf("failed to add tetragon connector to manager: %w", err)
 	}
 
 	logger.InfoContext(ctx, "starting manager")

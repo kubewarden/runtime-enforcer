@@ -3,6 +3,7 @@ module github.com/neuvector/runtime-enforcement
 go 1.25.3
 
 require (
+	github.com/avast/retry-go/v4 v4.7.0
 	github.com/cilium/cilium v1.18.3
 	github.com/cilium/tetragon/api v1.6.0
 	github.com/cilium/tetragon/pkg/k8s v0.0.0-20250303175605-fb54043d0c63

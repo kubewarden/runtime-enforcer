@@ -9,7 +9,6 @@ import (
 
 	tragonv1alpha1 "github.com/cilium/tetragon/pkg/k8s/apis/cilium.io/v1alpha1"
 	"github.com/neuvector/runtime-enforcement/api/v1alpha1"
-	"github.com/neuvector/runtime-enforcement/internal/controller"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -127,14 +126,14 @@ func getPromotionTest() types.Feature {
 				r := ctx.Value(key("client")).(*resources.Resources)
 				proposal := ctx.Value(key("proposal")).(*v1alpha1.WorkloadSecurityPolicyProposal)
 
-				t.Log("applying the label to the policy proposal: ", proposal.Name, controller.ApprovalLabelKey)
+				t.Log("applying the label to the policy proposal: ", proposal.Name, v1alpha1.ApprovalLabelKey)
 
 				labels := proposal.GetLabels()
 				if labels == nil {
 					labels = map[string]string{}
 				}
 
-				labels[controller.ApprovalLabelKey] = "true"
+				labels[v1alpha1.ApprovalLabelKey] = "true"
 
 				proposal.SetLabels(labels)
 				err := r.Update(ctx, proposal)

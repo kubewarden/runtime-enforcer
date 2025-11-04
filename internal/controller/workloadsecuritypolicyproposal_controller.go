@@ -21,8 +21,6 @@ type WorkloadSecurityPolicyProposalReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-const ApprovalLabelKey string = "security.rancher.io/policy-ready"
-
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals/finalizers,verbs=update
@@ -47,7 +45,7 @@ func (r *WorkloadSecurityPolicyProposalReconciler) Reconcile(
 	}
 
 	labels := policyProposal.GetLabels()
-	approved := labels[ApprovalLabelKey] == "true"
+	approved := labels[securityv1alpha1.ApprovalLabelKey] == "true"
 
 	if approved {
 		policy := securityv1alpha1.WorkloadSecurityPolicy{

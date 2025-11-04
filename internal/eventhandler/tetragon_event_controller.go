@@ -115,6 +115,13 @@ func (r *TetragonEventReconciler) Reconcile(
 	var result controllerutil.OperationResult
 
 	if result, err = controllerutil.CreateOrUpdate(ctx, r.Client, policyProposal, func() error {
+		// We don't learn any new process if the policy proposal was promoted
+		// to an actual policy
+		labels := policyProposal.GetLabels()
+		if labels[securityv1alpha1.ApprovalLabelKey] == "true" {
+			return nil
+		}
+
 		if innerErr := policyProposal.AddProcess(req.ExecutablePath); err != nil {
 			return fmt.Errorf("failed to add process to policy proposal: %w", innerErr)
 		}

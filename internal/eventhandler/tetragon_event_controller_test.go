@@ -171,6 +171,99 @@ var _ = Describe("Tetragon", func() {
 			Expect(proposalResult.Spec.Rules.Executables.Allowed).To(ContainElements(expectedAllowList))
 		})
 
+		It("should not learn container behavior when labeled as ready", func() {
+			By("ignoring the learning events")
+			const workerNum = 10
+
+			eventsToProcess := []eventhandler.ProcessLearningEvent{}
+
+			for i := range 10 {
+				eventsToProcess = append(eventsToProcess, eventhandler.ProcessLearningEvent{
+					Namespace:      "default",
+					ContainerName:  "ubuntu",
+					ExecutablePath: fmt.Sprintf("/usr/bin/sleep%d", i),
+					Workload:       "ubuntu-deployment",
+					WorkloadKind:   "Deployment",
+				})
+			}
+
+			proposal := securityv1alpha1.WorkloadSecurityPolicyProposal{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "deploy-ubuntu-deployment",
+					Namespace: "default",
+				},
+			}
+
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Namespace: proposal.Namespace,
+				Name:      proposal.Name,
+			}, &proposal)
+			Expect(err).NotTo(HaveOccurred())
+
+			labels := map[string]string{}
+			labels[securityv1alpha1.ApprovalLabelKey] = "true"
+
+			proposal.SetLabels(labels)
+
+			err = k8sClient.Update(ctx, &proposal)
+			Expect(err).NotTo(HaveOccurred())
+
+			var wg sync.WaitGroup
+
+			for i := range workerNum {
+				workerFunc := func() {
+					var routineErr error
+					var perWorkerClient client.Client
+					name := fmt.Sprintf("worker%d", i)
+
+					logf.Log.Info("worker started", "name", name)
+
+					scheme := runtime.NewScheme()
+					routineErr = securityv1alpha1.AddToScheme(scheme)
+					Expect(routineErr).NotTo(HaveOccurred())
+
+					perWorkerClient, routineErr = client.New(cfg, client.Options{
+						Scheme: scheme,
+					})
+					Expect(routineErr).NotTo(HaveOccurred())
+
+					reconciler := eventhandler.NewTetragonEventReconciler(perWorkerClient, perWorkerClient.Scheme())
+
+					for _, learningEvent := range eventsToProcess {
+						var lastErr error
+						for range 5 {
+							if _, lastErr = reconciler.Reconcile(ctx, learningEvent); lastErr != nil {
+								logf.Log.Info("error:", "error", lastErr)
+							} else {
+								lastErr = nil
+								break
+							}
+						}
+						Expect(lastErr).NotTo(HaveOccurred())
+					}
+
+					logf.Log.Info("worker finished", "name", name)
+				}
+				wg.Go(workerFunc)
+			}
+			wg.Wait()
+
+			proposalResult := securityv1alpha1.WorkloadSecurityPolicyProposal{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "deploy-ubuntu-deployment",
+					Namespace: "default",
+				},
+			}
+
+			err = k8sClient.Get(ctx, types.NamespacedName{
+				Namespace: proposalResult.Namespace,
+				Name:      proposalResult.Name,
+			}, &proposalResult)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(proposalResult.Spec.Rules.Executables.Allowed).To(BeEmpty())
+		})
+
 		It("should correctly learn process behavior", func() {
 			var err error
 
@@ -272,6 +365,70 @@ var _ = Describe("Tetragon", func() {
 					},
 				})).To(Succeed())
 			}
+		})
+
+		It("should not learn process behavior when a policy proposal is labeled as ready", func() {
+			const testNamespace = "default"
+			const testResourceName = "ubuntu-deployment-3"
+			const testProposalName = "deploy-ubuntu-deployment-3"
+
+			var err error
+
+			processEvents := []eventhandler.ProcessLearningEvent{
+				{
+					Namespace:      testNamespace,
+					Workload:       testResourceName,
+					WorkloadKind:   "Deployment",
+					ContainerName:  "ubuntu",
+					ExecutablePath: "/usr/bin/sleep",
+				},
+				{
+					Namespace:      testNamespace,
+					Workload:       testResourceName,
+					WorkloadKind:   "Deployment",
+					ContainerName:  "ubuntu",
+					ExecutablePath: "/usr/bin/bash",
+				},
+				{
+					Namespace:      testNamespace,
+					Workload:       testResourceName,
+					WorkloadKind:   "Deployment",
+					ContainerName:  "ubuntu",
+					ExecutablePath: "/usr/bin/ls",
+				},
+			}
+
+			reconciler := eventhandler.NewTetragonEventReconciler(k8sClient, k8sClient.Scheme())
+
+			testProposal := proposal.DeepCopy()
+			testProposal.Namespace = testNamespace
+			testProposal.Name = testProposalName
+			labels := map[string]string{}
+			labels[securityv1alpha1.ApprovalLabelKey] = "true"
+			testProposal.SetLabels(labels)
+
+			Expect(k8sClient.Create(ctx, testProposal)).To(Succeed())
+
+			for _, learningEvent := range processEvents {
+				var result ctrl.Result
+				result, err = reconciler.Reconcile(ctx, learningEvent)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result).To(Equal(ctrl.Result{}))
+			}
+
+			err = k8sClient.Get(ctx, types.NamespacedName{
+				Namespace: testNamespace,
+				Name:      testProposalName,
+			}, testProposal)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(testProposal.Spec.Rules.Executables.Allowed).To(BeEmpty())
+
+			Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadSecurityPolicyProposal{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testProposal.Name,
+					Namespace: testProposal.Namespace,
+				},
+			})).To(Succeed())
 		})
 	})
 })

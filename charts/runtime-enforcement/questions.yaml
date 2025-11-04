@@ -56,17 +56,12 @@ questions:
   # OpenTelemetry
   ###############################################################################
   - variable: telemetry.mode
-    type: enum
-    options:
-      - sidecar
-      - custom
-    default: sidecar
+    type: string
+    default: custom
     required: true
     label: Telemetry mode
     description: |
-      Choose the telemetry mode.
-      Sidecar mode will deploy an OpenTelemetry Collector as a sidecar container in the Runtime-enforcement Controller pod.
-      Custom mode will allow you to configure the OpenTelemetry Collector by your own and Runtime-enforcement will send data to it.
+      Custom mode will allow you to configure the OpenTelemetry Collector by your own and runtime enforcement will send data to it.
     group: OpenTelemetry
 
   - variable: telemetry.metrics
@@ -75,7 +70,7 @@ questions:
     required: true
     label: Enable Metrics
     description: |
-      Enable metrics collection for all Policy Servers and the Runtime-enforcement Controller.
+      Enable metrics collection for all components installed by runtime enforcement.
       Important: Requires OpenTelemetry CRDs available.
     group: OpenTelemetry
 
@@ -85,7 +80,7 @@ questions:
     required: true
     label: Enable Tracing
     description: |
-      Enable tracing collection for all PolicyServers.
+      Enable tracing collection for all components installed by runtime enforcement.
       Important: Requires OpenTelemetry CRDs available.
     group: OpenTelemetry
 

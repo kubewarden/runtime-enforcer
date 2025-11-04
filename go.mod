@@ -10,7 +10,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
 	github.com/stretchr/testify v1.11.1
-	go.opentelemetry.io/collector/pdata v1.44.0
+	go.opentelemetry.io/collector/pdata v1.45.0
 	go.opentelemetry.io/otel v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0
 	go.opentelemetry.io/otel/sdk v1.38.0
@@ -77,7 +77,7 @@ require (
 	github.com/vladimirvivien/gexe v0.4.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.44.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.45.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.58.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.38.0 // indirect
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect

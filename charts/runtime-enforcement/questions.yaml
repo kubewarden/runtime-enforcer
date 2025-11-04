@@ -1,0 +1,111 @@
+# This is a Rancher questions file
+---
+questions:
+  ###############################################################################
+  # Operator
+  ###############################################################################
+  - variable: operator.manager.image.pullPolicy
+    label: Operator Image Pull Policy
+    type: enum
+    default: IfNotPresent
+    options:
+      - Always
+      - IfNotPresent
+      - Never
+    group: Operator
+    description: |
+      Pull policy of the Operator Deployment
+
+  - variable: operator.replicas
+    label: Operator Replicas
+    type: int
+    default: 1
+    min: 1
+    group: Operator
+    description: |
+      Number of replicas of the Operator Deployment
+
+  ###############################################################################
+  # Daemon
+  ###############################################################################
+  - variable: daemon.daemon.image.pullPolicy
+    label: Daemon Image Pull Policy
+    type: enum
+    default: IfNotPresent
+    options:
+      - Always
+      - IfNotPresent
+      - Never
+    group: Daemon
+    description: |
+      Pull policy of the Daemon DaemonSet
+
+  ###############################################################################
+  # Learning
+  ###############################################################################
+  - variable: learning.enabled
+    label: Enable Cluster-wide Learning Mode
+    type: boolean
+    default: true
+    group: Learning
+    description: |
+      Enable cluster-wide learning mode. If disabled, no process learning occurs.
+      Process enforcement remains unaffected.
+
+  ###############################################################################
+  # Telemetry
+  ###############################################################################
+  - variable: telemetry.metrics
+    label: Enable OTel Metrics Export
+    type: boolean
+    default: false
+    group: Telemetry
+    description: |
+      Enable metrics collection and export via OpenTelemetry.
+
+  - variable: telemetry.tracing
+    label: Enable OTel Tracing Export
+    type: boolean
+    default: false
+    group: Telemetry
+    description: |
+      Enable tracing collection and export via OpenTelemetry.
+
+  - variable: telemetry.custom.endpoint
+    label: OpenTelemetry Collector Endpoint
+    type: string
+    default: ""
+    group: Telemetry
+    description: |
+      Endpoint for the OpenTelemetry collector (for example, https://otel-collector:4317).
+    show_if: "telemetry.metrics=true||telemetry.tracing=true"
+
+  - variable: telemetry.custom.insecure
+    label: Skip OTel TLS Certificate Verification
+    type: boolean
+    default: false
+    group: Telemetry
+    description: |
+      If enabled, the exporter will skip TLS certificate validation when sending data to the collector.
+    show_if: "telemetry.metrics=true||telemetry.tracing=true"
+
+  - variable: telemetry.custom.otelCollectorCertificateSecret
+    label: OTel Collector Certificate Secret
+    type: string
+    default: ""
+    group: Telemetry
+    description: |
+      Name of the secret containing the CA certificate (key: ca.crt) to validate the remote collector certificate.
+      The secret must be created in the same namespace where the controller is deployed.
+    show_if: "telemetry.metrics=true||telemetry.tracing=true"
+
+  - variable: telemetry.custom.otelCollectorClientCertificateSecret
+    label: OTel Collector Client Certificate Secret
+    type: string
+    default: ""
+    group: Telemetry
+    description: |
+      Name of the secret containing client certificate (keys: tls.crt, tls.key) for mTLS authentication.
+      Required only when the remote collector requires client authentication. The secret must be created
+      in the same namespace where the controller is deployed.
+    show_if: "telemetry.metrics=true||telemetry.tracing=true"

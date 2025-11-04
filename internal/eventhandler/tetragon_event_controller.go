@@ -25,7 +25,8 @@ import (
 // DefaultEventChannelBufferSize defines the channel buffer size used to
 // deliver Tetragon events to tetragon_event_controller.
 // This is a arbitrary number right now and can be fine-tuned or made configurable in the future.
-const DefaultEventChannelBufferSize = 100
+// On a simple kind cluster we saw more than 4200 process exec during the initial process cache dump from Tetragon, so this seems a reasonable default for now.
+const DefaultEventChannelBufferSize = 4096
 
 type ProcessLearningEvent struct {
 	Namespace      string `json:"namespace"`

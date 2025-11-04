@@ -36,12 +36,20 @@ You may want to install a pre-commit hook for golangci-lint, so you can fix lint
 1. Install golangci-lint, e.g., `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.0`
 2. Install pre-commit hooks. You can also use tools like [husky](https://typicode.github.io/husky/) or [pre-commit](https://pre-commit.com/). 
 
-```
+```sh
 cat << EOF > .git/hooks/pre-commit
 #!/bin/sh
 golangci-lint-v2 run
 EOF
 chmod +x .git/hooks/pre-commit
+```
+
+If you are using [pre-commit](https://pre-commit.com/), you can run the following command to install the hooks we define in `.pre-commit-config.yaml`:
+
+```sh
+pre-commit install --install-hooks --hook-type pre-commit --overwrite
+# if you want to disable the hook
+pre-commit uninstall --hook-type pre-commit  
 ```
 
 ## Verified environment

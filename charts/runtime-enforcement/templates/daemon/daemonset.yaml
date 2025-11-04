@@ -26,6 +26,9 @@ spec:
         {{- if .Values.telemetry.tracing }}
         - --enable-tracing
         {{- end }}
+        {{- if .Values.learning.enabled }}
+        - --enable-learning
+        {{- end }}
         {{- toYaml .Values.daemon.daemon.args | nindent 8 }}
         command:
         - /daemon

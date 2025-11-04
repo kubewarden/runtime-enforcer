@@ -27,15 +27,17 @@ const (
 )
 
 type Connector struct {
-	logger      *slog.Logger
-	client      tetragon.FineGuidanceSensorsClient
-	tracer      trace.Tracer
-	enqueueFunc func(context.Context, eventhandler.ProcessLearningEvent)
+	logger         *slog.Logger
+	client         tetragon.FineGuidanceSensorsClient
+	tracer         trace.Tracer
+	enqueueFunc    func(context.Context, eventhandler.ProcessLearningEvent)
+	enableLearning bool
 }
 
 func CreateConnector(
 	logger *slog.Logger,
 	enqueueFunc func(context.Context, eventhandler.ProcessLearningEvent),
+	enableLearning bool,
 ) (*Connector, error) {
 	conn, err := grpc.NewClient("unix:///var/run/tetragon/tetragon.sock",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -47,10 +49,11 @@ func CreateConnector(
 	tetragonClient := tetragon.NewFineGuidanceSensorsClient(conn)
 
 	return &Connector{
-		logger:      logger.With("component", "tetragon_connector"),
-		client:      tetragonClient,
-		enqueueFunc: enqueueFunc,
-		tracer:      otel.Tracer("runtime-enforcement-enforcer"),
+		logger:         logger.With("component", "tetragon_connector"),
+		client:         tetragonClient,
+		enqueueFunc:    enqueueFunc,
+		tracer:         otel.Tracer("runtime-enforcement-enforcer"),
+		enableLearning: enableLearning,
 	}, nil
 }
 
@@ -122,10 +125,42 @@ func ConvertTetragonProcEvent(e *tetragon.GetEventsResponse) (*eventhandler.Proc
 	return &processEvent, nil
 }
 
+// reportStreamError determines if a stream error is fatal or not.
+// Returns true if the error is fatal, false if it's not fatal.
+func (c *Connector) reportStreamError(ctx context.Context, err error) bool {
+	// Handle graceful shutdown
+	if errors.Is(err, context.Canceled) || status.Code(err) == codes.Canceled || errors.Is(err, io.EOF) {
+		return false
+	}
+
+	// Treat DeadlineExceeded as a retryable error
+	if status.Code(err) == codes.DeadlineExceeded {
+		c.logger.DebugContext(ctx, "event stream deadline exceeded, will retry", "error", err)
+		return false
+	}
+
+	return true
+}
+
+// handleProcessExecEvent processes a ProcessExec event for learning.
+func (c *Connector) handleProcessExecEvent(ctx context.Context, res *tetragon.GetEventsResponse) {
+	if !c.enableLearning {
+		c.logger.DebugContext(ctx, "learning disabled - skipping ProcessExec event")
+		return
+	}
+
+	processEvent, err := ConvertTetragonProcEvent(res)
+	if err != nil {
+		c.logger.DebugContext(ctx, "failed to handle event", "error", err)
+		return
+	}
+
+	c.enqueueFunc(ctx, *processEvent)
+}
+
 // Read Tetragon events and feed into event aggregator.
 func (c *Connector) eventLoop(ctx context.Context) error {
 	var res *tetragon.GetEventsResponse
-	var processEvent *eventhandler.ProcessLearningEvent
 	var err error
 
 	// Getting stream first.
@@ -148,7 +183,7 @@ func (c *Connector) eventLoop(ctx context.Context) error {
 
 		res, err = stream.Recv()
 		if err != nil {
-			if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled && !errors.Is(err, io.EOF) {
+			if c.reportStreamError(ctx, err) {
 				return fmt.Errorf("failed to receive events: %w", err)
 			}
 			return nil
@@ -157,14 +192,7 @@ func (c *Connector) eventLoop(ctx context.Context) error {
 		// Ignore all unknown events
 		switch res.GetEvent().(type) {
 		case *tetragon.GetEventsResponse_ProcessExec:
-			// Learn the behavior
-			processEvent, err = ConvertTetragonProcEvent(res)
-			if err != nil {
-				c.logger.DebugContext(ctx, "failed to handle event", "error", err)
-				continue
-			}
-
-			c.enqueueFunc(ctx, *processEvent)
+			c.handleProcessExecEvent(ctx, res)
 		case *tetragon.GetEventsResponse_ProcessKprobe:
 			// Emit OpenTelemetry traces
 			c.handleKProbeEvent(ctx, res.GetProcessKprobe())
@@ -258,8 +286,11 @@ func (c *Connector) Start(ctx context.Context) error {
 	}()
 
 	// TODO: we have to wait until a message from go routine is received, so we won't miss any events in between.
-	if err := c.FillInitialProcesses(ctx); err != nil {
-		return fmt.Errorf("failed to get all running processes: %w", err)
+	// Only fill initial processes if learning is enabled
+	if c.enableLearning {
+		if err := c.FillInitialProcesses(ctx); err != nil {
+			return fmt.Errorf("failed to get all running processes: %w", err)
+		}
 	}
 
 	return nil

@@ -61,6 +61,12 @@ kubernetesClusterDomain: cluster.local
 ## Ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
 
+# Learning mode configuration
+learning:
+  # learning.enabled controls whether learning mode is enabled for the entire cluster.
+  # When disabled, no process learning occurs. Process enforcement remains unaffected.
+  enabled: true
+
 telemetry:
   # Runtime-enforcement telemetry configuration allow one OpenTelemetry
   # collector communication options: 

@@ -21,9 +21,10 @@ import (
 type Config struct {
 	enableTracing     bool
 	enableOtelSidecar bool
+	enableLearning    bool
 }
 
-func startTetragonEventController(ctx context.Context, logger *slog.Logger) error {
+func startTetragonEventController(ctx context.Context, logger *slog.Logger, enableLearning bool) error {
 	var err error
 	var connector *internalTetragon.Connector
 
@@ -40,18 +41,26 @@ func startTetragonEventController(ctx context.Context, logger *slog.Logger) erro
 		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
-	tetragonEventReconciler := eventhandler.NewTetragonEventReconciler(mgr.GetClient(), mgr.GetScheme())
+	// Initialize with a no-op enqueue function, replaced when learning is enabled
+	f := func(_ context.Context, _ eventhandler.ProcessLearningEvent) {}
 
-	if err = tetragonEventReconciler.SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create tetragon event reconciler: %w", err)
+	if enableLearning {
+		tetragonEventReconciler := eventhandler.NewTetragonEventReconciler(mgr.GetClient(), mgr.GetScheme())
+		if err = tetragonEventReconciler.SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("unable to create tetragon event reconciler: %w", err)
+		}
+		f = tetragonEventReconciler.EnqueueEvent
+		logger.InfoContext(ctx, "learning mode is enabled")
+	} else {
+		logger.InfoContext(ctx, "learning mode is disabled")
 	}
 
-	connector, err = internalTetragon.CreateConnector(logger, tetragonEventReconciler.EnqueueEvent)
+	connector, err = internalTetragon.CreateConnector(logger, f, enableLearning)
 	if err != nil {
 		return fmt.Errorf("failed to create tetragon connector: %w", err)
 	}
 
-	// StartEventLoop will receive events from Tetragon and send to event handler for process learning.
+	// StartEventLoop will receive events from Tetragon
 	if err = connector.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start tetragon connector: %w", err)
 	}
@@ -79,6 +88,7 @@ func main() {
 
 	flag.BoolVar(&config.enableTracing, "enable-tracing", false, "Enable tracing collection")
 	flag.BoolVar(&config.enableOtelSidecar, "enable-otel-sidecar", false, "Enable OpenTelemetry sidecar")
+	flag.BoolVar(&config.enableLearning, "enable-learning", false, "Enable learning mode")
 
 	flag.Parse()
 
@@ -98,7 +108,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// This function blocks if everything is alright.
-	if err = startTetragonEventController(ctx, logger); err != nil {
+	if err = startTetragonEventController(ctx, logger, config.enableLearning); err != nil {
 		logger.ErrorContext(ctx, "failed to start tetragon event controller", "error", err)
 		os.Exit(1)
 	}

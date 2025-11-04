@@ -19,3 +19,20 @@ tests:
           path: "spec.template.spec.containers[0].imagePullPolicy"
           value: "Always"
 
+  - it: "should include --enable-learning flag when learning is enabled"
+    set:
+      learning:
+        enabled: true
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].args"
+          content: "--enable-learning"
+
+  - it: "should not include --enable-learning flag when learning is disabled"
+    set:
+      learning:
+        enabled: false
+    asserts:
+      - notContains:
+          path: "spec.template.spec.containers[0].args"
+          content: "--enable-learning"

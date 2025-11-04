@@ -37,6 +37,17 @@ targets:
         keyword: FROM
         matcher: registry.suse.com/bci/golang
 
+  pre-commit-yaml:
+    name: 'deps(go): update pre-commit Go version to {{ source "go" }}'
+    sourceid: go
+    kind: yaml
+    scmid: default
+    spec:
+      file: .pre-commit-config.yaml
+      key: $.repos[0].hooks[0].language_version
+    transformers:
+      - quote: true
+
 actions:
   default:
     title: 'deps(go): update Go to {{ source "go" }} version'

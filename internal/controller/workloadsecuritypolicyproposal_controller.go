@@ -47,25 +47,27 @@ func (r *WorkloadSecurityPolicyProposalReconciler) Reconcile(
 	labels := policyProposal.GetLabels()
 	approved := labels[securityv1alpha1.ApprovalLabelKey] == "true"
 
-	if approved {
-		policy := securityv1alpha1.WorkloadSecurityPolicy{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      policyProposal.ObjectMeta.Name,
-				Namespace: policyProposal.ObjectMeta.Namespace,
-			},
-		}
+	if !approved {
+		return ctrl.Result{}, nil
+	}
 
-		_, err = controllerutil.CreateOrPatch(ctx, r.Client, &policy, func() error {
-			policy.Spec = policyProposal.Spec.IntoWorkloadSecurityPolicySpec()
-			err = controllerutil.SetControllerReference(&policyProposal, &policy, r.Scheme)
-			if err != nil {
-				return fmt.Errorf("failed to set controller reference: %w", err)
-			}
-			return nil
-		})
+	policy := securityv1alpha1.WorkloadSecurityPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      policyProposal.ObjectMeta.Name,
+			Namespace: policyProposal.ObjectMeta.Namespace,
+		},
+	}
+
+	_, err = controllerutil.CreateOrPatch(ctx, r.Client, &policy, func() error {
+		policy.Spec = policyProposal.Spec.IntoWorkloadSecurityPolicySpec()
+		err = controllerutil.SetControllerReference(&policyProposal, &policy, r.Scheme)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to call CreateOrPatch: %w", err)
+			return fmt.Errorf("failed to set controller reference: %w", err)
 		}
+		return nil
+	})
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to call CreateOrPatch: %w", err)
 	}
 
 	return ctrl.Result{}, nil

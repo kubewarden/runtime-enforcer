@@ -5,107 +5,124 @@ questions:
   # Operator
   ###############################################################################
   - variable: operator.manager.image.pullPolicy
-    label: Operator Image Pull Policy
     type: enum
-    default: IfNotPresent
     options:
       - Always
       - IfNotPresent
       - Never
-    group: Operator
+    default: IfNotPresent
+    label: Operator Image Pull Policy
     description: |
       Pull policy of the Operator Deployment
+    group: Operator
 
   - variable: operator.replicas
-    label: Operator Replicas
     type: int
     default: 1
     min: 1
-    group: Operator
+    label: Operator Replicas
     description: |
       Number of replicas of the Operator Deployment
+    group: Operator
 
   ###############################################################################
   # Daemon
   ###############################################################################
   - variable: daemon.daemon.image.pullPolicy
-    label: Daemon Image Pull Policy
     type: enum
-    default: IfNotPresent
     options:
       - Always
       - IfNotPresent
       - Never
-    group: Daemon
+    default: IfNotPresent
+    label: Daemon Image Pull Policy
     description: |
       Pull policy of the Daemon DaemonSet
+    group: Daemon
 
   ###############################################################################
   # Learning
   ###############################################################################
   - variable: learning.enabled
-    label: Enable Cluster-wide Learning Mode
     type: boolean
     default: true
-    group: Learning
+    label: Enable Cluster-wide Learning Mode
     description: |
       Enable cluster-wide learning mode. If disabled, no process learning occurs.
       Process enforcement remains unaffected.
+    group: Learning
 
   ###############################################################################
-  # Telemetry
+  # OpenTelemetry
   ###############################################################################
+  - variable: telemetry.mode
+    type: enum
+    options:
+      - sidecar
+      - custom
+    default: sidecar
+    required: true
+    label: Telemetry mode
+    description: |
+      Choose the telemetry mode.
+      Sidecar mode will deploy an OpenTelemetry Collector as a sidecar container in the Runtime-enforcement Controller pod.
+      Custom mode will allow you to configure the OpenTelemetry Collector by your own and Runtime-enforcement will send data to it.
+    group: OpenTelemetry
+
   - variable: telemetry.metrics
-    label: Enable OTel Metrics Export
     type: boolean
     default: false
-    group: Telemetry
+    required: true
+    label: Enable Metrics
     description: |
-      Enable metrics collection and export via OpenTelemetry.
+      Enable metrics collection for all Policy Servers and the Runtime-enforcement Controller.
+      Important: Requires OpenTelemetry CRDs available.
+    group: OpenTelemetry
 
   - variable: telemetry.tracing
-    label: Enable OTel Tracing Export
     type: boolean
     default: false
-    group: Telemetry
+    required: true
+    label: Enable Tracing
     description: |
-      Enable tracing collection and export via OpenTelemetry.
+      Enable tracing collection for all PolicyServers.
+      Important: Requires OpenTelemetry CRDs available.
+    group: OpenTelemetry
 
   - variable: telemetry.custom.endpoint
-    label: OpenTelemetry Collector Endpoint
     type: string
     default: ""
-    group: Telemetry
+    label: OpenTelemetry endpoint
     description: |
-      Endpoint for the OpenTelemetry collector (for example, https://otel-collector:4317).
-    show_if: "telemetry.metrics=true||telemetry.tracing=true"
+      Endpoint of the OpenTelemetry collector.
+    group: OpenTelemetry
+    show_if: telemetry.mode=custom
 
   - variable: telemetry.custom.insecure
-    label: Skip OTel TLS Certificate Verification
     type: boolean
     default: false
-    group: Telemetry
+    label: Insecure communication
     description: |
-      If enabled, the exporter will skip TLS certificate validation when sending data to the collector.
-    show_if: "telemetry.metrics=true||telemetry.tracing=true"
+      Disable TLS verification for the OpenTelemetry collector.
+    group: OpenTelemetry
+    show_if: telemetry.mode=custom
 
   - variable: telemetry.custom.otelCollectorCertificateSecret
-    label: OTel Collector Certificate Secret
     type: string
     default: ""
-    group: Telemetry
+    label: Certificate secret
     description: |
-      Name of the secret containing the CA certificate (key: ca.crt) to validate the remote collector certificate.
-      The secret must be created in the same namespace where the controller is deployed.
-    show_if: "telemetry.metrics=true||telemetry.tracing=true"
+      Secret containing the certificate for the OpenTelemetry collector.
+      The secret should contain the key `ca.crt`.
+    group: OpenTelemetry
+    show_if: telemetry.mode=custom && telemetry.custom.insecure=false
 
   - variable: telemetry.custom.otelCollectorClientCertificateSecret
-    label: OTel Collector Client Certificate Secret
     type: string
     default: ""
-    group: Telemetry
+    label: Client certificate secret
     description: |
-      Name of the secret containing client certificate (keys: tls.crt, tls.key) for mTLS authentication.
-      Required only when the remote collector requires client authentication. The secret must be created
-      in the same namespace where the controller is deployed.
-    show_if: "telemetry.metrics=true||telemetry.tracing=true"
+      Secret containing the client certificate for the OpenTelemetry collector (mTLS).
+      The secret should contain the keys `tls.crt` and `tls.key`.
+    group: OpenTelemetry
+    show_if: telemetry.mode=custom && telemetry.custom.insecure=false

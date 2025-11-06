@@ -25,6 +25,7 @@ const (
 	GRPCWaitForReadyTimeout = 30 * time.Second
 	maxGRPCRecvSize         = 128 * 1024 * 1024 // 128mb
 	maxDelay                = 2 * time.Minute
+	WorkloadKindPod         = "Pod"
 )
 
 type Connector struct {
@@ -38,6 +39,10 @@ type Connector struct {
 // ErrPodInfoUnavailable signals that the event doesn't carry pod info
 // (e.g., process is on the node). Callers can treat it as a non-fatal skip.
 var ErrPodInfoUnavailable = errors.New("pod info unavailable on event")
+
+// ErrPodWorkloadKindNotSupported signals that the pod workload kind is not supported
+// Callers can treat it as a non-fatal skip.
+var ErrPodWorkloadKindNotSupported = errors.New("pod workload kind is not supported")
 
 func CreateConnector(
 	logger *slog.Logger,
@@ -102,15 +107,21 @@ func (c *Connector) FillInitialProcesses(ctx context.Context) error {
 
 	for _, v := range procs.GetProcesses() {
 		eventPod := v.GetProcess().GetPod()
-		if eventPod != nil {
-			c.enqueueFunc(ctx, eventhandler.ProcessLearningEvent{
-				Namespace:      eventPod.GetNamespace(),
-				ContainerName:  eventPod.GetContainer().GetName(),
-				Workload:       eventPod.GetWorkload(),
-				WorkloadKind:   eventPod.GetWorkloadKind(),
-				ExecutablePath: v.GetProcess().GetBinary(),
-			})
+		if eventPod == nil {
+			continue
 		}
+
+		if eventPod.GetWorkloadKind() == WorkloadKindPod {
+			continue
+		}
+
+		c.enqueueFunc(ctx, eventhandler.ProcessLearningEvent{
+			Namespace:      eventPod.GetNamespace(),
+			ContainerName:  eventPod.GetContainer().GetName(),
+			Workload:       eventPod.GetWorkload(),
+			WorkloadKind:   eventPod.GetWorkloadKind(),
+			ExecutablePath: v.GetProcess().GetBinary(),
+		})
 	}
 	return nil
 }
@@ -131,6 +142,11 @@ func ConvertTetragonProcEvent(e *tetragon.GetEventsResponse) (*eventhandler.Proc
 	if pod == nil {
 		// not an error: event refers to a non-pod process (node-level). Signal with sentinel.
 		return nil, ErrPodInfoUnavailable
+	}
+
+	// For now we don't support learning for pods with workload kind "Pod"
+	if pod.GetWorkloadKind() == WorkloadKindPod {
+		return nil, ErrPodWorkloadKindNotSupported
 	}
 
 	return &eventhandler.ProcessLearningEvent{
@@ -242,7 +258,9 @@ func (c *Connector) getEvents(ctx context.Context, client tetragon.FineGuidanceS
 			return err
 		}
 
-		if err = c.dispatchEvent(ctx, res); err != nil && !errors.Is(err, ErrPodInfoUnavailable) {
+		if err = c.dispatchEvent(ctx, res); err != nil &&
+			!errors.Is(err, ErrPodInfoUnavailable) &&
+			!errors.Is(err, ErrPodWorkloadKindNotSupported) {
 			c.logger.ErrorContext(ctx, "fail to dispatch event", "evt", res, "error", err)
 		}
 	}

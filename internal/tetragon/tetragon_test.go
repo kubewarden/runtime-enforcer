@@ -46,6 +46,24 @@ func TestConvertTetragonProcEvent(t *testing.T) {
 			want: nil,
 		},
 		{
+			name: "pod workload kind not supported",
+			ev: &tetragonv1.GetEventsResponse{
+				Event: &tetragonv1.GetEventsResponse_ProcessExec{
+					ProcessExec: &tetragonv1.ProcessExec{
+						Process: &tetragonv1.Process{
+							Binary: "/usr/bin/bash",
+							Pod: &tetragonv1.Pod{
+								Namespace:    "ns1",
+								Workload:     "p1",
+								WorkloadKind: "Pod",
+							},
+						},
+					},
+				},
+			},
+			want: nil,
+		},
+		{
 			name: "basic pod info mapped",
 			ev: &tetragonv1.GetEventsResponse{
 				Event: &tetragonv1.GetEventsResponse_ProcessExec{
@@ -81,6 +99,11 @@ func TestConvertTetragonProcEvent(t *testing.T) {
 				require.Error(t, err)
 				if errors.Is(err, tetragon.ErrPodInfoUnavailable) {
 					require.Nil(t, tt.ev.GetProcessExec().GetProcess().GetPod())
+				}
+				if errors.Is(err, tetragon.ErrPodWorkloadKindNotSupported) {
+					require.Equal(t,
+						tetragon.WorkloadKindPod,
+						tt.ev.GetProcessExec().GetProcess().GetPod().GetWorkloadKind())
 				}
 				return
 			}

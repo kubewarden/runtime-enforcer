@@ -86,7 +86,7 @@ func (c *Connector) FillInitialProcesses(ctx context.Context) error {
 		},
 	}
 
-	timeout, timeoutCancel := context.WithTimeout(ctx, oneShotRequestTimeout)
+	timeout, timeoutCancel := context.WithTimeout(ctx, OneShotRequestTimeout)
 	defer timeoutCancel()
 	resp, err := client.Client.GetDebug(
 		timeout,

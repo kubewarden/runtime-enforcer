@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	tetragonSockPath = "unix:///var/run/tetragon/tetragon.sock"
-	// timeout for one-shot requests to Tetragon.
-	oneShotRequestTimeout = 30 * time.Second
+	// TetragonSockPath is the path to the Tetragon gRPC socket.
+	TetragonSockPath = "unix:///var/run/tetragon/tetragon.sock"
+	// OneShotRequestTimeout is the timeout for one-shot requests to Tetragon.
+	OneShotRequestTimeout = 30 * time.Second
 )
 
 // Client wraps the gRPC client and connection to Tetragon.
@@ -25,11 +26,11 @@ func NewTetragonClient() (*Client, error) {
 	c := &Client{}
 
 	var err error
-	c.conn, err = grpc.NewClient(tetragonSockPath,
+	c.conn, err = grpc.NewClient(TetragonSockPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gRPC client with address %s: %w", tetragonSockPath, err)
+		return nil, fmt.Errorf("failed to create gRPC client with address %s: %w", TetragonSockPath, err)
 	}
 	c.Client = tetragon.NewFineGuidanceSensorsClient(c.conn)
 	return c, nil

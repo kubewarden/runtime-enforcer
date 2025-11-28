@@ -103,7 +103,10 @@ func getMainTest() types.Feature {
 				err := wait.For(conditions.New(r).ResourceMatch(
 					&proposal,
 					func(_ k8s.Object) bool {
-						return verifyUbuntuLearnedProcesses(proposal.Spec.Rules.Executables.Allowed)
+						rules := proposal.Spec.RulesByContainer["ubuntu"]
+
+						return verifyUbuntuLearnedProcesses(rules.Executables.Allowed)
+
 					}),
 					wait.WithTimeout(DefaultOperationTimeout),
 				)
@@ -128,8 +131,8 @@ func getMainTest() types.Feature {
 						Selector: proposal.Spec.Selector,
 						Rules: v1alpha1.WorkloadSecurityPolicyRules{
 							Executables: v1alpha1.WorkloadSecurityPolicyExecutables{
-								Allowed:         proposal.Spec.Rules.Executables.Allowed,
-								AllowedPrefixes: proposal.Spec.Rules.Executables.AllowedPrefixes,
+								Allowed:         proposal.Spec.RulesByContainer["ubuntu"].Executables.Allowed,
+								AllowedPrefixes: proposal.Spec.RulesByContainer["ubuntu"].Executables.AllowedPrefixes,
 							},
 						},
 						Severity: 9,

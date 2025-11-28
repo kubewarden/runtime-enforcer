@@ -138,7 +138,18 @@ func getLearningModeTest() types.Feature {
 					err = wait.For(conditions.New(r).ResourceMatch(
 						&proposal,
 						func(_ k8s.Object) bool {
-							return verifyUbuntuLearnedProcesses(proposal.Spec.Rules.Executables.Allowed)
+							if proposal.Spec.RulesByContainer == nil {
+								return false
+							}
+
+							t.Log("proposal: ", proposal)
+
+							rules, ok := proposal.Spec.RulesByContainer["ubuntu"]
+							if !ok {
+								return false
+							}
+							
+							return verifyUbuntuLearnedProcesses(rules.Executables.Allowed)
 						}),
 						wait.WithTimeout(DefaultOperationTimeout),
 					)

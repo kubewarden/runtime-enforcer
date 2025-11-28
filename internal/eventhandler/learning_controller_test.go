@@ -168,8 +168,10 @@ var _ = Describe("Learning", func() {
 			}, &proposalResult)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(proposalResult.Spec.Rules.Executables.Allowed).To(HaveLen(eventsToProcessNum))
-			Expect(proposalResult.Spec.Rules.Executables.Allowed).To(ContainElements(expectedAllowList))
+			rules := proposalResult.Spec.RulesByContainer["ubuntu"]
+
+			Expect(rules.Executables.Allowed).To(HaveLen(eventsToProcessNum))
+			Expect(rules.Executables.Allowed).To(ContainElements(expectedAllowList))
 		})
 
 		It("should correctly learn process behavior", func() {
@@ -264,7 +266,7 @@ var _ = Describe("Learning", func() {
 					Name:      testProposalName,
 				}, testProposal)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(testProposal.Spec.Rules.Executables.Allowed).To(Equal(tc.expectedResult))
+				Expect(testProposal.Spec.RulesByContainer["ubuntu"].Executables.Allowed).To(Equal(tc.expectedResult))
 
 				Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadSecurityPolicyProposal{
 					ObjectMeta: metav1.ObjectMeta{
@@ -329,7 +331,7 @@ var _ = Describe("Learning", func() {
 				Name:      testProposalName,
 			}, testProposal)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(testProposal.Spec.Rules.Executables.Allowed).To(BeEmpty())
+			Expect(testProposal.Spec.RulesByContainer).To(BeNil())
 
 			Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadSecurityPolicyProposal{
 				ObjectMeta: metav1.ObjectMeta{

@@ -113,7 +113,7 @@ func (r *LearningReconciler) Reconcile(
 			return nil
 		}
 
-		if innerErr := policyProposal.AddProcess(req.ExecutablePath); err != nil {
+		if innerErr := policyProposal.AddProcess(req.ContainerName, req.ExecutablePath); err != nil {
 			return fmt.Errorf("failed to add process to policy proposal: %w", innerErr)
 		}
 
@@ -122,6 +122,7 @@ func (r *LearningReconciler) Reconcile(
 		if len(policyProposal.OwnerReferences) == 0 && policyProposal.Spec.Selector == nil {
 			policyProposal.AddPartialOwnerReferenceDetails(req.WorkloadKind, req.Workload)
 		}
+
 		return nil
 	}); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to run CreateOrUpdate: %w", err)

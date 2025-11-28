@@ -17,16 +17,6 @@ const (
 	ApprovalLabelKey             = "security.rancher.io/policy-ready"
 )
 
-type WorkloadSecurityPolicyProposalExecutables struct {
-	// allowed defines a list of executables that are allowed to run
-	// +optional
-	Allowed []string `json:"allowed,omitempty"`
-
-	// allowedPrefixes defines a list of prefix with which executables are allowed to run
-	// +optional
-	AllowedPrefixes []string `json:"allowedPrefixes,omitempty"`
-}
-
 // WorkloadSecurityPolicyProposalSpec defines the desired state of WorkloadSecurityPolicyProposal.
 type WorkloadSecurityPolicyProposalSpec struct {
 	// selector is a kubernetes label selector used to match
@@ -34,8 +24,8 @@ type WorkloadSecurityPolicyProposalSpec struct {
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 
-	// rules specifies the rules this policy contains
-	Rules WorkloadSecurityPolicyRules `json:"rules,omitempty"`
+	// rulesByContainer specifies the rules this policy contains, per-container.
+	RulesByContainer map[string]*WorkloadSecurityPolicyRules `json:"rulesByContainer,omitempty"`
 }
 
 type WorkloadSecurityPolicyProposalCondition struct {
@@ -88,15 +78,39 @@ type WorkloadSecurityPolicyProposalList struct {
 	Items []WorkloadSecurityPolicyProposal `json:"items"`
 }
 
-func (p *WorkloadSecurityPolicyProposal) AddProcess(executable string) error {
-	if len(p.Spec.Rules.Executables.Allowed) >= PolicyProposalMaxExecutables {
+func (p *WorkloadSecurityPolicyProposal) getExecutablesLength() int {
+	result := 0
+	for _, value := range p.Spec.RulesByContainer {
+		result += len(value.Executables.Allowed)
+	}
+
+	return result
+}
+
+func (p *WorkloadSecurityPolicyProposal) AddProcess(containerName string, executable string) error {
+	if p.getExecutablesLength() >= PolicyProposalMaxExecutables {
 		return errors.New("the number of executables has exceeded its maximum")
 	}
-	if slices.Contains(p.Spec.Rules.Executables.Allowed, executable) {
+
+	if p.Spec.RulesByContainer == nil {
+		p.Spec.RulesByContainer = make(map[string]*WorkloadSecurityPolicyRules)
+	}
+
+	rules, ok := p.Spec.RulesByContainer[containerName]
+	if !ok {
+		p.Spec.RulesByContainer[containerName] = &WorkloadSecurityPolicyRules{
+			Executables: WorkloadSecurityPolicyExecutables{
+				Allowed: []string{executable},
+			},
+		}
 		return nil
 	}
 
-	p.Spec.Rules.Executables.Allowed = append(p.Spec.Rules.Executables.Allowed, executable)
+	if slices.Contains(rules.Executables.Allowed, executable) {
+		return nil
+	}
+
+	rules.Executables.Allowed = append(rules.Executables.Allowed, executable)
 
 	return nil
 }
@@ -113,7 +127,6 @@ func (p *WorkloadSecurityPolicyProposal) AddPartialOwnerReferenceDetails(workloa
 func (p *WorkloadSecurityPolicyProposalSpec) IntoWorkloadSecurityPolicySpec() WorkloadSecurityPolicySpec {
 	// Setting severity to 10 and enforcement mode to "monitor" by default.
 	return WorkloadSecurityPolicySpec{
-		Rules:    p.Rules,
 		Severity: MaximumSeverity,
 		Mode:     policymode.MonitorString,
 		Selector: p.Selector,

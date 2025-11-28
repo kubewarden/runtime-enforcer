@@ -41,26 +41,30 @@ spec:
             description: WorkloadSecurityPolicyProposalSpec defines the desired state
               of WorkloadSecurityPolicyProposal.
             properties:
-              rules:
-                description: rules specifies the rules this policy contains
-                properties:
-                  executables:
-                    description: executables defines a security policy used for executables.
-                    properties:
-                      allowed:
-                        description: allowed defines a list of executables that are
-                          allowed to run
-                        items:
-                          type: string
-                        type: array
-                      allowedPrefixes:
-                        description: allowedPrefixes defines a list of prefix with
-                          which executables are allowed to run
-                        items:
-                          type: string
-                        maxItems: 0
-                        type: array
-                    type: object
+              rulesByContainer:
+                additionalProperties:
+                  properties:
+                    executables:
+                      description: executables defines a security policy used for
+                        executables.
+                      properties:
+                        allowed:
+                          description: allowed defines a list of executables that
+                            are allowed to run
+                          items:
+                            type: string
+                          type: array
+                        allowedPrefixes:
+                          description: allowedPrefixes defines a list of prefix with
+                            which executables are allowed to run
+                          items:
+                            type: string
+                          maxItems: 0
+                          type: array
+                      type: object
+                  type: object
+                description: rulesByContainer specifies the rules this policy contains,
+                  per-container.
                 type: object
               selector:
                 description: |-

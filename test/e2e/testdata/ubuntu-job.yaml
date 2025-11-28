@@ -7,7 +7,7 @@ spec:
   template:
     spec:
       containers:
-      - name: hello
+      - name: ubuntu
         image: ubuntu
         command: ["bash", "-c", "while true; do sleep 5; ls; done"]
       restartPolicy: OnFailure

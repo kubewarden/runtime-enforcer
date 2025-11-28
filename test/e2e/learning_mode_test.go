@@ -139,9 +139,20 @@ func getLearningModeTest() types.Feature {
 					err = wait.For(conditions.New(r).ResourceMatch(
 						&proposal,
 						func(_ k8s.Object) bool {
-							if slices.Contains(proposal.Spec.Rules.Executables.Allowed, "/usr/bin/bash") &&
-								slices.Contains(proposal.Spec.Rules.Executables.Allowed, "/usr/bin/ls") &&
-								slices.Contains(proposal.Spec.Rules.Executables.Allowed, "/usr/bin/sleep") {
+							if proposal.Spec.RulesByContainer == nil {
+								return false
+							}
+
+							t.Log("proposal: ", proposal)
+
+							rules, ok := proposal.Spec.RulesByContainer["ubuntu"]
+							if !ok {
+								return false
+							}
+
+							if slices.Contains(rules.Executables.Allowed, "/usr/bin/bash") &&
+								slices.Contains(rules.Executables.Allowed, "/usr/bin/ls") &&
+								slices.Contains(rules.Executables.Allowed, "/usr/bin/sleep") {
 								return true
 							}
 

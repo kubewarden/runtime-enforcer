@@ -49,6 +49,7 @@ daemon:
       requests:
         cpu: 10m
         memory: 64Mi
+  policyProxyGRPCAddress: ":50051"
   podSecurityContext:
     runAsNonRoot: true
     seccompProfile:

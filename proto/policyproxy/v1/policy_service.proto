@@ -1,0 +1,35 @@
+syntax = "proto3";
+package policyproxy.v1;
+option go_package = "github.com/neuvector/runtime-enforcer/proto/policyproxy/v1;policyproxyv1";
+
+service PolicyProxyService {
+  // ListPoliciesStatus returns the status of tracing policies known to Tetragon.
+  rpc ListPoliciesStatus(ListPoliciesStatusRequest) returns (ListPoliciesStatusResponse) {}
+}
+
+message ListPoliciesStatusRequest {}
+
+enum TracingPolicyState {
+  // unknown state
+  TP_STATE_UNKNOWN = 0;
+  // loaded and enabled
+  TP_STATE_ENABLED = 1;
+  // loaded but disabled
+  TP_STATE_DISABLED = 2;
+  // failed to load
+  TP_STATE_LOAD_ERROR = 3;
+  // failed during lifetime
+  TP_STATE_ERROR = 4;
+  // in the process of loading
+  TP_STATE_LOADING = 5;
+  // in the process of unloading
+  TP_STATE_UNLOADING = 6;
+}
+
+message PolicyStatus {
+  TracingPolicyState state = 1;
+}
+
+message ListPoliciesStatusResponse {
+  map<string, PolicyStatus> policies = 1;
+}

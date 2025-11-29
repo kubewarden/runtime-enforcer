@@ -36,3 +36,14 @@ tests:
       - notContains:
           path: "spec.template.spec.containers[0].args"
           content: "--enable-learning"
+
+  - it: "should set POLICY_PROXY_GRPC_ADDRESS env var from values"
+    set:
+      daemon:
+        policyProxyGRPCAddress: ":50051"
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content:
+            name: "POLICY_PROXY_GRPC_ADDRESS"
+            value: ":50051"

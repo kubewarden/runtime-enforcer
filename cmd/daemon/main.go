@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/neuvector/runtime-enforcer/internal/daemon"
 	"github.com/neuvector/runtime-enforcer/internal/eventhandler"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -64,6 +65,17 @@ func startTetragonEventController(ctx context.Context, logger *slog.Logger, enab
 
 	if err = mgr.Add(connector); err != nil {
 		return fmt.Errorf("failed to add tetragon connector to manager: %w", err)
+	}
+
+	// Add the gRPC server to the manager
+	daemonSvr, err := daemon.NewServer(logger)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to create gRPC server", "error", err)
+		return err
+	}
+	if err = mgr.Add(daemonSvr); err != nil {
+		logger.ErrorContext(ctx, "failed to add gRPC server to manager", "error", err)
+		return err
 	}
 
 	logger.InfoContext(ctx, "starting manager")

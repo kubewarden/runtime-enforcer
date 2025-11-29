@@ -15,16 +15,15 @@ const (
 	ProtectMode = PolicyMode("protect")
 )
 
+type WorkloadSecurityPolicyState string
+
 const (
-	// DeployCondition is a condition set when WorkloadSecurityPolicy controller has
-	// deployed the policy to the system.
-	DeployCondition = "Deployed"
-
-	// SyncFailedReason is set when the reconcile fails.
-	SyncFailedReason = "SyncFailed"
-
-	DeployedState = "Deployed"
-	ErrorState    = "Error"
+	// PendingState is set when the policy is in a transient state (loading/unloading).
+	PendingState = WorkloadSecurityPolicyState("Pending")
+	// DeployedState is set when the policy is successfully deployed.
+	DeployedState = WorkloadSecurityPolicyState("Deployed")
+	// FailedState is set when the policy failed to be deployed.
+	FailedState = WorkloadSecurityPolicyState("Failed")
 )
 
 type WorkloadSecurityPolicyExecutables struct {

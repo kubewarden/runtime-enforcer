@@ -5,6 +5,14 @@ metadata:
   name: {{ include "runtime-enforcer.fullname" . }}-operator
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - apps
   resources:
   - daemonsets

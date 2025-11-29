@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	tetragonv1alpha1 "github.com/cilium/tetragon/pkg/k8s/apis/cilium.io/v1alpha1"
 	securityv1alpha1 "github.com/neuvector/runtime-enforcer/api/v1alpha1"
@@ -64,17 +65,7 @@ func (r *WorkloadSecurityPolicyReconciler) Reconcile(
 		return ctrl.Result{}, fmt.Errorf("failed to call CreateOrPatch: %w", err)
 	}
 
-	return ctrl.Result{}, r.updateStatus(ctx, &policy)
-}
-
-func (r *WorkloadSecurityPolicyReconciler) updateStatus(
-	ctx context.Context,
-	policy *securityv1alpha1.WorkloadSecurityPolicy,
-) error {
-	newPolicy := policy.DeepCopy()
-	newPolicy.Status.ObservedGeneration = newPolicy.Generation
-	newPolicy.Status.State = securityv1alpha1.DeployedState
-	return r.Status().Update(ctx, newPolicy)
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -84,6 +75,8 @@ func (r *WorkloadSecurityPolicyReconciler) SetupWithManager(mgr ctrl.Manager) er
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&securityv1alpha1.WorkloadSecurityPolicy{}).
+		// we don't want to reconcile on status updates
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Named("workloadsecuritypolicy").
 		Complete(r)
 }

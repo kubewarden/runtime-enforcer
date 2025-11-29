@@ -51,6 +51,8 @@ spec:
         {{- end }}
         {{- end }}
         {{- end }}
+          - name: POLICY_PROXY_GRPC_ADDRESS
+            value: {{ .Values.daemon.policyProxyGRPCAddress }}
         image: {{ .Values.daemon.daemon.image.repository }}:{{ .Values.daemon.daemon.image.tag
           | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.daemon.daemon.image.pullPolicy }}

@@ -3,6 +3,7 @@ WORKDIR /src
 COPY api/ /src/api
 COPY cmd/ /src/cmd
 COPY pkg/ /src/pkg
+COPY proto/ /src/proto
 COPY internal/ /src/internal
 COPY go.mod go.sum /src/
 COPY Makefile /src/

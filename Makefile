@@ -229,6 +229,10 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 generate-api:
 	API_KNOWN_VIOLATIONS_DIR=. UPDATE_API_KNOWN_VIOLATIONS=true ./hack/update-codegen.sh
 
+.PHONY: generate-proto
+generate-proto:
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./proto/policyproxy/v1/policy_service.proto
+
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary
 # $2 - package url which can be installed

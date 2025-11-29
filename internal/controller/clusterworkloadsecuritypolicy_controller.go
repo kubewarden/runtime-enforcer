@@ -62,17 +62,7 @@ func (r *ClusterWorkloadSecurityPolicyReconciler) Reconcile(
 		return ctrl.Result{}, fmt.Errorf("failed to call CreateOrPatch: %w", err)
 	}
 
-	return ctrl.Result{}, r.updateStatus(ctx, &policy)
-}
-
-func (r *ClusterWorkloadSecurityPolicyReconciler) updateStatus(
-	ctx context.Context,
-	policy *securityv1alpha1.ClusterWorkloadSecurityPolicy,
-) error {
-	newPolicy := policy.DeepCopy()
-	newPolicy.Status.ObservedGeneration = newPolicy.Generation
-	newPolicy.Status.State = securityv1alpha1.DeployedState
-	return r.Status().Update(ctx, newPolicy)
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

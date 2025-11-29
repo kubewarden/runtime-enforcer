@@ -148,6 +148,8 @@ func getEnforcementTest() types.Feature {
 					}), wait.WithTimeout(DefaultOperationTimeout))
 					require.NoError(t, err)
 
+					// wait until WorkloadSecurityPolicy status is updated to Deployed
+					waitForWorkloadPolicyStatusToBeDeployed(ctx, t, policy.DeepCopy())
 					assert.Len(t, "1", len(tp.Spec.KProbes))
 					assert.Equal(t, []string{"test-policy"}, tp.Spec.KProbes[0].Tags)
 					assert.Equal(t, "[9] test-policy", tp.Spec.KProbes[0].Message)

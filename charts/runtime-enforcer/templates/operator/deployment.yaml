@@ -28,6 +28,14 @@ spec:
         command:
         - /operator
         env:
+        - name: WPS_CONTROLLER_UPDATE_INTERVAL
+          value: {{ .Values.operator.manager.wpStatusUpdateInterval }}
+        - name: WPS_CONTROLLER_DAEMON_LABEL_SELECTOR
+          value: "app.kubernetes.io/component=daemon"
+        - name: WPS_CONTROLLER_DAEMON_NAMESPACE
+          value: {{ .Release.Namespace | quote }}
+        - name: POLICY_PROXY_GRPC_ADDRESS
+          value: {{ .Values.daemon.policyProxyGRPCAddress }}
         - name: KUBERNETES_CLUSTER_DOMAIN
           value: {{ quote .Values.kubernetesClusterDomain }}
         image: {{ .Values.operator.manager.image.repository }}:{{ .Values.operator.manager.image.tag

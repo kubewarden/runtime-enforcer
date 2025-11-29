@@ -355,6 +355,8 @@ func getMonitoringTest() types.Feature {
 				}
 
 				createWorkloadSecurityPolicy(ctx, t, policy.DeepCopy())
+				// wait until WorkloadSecurityPolicy status is updated to Deployed
+				waitForWorkloadPolicyStatusToBeDeployed(ctx, t, policy.DeepCopy())
 				for _, tc := range testcases {
 					runMonitoringTestCase(ctx, t, tc)
 				}

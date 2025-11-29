@@ -23,3 +23,25 @@ tests:
           path: "spec.template.spec.containers[0].imagePullPolicy"
           value: "Always"
 
+  - it: "should set POLICY_PROXY_GRPC_ADDRESS env var from values"
+    set:
+      daemon:
+        policyProxyGRPCAddress: ":50051"
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content:
+            name: "POLICY_PROXY_GRPC_ADDRESS"
+            value: ":50051"
+
+  - it: "should set WPS_CONTROLLER_UPDATE_INTERVAL env var from values"
+    set:
+      operator:
+        manager:
+          wpStatusUpdateInterval: "1s"
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content:
+            name: "WPS_CONTROLLER_UPDATE_INTERVAL"
+            value: "1s"

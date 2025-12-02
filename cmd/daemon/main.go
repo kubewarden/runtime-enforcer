@@ -6,14 +6,25 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/neuvector/runtime-enforcer/internal/bpfactors"
 	"github.com/neuvector/runtime-enforcer/internal/eventhandler"
+	"github.com/neuvector/runtime-enforcer/internal/eventscraper"
+	"github.com/neuvector/runtime-enforcer/internal/resolver"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	securityv1alpha1 "github.com/neuvector/runtime-enforcer/api/v1alpha1"
 	internalTetragon "github.com/neuvector/runtime-enforcer/internal/tetragon"
 	"github.com/neuvector/runtime-enforcer/internal/traces"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/api/node/v1alpha1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	cmCache "sigs.k8s.io/controller-runtime/pkg/cache"
 
 	"log/slog"
 )
@@ -74,6 +85,81 @@ func startTetragonEventController(ctx context.Context, logger *slog.Logger, enab
 	return nil
 }
 
+func newControllerManager() (manager.Manager, error) {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	utilruntime.Must(securityv1alpha1.AddToScheme(scheme))
+	cacheOptions := cmCache.Options{
+		ByObject: map[client.Object]cmCache.ByObject{
+			&corev1.Pod{}: {
+				Field: fields.OneTermEqualSelector("spec.nodeName", os.Getenv("NODE_NAME")),
+			},
+			// todo!: not clear if we need to watch these nodes
+			&corev1.Node{}: {
+				Field: fields.SelectorFromSet(fields.Set{"metadata.name": os.Getenv("NODE_NAME")}),
+			},
+		},
+	}
+	controllerOptions := ctrl.Options{Scheme: scheme, Cache: cacheOptions}
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), controllerOptions)
+	if err != nil {
+		return nil, fmt.Errorf("unable to start manager: %w", err)
+	}
+	return mgr, nil
+}
+
+func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) error {
+	var err error
+
+	// Create controller manager
+	ctrlMgr, err := newControllerManager()
+	if err != nil {
+		return fmt.Errorf("Cannot create manager: %w", err)
+	}
+
+	// Create an informer for pods
+	podInformer, err := ctrlMgr.GetCache().GetInformer(ctx, &corev1.Pod{})
+	if err != nil {
+		return fmt.Errorf("Cannot get pod informer: %w", err)
+	}
+
+	// Add some indexes to the pod informer
+	// todo!: understand when we use them
+	err = podInformer.AddIndexers(cache.Indexers{
+		resolver.ContainerIdx: resolver.ContainerIndexFunc,
+		resolver.PodIdx:       resolver.PodIndexFunc,
+	})
+	if err != nil {
+		return fmt.Errorf("Cannot add indexers to pod informer: %w", err)
+	}
+
+	bpfManager, err := bpfactors.NewManager(logger)
+	if err != nil {
+		return fmt.Errorf("Cannot create BPF manager: %w", err)
+	}
+
+	if err := ctrlMgr.Add(bpfManager); err != nil {
+		return fmt.Errorf("failed to add BPF manager to controller manager: %w", err)
+	}
+
+	// This channel will be never popoulated if learning is disabled
+	learningChannel := make(chan bpfactors.LearningEvent)
+	if enableLearning {
+		// We add the learner only if learning is enabled
+		learner := bpfactors.GetLearner(bpfManager)
+		if err := ctrlMgr.Add(learner); err != nil {
+			return fmt.Errorf("failed to add BPF learner to controller manager: %w", err)
+		}
+		learningChannel = learner.GetLearningChannel()
+	}
+
+	evtScraper := eventscraper.NewEventScraper(learningChannel)
+	if err := ctrlMgr.Add(evtScraper); err != nil {
+		return fmt.Errorf("failed to add event scraper to controller manager: %w", err)
+	}
+	return nil
+}
+
 func main() {
 	var err error
 	var config Config
@@ -96,6 +182,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})).With("component", "daemon")
+	slog.SetDefault(logger)
 
 	if config.enableTracing {
 		// Start otel traces

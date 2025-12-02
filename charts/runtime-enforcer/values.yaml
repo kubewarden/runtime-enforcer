@@ -49,6 +49,7 @@ daemon:
       requests:
         cpu: 10m
         memory: 64Mi
+  customCRISocketPath: ""
   podSecurityContext:
     runAsNonRoot: true
     seccompProfile:
@@ -124,4 +125,3 @@ tetragon:
   extraHostPathMounts:
     - name: tetragon-socket
       mountPath: /var/run/tetragon/
-

@@ -191,15 +191,15 @@ func (c *criResolver) getCgroupPath(containerID string) (string, error) {
 	return ParseCgroupsPath(ret)
 }
 
-func (c *criResolver) resolverCgroupID(containerID string) (uint64, error) {
+func (c *criResolver) resolveCgroup(containerID string) (uint64, string, error) {
 	cgPath, err := c.getCgroupPath(containerID)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 
 	cgRoot, err := cgroups.HostCgroupRoot()
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 
 	var getCgroupID func(string) (uint64, error) = cgroups.GetCgroupIdFromPath
@@ -207,7 +207,7 @@ func (c *criResolver) resolverCgroupID(containerID string) (uint64, error) {
 	path := filepath.Join(cgRoot, cgPath)
 	cgID, err := getCgroupID(path)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
-	return cgID, nil
+	return cgID, path, nil
 }

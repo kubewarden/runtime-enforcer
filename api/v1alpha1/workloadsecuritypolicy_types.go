@@ -56,6 +56,8 @@ type WorkloadSecurityPolicySpec struct {
 	// rules specifies the rules this policy contains
 	Rules WorkloadSecurityPolicyRules `json:"rules,omitempty"`
 
+	RulesByContainer map[string]WorkloadSecurityPolicyRules `json:"rulesByContainer,omitempty"`
+
 	// severity specifies the severity when this policy is violated.
 	//
 	// +kubebuilder:validation:Minimum=1

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/neuvector/runtime-enforcer/internal/cgroups"
 )
 
 // todo!: we need to generate according to the architecture, not just x86
@@ -20,39 +22,27 @@ type Manager struct {
 	logger             *slog.Logger
 	objs               *bpfObjects
 	violationEventChan chan bpfExecveEvent
+	policyStringMaps   []*ebpf.Map
 }
 
 func getLoadTimeConfig() (*bpfLoadConf, error) {
-	// todo!: implement properly, to understand if we need to collect cgroup info here or not
-	conf := &bpfLoadConf{}
-
 	// First let's detect cgroupfs magic
-	// cgroupFsMagic, err := cgroups.DetectCgroupFSMagic()
-	// if err != nil {
-	// 	log.Error("cannot get cgroupfs magic", "error", err)
-	// 	return nil, err
-	// }
+	cgroupFsMagic, err := cgroups.DetectCgroupFSMagic()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get cgroupfs magic: %w", err)
+	}
 
-	// // This must be called before probing cgroup configurations
-	// if err = cgroups.DiscoverSubSysIds(); err != nil {
-	// 	log.Error("detection of Cgroup Subsystem Controllers failed", "error", err)
-	// 	return nil, err
-	// }
+	// This must be called before probing cgroup configurations
+	if err = cgroups.DiscoverSubSysIds(); err != nil {
+		return nil, fmt.Errorf("detection of Cgroup Subsystem Controllers failed: %w", err)
+	}
 
-	// conf := &bpfLoadConf{
-	// 	CgrpFsMagic:     cgroupFsMagic,
-	// 	Cgrpv1SubsysIdx: cgroups.GetCgrpv1SubsystemIdx(),
-	// 	CgrpHierarchy:   cgroups.GetCgrpHierarchyID(),
-	// 	DebugMode:       0, // disable debug mode for now
-	// }
-
-	// log.Info("Load time configuration detected",
-	// 	"cgrp_fs_magic", cgroups.CgroupFsMagicStr(conf.CgrpFsMagic),
-	// 	"cgrp_v1_subsys_idx", conf.Cgrpv1SubsysIdx,
-	// 	"cgrp_hierarchy_id", conf.CgrpHierarchy,
-	// 	"debug_mode", conf.DebugMode)
-
-	return conf, nil
+	return &bpfLoadConf{
+		CgrpFsMagic:     cgroupFsMagic,
+		Cgrpv1SubsysIdx: cgroups.GetCgrpv1SubsystemIdx(),
+		CgrpHierarchy:   cgroups.GetCgrpHierarchyID(),
+		DebugMode:       0, // disable debug mode for now
+	}, nil
 }
 
 func NewManager(logger *slog.Logger) (*Manager, error) {
@@ -74,6 +64,13 @@ func NewManager(logger *slog.Logger) (*Manager, error) {
 		return nil, fmt.Errorf("Error rewriting load_time_config: %w", err)
 	}
 
+	newLogger := logger.With("component", "ebpf-manager")
+	newLogger.Info("Load time configuration detected",
+		"cgrp_fs_magic", cgroups.CgroupFsMagicStr(conf.CgrpFsMagic),
+		"cgrp_v1_subsys_idx", conf.Cgrpv1SubsysIdx,
+		"cgrp_hierarchy_id", conf.CgrpHierarchy,
+		"debug_mode", conf.DebugMode)
+
 	// We just load the objects here so that we can pass the maps to other components but we don't load ebpf progs yet
 	objs := bpfObjects{}
 	if err := spec.LoadAndAssign(&objs, nil); err != nil {
@@ -81,8 +78,21 @@ func NewManager(logger *slog.Logger) (*Manager, error) {
 	}
 
 	return &Manager{
-		logger: logger.With("component", "ebpf-manager"),
+		logger: newLogger,
 		objs:   &objs,
+		policyStringMaps: []*ebpf.Map{
+			objs.PolStrMaps0,
+			objs.PolStrMaps1,
+			objs.PolStrMaps2,
+			objs.PolStrMaps3,
+			objs.PolStrMaps4,
+			objs.PolStrMaps5,
+			objs.PolStrMaps6,
+			objs.PolStrMaps7,
+			objs.PolStrMaps8,
+			objs.PolStrMaps9,
+			objs.PolStrMaps10,
+		},
 	}, nil
 }
 
@@ -102,4 +112,11 @@ func (m *Manager) Start(ctx context.Context) error {
 	// to understand: how we want to handle violations
 	<-ctx.Done()
 	return nil
+}
+
+// Expose some methods to interact with BPF maps
+func (m *Manager) populatePolicyValue() func(policyID uint64, values []string) error {
+	return func(policyID uint64, values []string) error {
+		return m.generateBPFMaps(policyID, values)
+	}
 }

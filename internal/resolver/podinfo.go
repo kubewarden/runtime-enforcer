@@ -4,10 +4,12 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/neuvector/runtime-enforcer/internal/labels"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+var cronJobNameRegexp = regexp.MustCompile(`(.+)-\d{8,10}$`)
 
 const (
 	workloadTypeUnknown               = "Unknown"
@@ -23,13 +25,14 @@ const (
 )
 
 type podInfo struct {
+	// this should become a separate type if needed
+	podID        string
 	namespace    string
 	name         string
 	workloadName string
 	workloadType string
+	labels       labels.Labels
 }
-
-var cronJobNameRegexp = regexp.MustCompile(`(.+)-\d{8,10}$`)
 
 func getPodInfo(pod *corev1.Pod) *podInfo {
 	if pod == nil {
@@ -37,10 +40,12 @@ func getPodInfo(pod *corev1.Pod) *podInfo {
 	}
 
 	info := &podInfo{
+		podID:        string(pod.UID),
 		namespace:    pod.Namespace,
 		name:         pod.Name,
 		workloadName: pod.Name,
 		workloadType: "Pod",
+		labels:       pod.Labels,
 	}
 
 	if len(pod.GenerateName) == 0 {
@@ -103,35 +108,4 @@ func getPodInfo(pod *corev1.Pod) *podInfo {
 	}
 
 	return info
-}
-
-func containerIDFromContainerStatus(c *v1.ContainerStatus) string {
-	ret := c.ContainerID
-	if idx := strings.Index(ret, "://"); idx != -1 {
-		ret = ret[idx+3:]
-	}
-	return ret
-}
-
-func podForAllContainers(pod *v1.Pod, fn func(c *v1.ContainerStatus)) {
-	run := func(s []v1.ContainerStatus) {
-		for i := range s {
-			if s[i].State.Running != nil {
-				fn(&s[i])
-			}
-		}
-	}
-
-	run(pod.Status.InitContainerStatuses)
-	run(pod.Status.ContainerStatuses)
-	run(pod.Status.EphemeralContainerStatuses)
-}
-
-func podContainersIDs(pod *v1.Pod) map[ContainerID]ContainerName {
-	ret := make(map[ContainerID]ContainerName)
-	podForAllContainers(pod, func(c *v1.ContainerStatus) {
-		id := containerIDFromContainerStatus(c)
-		ret[id] = c.Name
-	})
-	return ret
 }

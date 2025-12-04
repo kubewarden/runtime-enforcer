@@ -117,22 +117,6 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 		return fmt.Errorf("Cannot create manager: %w", err)
 	}
 
-	// Create an informer for pods
-	podInformer, err := ctrlMgr.GetCache().GetInformer(ctx, &corev1.Pod{})
-	if err != nil {
-		return fmt.Errorf("Cannot get pod informer: %w", err)
-	}
-
-	// Add some indexes to the pod informer
-	// todo!: understand when we use them
-	err = podInformer.AddIndexers(cache.Indexers{
-		resolver.ContainerIdx: resolver.ContainerIndexFunc,
-		resolver.PodIdx:       resolver.PodIndexFunc,
-	})
-	if err != nil {
-		return fmt.Errorf("Cannot add indexers to pod informer: %w", err)
-	}
-
 	bpfManager, err := bpfactors.NewManager(logger)
 	if err != nil {
 		return fmt.Errorf("Cannot create BPF manager: %w", err)
@@ -151,6 +135,26 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 			return fmt.Errorf("failed to add BPF learner to controller manager: %w", err)
 		}
 		learningChannel = learner.GetLearningChannel()
+	}
+
+	// Create an informer for pods
+	podInformer, err := ctrlMgr.GetCache().GetInformer(ctx, &corev1.Pod{})
+	if err != nil {
+		return fmt.Errorf("Cannot get pod informer: %w", err)
+	}
+	// Add some indexes to the pod informer
+	// todo!: understand when we use them
+	err = podInformer.AddIndexers(cache.Indexers{
+		resolver.ContainerIdx: resolver.ContainerIndexFunc,
+		resolver.PodIdx:       resolver.PodIndexFunc,
+	})
+	if err != nil {
+		return fmt.Errorf("Cannot add indexers to pod informer: %w", err)
+	}
+
+	workloadPolicyInformer, err := ctrlMgr.GetCache().GetInformer(ctx, &securityv1alpha1.WorkloadSecurityPolicy{})
+	if err != nil {
+		return fmt.Errorf("Cannot get workload security policy informer: %w", err)
 	}
 
 	evtScraper := eventscraper.NewEventScraper(learningChannel)

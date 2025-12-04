@@ -6,6 +6,7 @@
 #include <bpf/bpf_tracing.h>
 #include "load_conf.h"
 #include "helpers.h"
+#include "string_maps.h"
 
 char __license[] SEC("license") = "Dual MIT/GPL";
 
@@ -237,6 +238,8 @@ static __always_inline __u64 __tg_get_current_cgroup_id(struct cgroup *cgrp, __u
  * Checks the tg_conf_map BPF map for cgroup and runtime configurations then
  * collects cgroup information from current task. This allows to operate on
  * different machines and workflows.
+ *
+ * todo!: we should use the new `tg_get_current_cgroup_id`
  */
 static __always_inline __u32 __event_get_cgroup_info(struct task_struct *task,
                                                      struct cg_info *kube) {
@@ -258,6 +261,41 @@ static __always_inline __u32 __event_get_cgroup_info(struct task_struct *task,
 		kube->cg_tracker_id = cgrp_get_tracker_id(kube->cg_tracker_id);
 	}
 	return 0;
+}
+
+/**
+ * tg_get_current_cgroup_id() Returns the accurate cgroup id of current task.
+ *
+ * It works similar to __tg_get_current_cgroup_id, but computes the cgrp if it is needed.
+ * Returns the cgroup id of current task on success, zero on failures.
+ */
+static __always_inline __u64 tg_get_current_cgroup_id(void) {
+	// Try the bpf helper on the default hierarchy if available
+	// and if we are running in unified cgroupv2
+	if(bpf_core_enum_value_exists(enum bpf_func_id, BPF_FUNC_get_current_cgroup_id) &&
+	   load_time_config.cgrp_fs_magic == CGROUP2_SUPER_MAGIC) {
+		return bpf_get_current_cgroup_id();
+	}
+	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+	struct cgroup *cgrp = get_task_cgroup(task,
+	                                      load_time_config.cgrp_fs_magic,
+	                                      load_time_config.cgrpv1_subsys_idx);
+	if(!cgrp) {
+		return 0;
+	}
+	return get_cgroup_id(cgrp);
+}
+
+static __always_inline __u64 get_cgroup_id_from_curr_task() {
+	__u64 cgroupid = tg_get_current_cgroup_id();
+	if(!cgroupid)
+		return 0;
+
+	__u64 trackerid = cgrp_get_tracker_id(cgroupid);
+	if(trackerid)
+		cgroupid = trackerid;
+
+	return cgroupid;
 }
 
 /////////////////////////
@@ -353,8 +391,8 @@ int execve_send(void *ctx) {
 		bpf_printk("cannot reserve space in ringbuf");
 		return 0;
 	}
-	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-	__event_get_cgroup_info(task, &e->info);
+	e->info.cgid = get_cgroup_id_from_curr_task();
+	e->info.cg_tracker_id = cgrp_get_tracker_id(e->info.cgid);
 	bpf_get_current_comm(&e->comm, sizeof(e->comm));
 
 	bpf_printk("sent execve event, comm: %s, cgid: %d, cg_tracker_id: %d\n",
@@ -363,5 +401,48 @@ int execve_send(void *ctx) {
 	           e->info.cg_tracker_id);
 
 	bpf_ringbuf_submit(e, 0);
+	return 0;
+}
+
+/////////////////////////
+// Enforcing
+/////////////////////////
+
+#define CGROUP_TO_POLICY_MAX_ENTRIES 65536
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, CGROUP_TO_POLICY_MAX_ENTRIES);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__type(key, __u64);   /* Key is the cgrpid */
+	__type(value, __u64); /* Value is the policy id */
+} cg_to_policy_map SEC(".maps");
+
+#define POLICY_MAP_MAX_ENTRIES 65536
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, POLICY_MAP_MAX_ENTRIES);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__type(key, __u64);  /* Key is the policy id */
+	__type(value, __u8); /* mode of the policy (e.g. enforce, monitor) */
+} policy_mode_map SEC(".maps");
+
+SEC("fmod_ret/security_bprm_creds_for_exec")
+int enforce_cgroup_policy(void *ctx) {
+	struct cg_info kube = {};
+	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+	__event_get_cgroup_info(task, &kube);
+	if(kube.cg_tracker_id == 0) {
+		return 0;
+	}
+
+	__u64 *policy_id = bpf_map_lookup_elem(&cg_to_policy_map, &kube.cg_tracker_id);
+	if(!policy_id) {
+		return 0;
+	}
+
+	// Here we would enforce the policy identified by *policy_id
+	// For now we just print a message
+	bpf_printk("Enforcing policy id %d on cgroup tracker id %d\n", *policy_id, kube.cg_tracker_id);
+
 	return 0;
 }

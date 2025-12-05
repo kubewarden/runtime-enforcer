@@ -40,21 +40,22 @@
  * single byte (for first 6 maps) or as a little endian u16 (latter maps).
  */
 #define STRING_MAPS_KEY_INC_SIZE 24
-#define STRING_MAPS_SIZE_0	 (1 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_1	 (2 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_2	 (3 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_3	 (4 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_4	 (5 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_5	 (6 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_6	 (256 + 2)
-#define STRING_MAPS_SIZE_7  (512 + 2)
-#define STRING_MAPS_SIZE_8  (1024 + 2)
-#define STRING_MAPS_SIZE_9  (2048 + 2)
+#define STRING_MAPS_SIZE_0 (1 * STRING_MAPS_KEY_INC_SIZE + 1)
+#define STRING_MAPS_SIZE_1 (2 * STRING_MAPS_KEY_INC_SIZE + 1)
+#define STRING_MAPS_SIZE_2 (3 * STRING_MAPS_KEY_INC_SIZE + 1)
+#define STRING_MAPS_SIZE_3 (4 * STRING_MAPS_KEY_INC_SIZE + 1)
+#define STRING_MAPS_SIZE_4 (5 * STRING_MAPS_KEY_INC_SIZE + 1)
+#define STRING_MAPS_SIZE_5 (6 * STRING_MAPS_KEY_INC_SIZE + 1)
+#define STRING_MAPS_SIZE_6 (256 + 2)
+#define STRING_MAPS_SIZE_7 (512 + 2)
+#define STRING_MAPS_SIZE_8 (1024 + 2)
+#define STRING_MAPS_SIZE_9 (2048 + 2)
 #define STRING_MAPS_SIZE_10 (4096 + 2)
 
-
-// todo!: we want to compile only once so we should avoid the ifdef, let's see what is the best way to do it
-// #ifdef __V511_BPF_PROG 
+// todo!: we want to compile only once so we should avoid the ifdef, let's see what is the best way
+// to do it. Test it on kernels <5.11
+//
+// #ifdef __V511_BPF_PROG
 // #define STRING_MAPS_SIZE_7  (512 + 2)
 // #define STRING_MAPS_SIZE_8  (1024 + 2)
 // #define STRING_MAPS_SIZE_9  (2048 + 2)

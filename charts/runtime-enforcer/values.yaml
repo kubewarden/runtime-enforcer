@@ -33,11 +33,8 @@ daemon:
     args:
     - ""
     containerSecurityContext:
-      runAsUser: 1000
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-        - ALL
+      # todo!: evaluate the list of capabilities needed and drop the unneeded ones
+      privileged: true
     image:
       repository: ghcr.io/neuvector/runtime-enforcer/daemon
       tag: v0.0.2
@@ -51,9 +48,7 @@ daemon:
         memory: 64Mi
   customCRISocketPath: ""
   podSecurityContext:
-    runAsNonRoot: true
-    seccompProfile:
-      type: RuntimeDefault
+    privileged: true
   serviceAccount:
     annotations: {}
 kubernetesClusterDomain: cluster.local

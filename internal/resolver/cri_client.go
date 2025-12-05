@@ -113,8 +113,6 @@ func systemdExpandSlice(slice string) (string, error) {
 	if sliceName == "-" {
 		return "/", nil
 	}
-	var pathSb116 strings.Builder
-	var prefixSb116 strings.Builder
 	for _, component := range strings.Split(sliceName, "-") {
 		// test--a.slice isn't permitted, nor is -test.slice.
 		if component == "" {
@@ -122,14 +120,18 @@ func systemdExpandSlice(slice string) (string, error) {
 		}
 
 		// Append the component to the path and to the prefix.
-		pathSb116.WriteString("/" + prefix + component + suffix)
-		prefixSb116.WriteString(component + "-")
+		path += "/" + prefix + component + suffix
+		prefix += component + "-"
 	}
-	path += pathSb116.String()
-	prefix += prefixSb116.String()
 	return path, nil
 }
 
+// Example input: kubelet-kubepods-besteffort-pod83b090de_9676_407c_99aa_d33dc6aa0c0d.slice:cri-containerd:18b2adc8507104e412c946bec11679590801f547eee513fa298054f14fbf4240
+//
+// Example output:
+// /kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod83b090de_9676_407c_99aa_d33dc6aa0c0d.slice/cri-containerd-18b2adc8507104e412c946bec11679590801f547eee513fa298054f14fbf4240.scope
+//
+// todo!: the resolver should start with the resolution of itself, to check if the cgroup path is valid
 func ParseCgroupsPath(cgroupPath string) (string, error) {
 	if strings.Contains(cgroupPath, "/") {
 		return cgroupPath, nil
@@ -144,16 +146,18 @@ func ParseCgroupsPath(cgroupPath string) (string, error) {
 	parts := strings.Split(cgroupPath, ":")
 	if len(parts) == 3 {
 		var err error
-		slice, scope, name := parts[0], parts[1], parts[2]
+		// kubelet-kubepods-besteffort-pod83b090de_9676_407c_99aa_d33dc6aa0c0d.slice:cri-containerd:18b2adc8507104e412c946bec11679590801f547eee513fa298054f14fbf4240
+		slice, containerRuntimeName, containerID := parts[0], parts[1], parts[2]
 		slice, err = systemdExpandSlice(slice)
 		if err != nil {
 			return "", fmt.Errorf("failed to parse cgroup path: %s (%s does not seem to be a slice)", cgroupPath, slice)
 		}
 		// https://github.com/opencontainers/runc/blob/5cf9bb229feed19a767cbfdf9702f6487341e29e/libcontainer/cgroups/systemd/common.go#L95-L101
-		if !strings.HasSuffix(name, ".slice") {
-			name = scope + "-" + name + ".scope"
+		if !strings.HasSuffix(containerID, ".slice") {
+			// We want something like this: cri-containerd-18b2adc8507104e412c946bec11679590801f547eee513fa298054f14fbf4240.scope
+			containerID = containerRuntimeName + "-" + containerID + ".scope"
 		}
-		return filepath.Join(slice, name), nil
+		return filepath.Join(slice, containerID), nil
 	}
 
 	return "", fmt.Errorf("unknown cgroup path: %s", cgroupPath)
@@ -187,7 +191,6 @@ func (c *criResolver) getCgroupPath(containerID string) (string, error) {
 	if ret == "" {
 		return "", errors.New("failed to find cgroupsPath in json")
 	}
-
 	return ParseCgroupsPath(ret)
 }
 

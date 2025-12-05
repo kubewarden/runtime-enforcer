@@ -81,6 +81,28 @@ spec:
                         type: array
                     type: object
                 type: object
+              rulesByContainer:
+                additionalProperties:
+                  properties:
+                    executables:
+                      description: executables defines a security policy used for
+                        executables.
+                      properties:
+                        allowed:
+                          description: allowed defines a list of executables that
+                            are allowed to run
+                          items:
+                            type: string
+                          type: array
+                        allowedPrefixes:
+                          description: allowedPrefixes defines a list of prefix with
+                            which executables are allowed to run
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                  type: object
+                type: object
               selector:
                 description: |-
                   selector is a kubernetes label selector used to match

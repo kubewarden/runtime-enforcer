@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -108,4 +109,45 @@ func getPodInfo(pod *corev1.Pod) *podInfo {
 	}
 
 	return info
+}
+
+type KubeInfo struct {
+	PodID         string
+	PodName       string
+	Namespace     string
+	ContainerName string
+	WorkloadName  string
+	WorkloadType  string
+}
+
+func (r *Resolver) GetKubeInfo(cgID CgroupID) (*KubeInfo, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	podID, ok := r.cgroupIDToPodID[cgID]
+	if !ok {
+		return nil, fmt.Errorf("no pod UID found for cgroup ID %d", cgID)
+	}
+
+	pod, ok := r.podCache[podID]
+	if !ok {
+		return nil, fmt.Errorf("no pod info found for pod ID %s and cgroup ID %d", podID, cgID)
+	}
+
+	containerName := "not-found"
+	for _, info := range pod.containers {
+		if cgID == info.cgID {
+			containerName = info.name
+			break
+		}
+	}
+
+	return &KubeInfo{
+		PodID:         podID,
+		PodName:       pod.info.name,
+		Namespace:     pod.info.namespace,
+		ContainerName: containerName,
+		WorkloadName:  pod.info.workloadName,
+		WorkloadType:  pod.info.workloadType,
+	}, nil
 }

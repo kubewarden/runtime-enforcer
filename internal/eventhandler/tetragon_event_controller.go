@@ -86,6 +86,7 @@ func NewTetragonEventReconciler(client client.Client, scheme *runtime.Scheme) *T
 // kubebuilder annotations for accessing policy proposals.
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals,verbs=create;get;list;watch;update;patch
 
+// todo!: the learning event should be received directly by this controller that will try to enrich it with k8s metadata... We should rename the controller in something like `LearningEventReconciler`
 func (r *TetragonEventReconciler) Reconcile(
 	ctx context.Context,
 	req ProcessLearningEvent,

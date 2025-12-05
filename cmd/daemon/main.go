@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/neuvector/runtime-enforcer/internal/bpfactors"
+	"github.com/neuvector/runtime-enforcer/internal/bpf"
 	"github.com/neuvector/runtime-enforcer/internal/eventhandler"
 	"github.com/neuvector/runtime-enforcer/internal/eventscraper"
+	"github.com/neuvector/runtime-enforcer/internal/policygenerator"
 	"github.com/neuvector/runtime-enforcer/internal/resolver"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/node/v1alpha1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	cmCache "sigs.k8s.io/controller-runtime/pkg/cache"
 
 	"log/slog"
@@ -88,6 +90,7 @@ func startTetragonEventController(ctx context.Context, logger *slog.Logger, enab
 func newControllerManager() (manager.Manager, error) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(securityv1alpha1.AddToScheme(scheme))
 	cacheOptions := cmCache.Options{
 		ByObject: map[client.Object]cmCache.ByObject{
@@ -111,33 +114,28 @@ func newControllerManager() (manager.Manager, error) {
 func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) error {
 	var err error
 
+	//////////////////////
 	// Create controller manager
+	//////////////////////
 	ctrlMgr, err := newControllerManager()
 	if err != nil {
 		return fmt.Errorf("Cannot create manager: %w", err)
 	}
 
-	bpfManager, err := bpfactors.NewManager(logger)
+	//////////////////////
+	// Create BPF manager
+	//////////////////////
+	bpfManager, err := bpf.NewManager(logger, enableLearning)
 	if err != nil {
 		return fmt.Errorf("Cannot create BPF manager: %w", err)
 	}
-
 	if err := ctrlMgr.Add(bpfManager); err != nil {
 		return fmt.Errorf("failed to add BPF manager to controller manager: %w", err)
 	}
 
-	// This channel will be never popoulated if learning is disabled
-	learningChannel := make(chan bpfactors.LearningEvent)
-	if enableLearning {
-		// We add the learner only if learning is enabled
-		learner := bpfactors.GetLearner(bpfManager)
-		if err := ctrlMgr.Add(learner); err != nil {
-			return fmt.Errorf("failed to add BPF learner to controller manager: %w", err)
-		}
-		learningChannel = learner.GetLearningChannel()
-	}
-
+	//////////////////////
 	// Create an informer for pods
+	//////////////////////
 	podInformer, err := ctrlMgr.GetCache().GetInformer(ctx, &corev1.Pod{})
 	if err != nil {
 		return fmt.Errorf("Cannot get pod informer: %w", err)
@@ -152,15 +150,37 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 		return fmt.Errorf("Cannot add indexers to pod informer: %w", err)
 	}
 
+	//////////////////////
+	// Create the resolver
+	//////////////////////
+
+	resolver, err := resolver.NewResolver(ctx, logger, podInformer, bpfManager.GetCgroupTrackerUpdateFunc(), bpfManager.GetCgroupPolicyUpdateFunc())
+	if err != nil {
+		return fmt.Errorf("failed to create resolver: %w", err)
+	}
+
+	//////////////////////
+	// Create the scraper
+	//////////////////////
+	evtScraper := eventscraper.NewEventScraper(bpfManager.GetLearningChannel(), bpfManager.GetMonitoringChannel(), logger, resolver)
+	if err := ctrlMgr.Add(evtScraper); err != nil {
+		return fmt.Errorf("failed to add event scraper to controller manager: %w", err)
+	}
+
+	//////////////////////
+	// Setup Policy Generator with the workload informer
+	//////////////////////
 	workloadPolicyInformer, err := ctrlMgr.GetCache().GetInformer(ctx, &securityv1alpha1.WorkloadSecurityPolicy{})
 	if err != nil {
 		return fmt.Errorf("Cannot get workload security policy informer: %w", err)
 	}
+	policygenerator.SetupPolicyGenerator(logger, workloadPolicyInformer, resolver, bpfManager.GetPolicyValuesUpdateFunc())
 
-	evtScraper := eventscraper.NewEventScraper(learningChannel)
-	if err := ctrlMgr.Add(evtScraper); err != nil {
-		return fmt.Errorf("failed to add event scraper to controller manager: %w", err)
+	logger.InfoContext(ctx, "starting manager")
+	if err = ctrlMgr.Start(ctx); err != nil {
+		logger.ErrorContext(ctx, "failed to start manager", "error", err)
 	}
+
 	return nil
 }
 
@@ -183,8 +203,9 @@ func main() {
 
 	flag.Parse()
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		// todo!: revert this
+		Level: slog.LevelDebug,
 	})).With("component", "daemon")
 	slog.SetDefault(logger)
 
@@ -200,8 +221,8 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// This function blocks if everything is alright.
-	if err = startTetragonEventController(ctx, logger, config.enableLearning); err != nil {
-		logger.ErrorContext(ctx, "failed to start tetragon event controller", "error", err)
+	if err = startDaemon(ctx, logger, config.enableLearning); err != nil {
+		logger.ErrorContext(ctx, "failed to start daemon", "error", err)
 		os.Exit(1)
 	}
 

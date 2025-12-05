@@ -1,4 +1,4 @@
-package bpfactors
+package bpf
 
 import (
 	"context"
@@ -8,44 +8,57 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/neuvector/runtime-enforcer/internal/cgroups"
+	"golang.org/x/sync/errgroup"
 )
 
 // todo!: we need to generate according to the architecture, not just x86
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "-O2 -g -D__TARGET_ARCH_x86" -tags linux -type execve_event bpf ../../bpf/main.c -- -I/usr/include/
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "-O2 -g -D__TARGET_ARCH_x86" -tags linux -type process_evt bpf ../../bpf/main.c -- -I/usr/include/
 
 const (
 	loadTimeConfigBPFVar = "load_time_config"
 )
 
+const (
+	// 100 should be enough to avoid blocking in normal conditions, let's monitor this later
+	learningEventChanSize = 100
+	monitorEventChanSize  = 100
+	CommSize              = 16
+)
+
+// ProcessEvent represents an event coming from BPF programs, for now used for learning and monitoring
+type ProcessEvent struct {
+	CgroupID    uint64
+	CgTrackerID uint64
+	// todo!: replace this with the full executable path
+	Comm [CommSize]int8
+}
+
+func (pe *ProcessEvent) GetCommString() string {
+	commBytes := make([]byte, 0, CommSize)
+	for _, b := range pe.Comm {
+		if b == 0 {
+			break
+		}
+		commBytes = append(commBytes, byte(b))
+	}
+	return string(commBytes)
+}
+
 type Manager struct {
-	logger             *slog.Logger
-	objs               *bpfObjects
-	violationEventChan chan bpfExecveEvent
-	policyStringMaps   []*ebpf.Map
+	logger           *slog.Logger
+	objs             *bpfObjects
+	policyStringMaps []*ebpf.Map
+
+	// Learning
+	enableLearning    bool
+	learningEventChan chan ProcessEvent
+
+	// Monitoring
+	monitoringEventChan chan ProcessEvent
 }
 
-func getLoadTimeConfig() (*bpfLoadConf, error) {
-	// First let's detect cgroupfs magic
-	cgroupFsMagic, err := cgroups.DetectCgroupFSMagic()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get cgroupfs magic: %w", err)
-	}
-
-	// This must be called before probing cgroup configurations
-	if err = cgroups.DiscoverSubSysIds(); err != nil {
-		return nil, fmt.Errorf("detection of Cgroup Subsystem Controllers failed: %w", err)
-	}
-
-	return &bpfLoadConf{
-		CgrpFsMagic:     cgroupFsMagic,
-		Cgrpv1SubsysIdx: cgroups.GetCgrpv1SubsystemIdx(),
-		CgrpHierarchy:   cgroups.GetCgrpHierarchyID(),
-		DebugMode:       0, // disable debug mode for now
-	}, nil
-}
-
-func NewManager(logger *slog.Logger) (*Manager, error) {
+func NewManager(logger *slog.Logger, enableLearning bool) (*Manager, error) {
 	if err := rlimit.RemoveMemlock(); err != nil {
 		return nil, fmt.Errorf("failed to remove memlock: %w", err)
 	}
@@ -78,8 +91,11 @@ func NewManager(logger *slog.Logger) (*Manager, error) {
 	}
 
 	return &Manager{
-		logger: newLogger,
-		objs:   &objs,
+		logger:              newLogger,
+		objs:                &objs,
+		enableLearning:      enableLearning,
+		learningEventChan:   make(chan ProcessEvent, learningEventChanSize),
+		monitoringEventChan: make(chan ProcessEvent, monitorEventChanSize),
 		policyStringMaps: []*ebpf.Map{
 			objs.PolStrMaps0,
 			objs.PolStrMaps1,
@@ -96,12 +112,6 @@ func NewManager(logger *slog.Logger) (*Manager, error) {
 	}, nil
 }
 
-// GetLearner returns a new Learner instance associated with the BPF Manager.
-// it should be called only if learning is enabled.
-func GetLearner(m *Manager) *Learner {
-	return newLearner(m.logger, m.objs.ExecveSend, m.objs.bpfMaps.RingbufExecve)
-}
-
 func (m *Manager) Start(ctx context.Context) error {
 	defer func() {
 		m.logger.InfoContext(ctx, "BPF Manager stopped")
@@ -109,14 +119,27 @@ func (m *Manager) Start(ctx context.Context) error {
 	}()
 
 	m.logger.InfoContext(ctx, "Starting BPF Manager...")
-	// to understand: how we want to handle violations
-	<-ctx.Done()
-	return nil
-}
+	g, ctx := errgroup.WithContext(ctx)
 
-// Expose some methods to interact with BPF maps
-func (m *Manager) populatePolicyValue() func(policyID uint64, values []string) error {
-	return func(policyID uint64, values []string) error {
-		return m.generateBPFMaps(policyID, values)
+	// Cgroup Tracker
+	g.Go(func() error {
+		return m.cgroupTrackerStart(ctx)
+	})
+
+	// Learning
+	if m.enableLearning {
+		g.Go(func() error {
+			return m.learningStart(ctx)
+		})
 	}
+
+	// Monitoring
+	g.Go(func() error {
+		return m.monitoringStart(ctx)
+	})
+
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("BPF Manager error: %w", err)
+	}
+	return nil
 }

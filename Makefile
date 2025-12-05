@@ -111,7 +111,7 @@ operator: fmt vet ## Build manager binary.
 
 .PHONY: daemon
 daemon: fmt vet ## Build daemon binary.
-	go generate ./internal/bpfactors
+	go generate ./internal/bpf
 	CGO_ENABLED=0 GOOS=linux go build -o bin/daemon ./cmd/daemon
 
 .PHONY: run

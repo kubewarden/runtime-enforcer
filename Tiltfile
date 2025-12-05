@@ -104,6 +104,10 @@ docker_build_with_restart(
     ],
 )
 
+exclusions = [
+    "internal/bpf/bpf_**",
+]
+
 local_resource(
     "daemon_tilt",
     "make daemon",
@@ -112,10 +116,10 @@ local_resource(
         "go.sum",
         "cmd/daemon",
         "api",
-        "internal/eventhandler",
-        "internal/tetragon",
+        "internal",
         "pkg"
     ],
+    ignore = exclusions,
 )
 
 entrypoint = ["/daemon"]
@@ -137,4 +141,3 @@ docker_build_with_restart(
         sync("./bin/daemon", "/daemon"),
     ],
 )
-

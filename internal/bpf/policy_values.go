@@ -1,13 +1,19 @@
-package bpfactors
+package bpf
 
 import (
 	"errors"
 	"fmt"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/tetragon/pkg/bpf"
-	"github.com/cilium/tetragon/pkg/selectors"
 	"github.com/neuvector/runtime-enforcer/internal/kernels"
+)
+
+type PolicyValuesOperation int
+
+const (
+	_ PolicyValuesOperation = iota
+	AddValuesToPolicy
+	RemoveValuesFromPolicy
 )
 
 const (
@@ -33,7 +39,13 @@ const (
 
 	StringMapSize7a = 512
 
-	fixedMaxEntriesPre5_9 = 200
+	// For kernels before 5.9 we need to fix the max entries for inner maps, the chosen value is arbitrary
+	fixedMaxEntriesPre5_9 = 500
+)
+
+const (
+	// Flags for BPF_MAP_CREATE. Must match values from linux/bpf.h
+	BPF_F_NO_PREALLOC = 1 << 0
 )
 
 var (
@@ -188,7 +200,7 @@ func (m *Manager) generateBPFMaps(policyID uint64, values []string) error {
 
 		mapKeySize := StringMapsSizes[i]
 		if i == 7 && preKernelVersion5_11 {
-			mapKeySize = selectors.StringMapSize7a
+			mapKeySize = StringMapSize7a
 		}
 
 		name := fmt.Sprintf("p_%d_str_map_%d", policyID, i)
@@ -203,7 +215,7 @@ func (m *Manager) generateBPFMaps(policyID uint64, values []string) error {
 		// Versions before 5.9 do not allow inner maps to have different sizes.
 		// See: https://lore.kernel.org/bpf/20200828011800.1970018-1-kafai@fb.com/
 		if preKernelVersion5_9 {
-			innerSpec.Flags = uint32(bpf.BPF_F_NO_PREALLOC)
+			innerSpec.Flags = uint32(BPF_F_NO_PREALLOC)
 			innerSpec.MaxEntries = uint32(fixedMaxEntriesPre5_9)
 		}
 
@@ -235,4 +247,27 @@ func (m *Manager) generateBPFMaps(policyID uint64, values []string) error {
 		m.logger.Info("handler: add new inner map inside policy str", "name", name)
 	}
 	return nil
+}
+
+func (m *Manager) removeBPFMaps(policyID uint64) error {
+	for _, policyMap := range m.policyStringMaps {
+		if err := policyMap.Delete(policyID); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			return fmt.Errorf("failed to remove policy (id=%d) from map %s: %w", policyID, policyMap.String(), err)
+		}
+	}
+	return nil
+}
+
+// Expose some methods to interact with BPF maps
+func (m *Manager) GetPolicyValuesUpdateFunc() func(policyID uint64, values []string, op PolicyValuesOperation) error {
+	return func(policyID uint64, values []string, op PolicyValuesOperation) error {
+		switch op {
+		case AddValuesToPolicy:
+			return m.generateBPFMaps(policyID, values)
+		case RemoveValuesFromPolicy:
+			return m.removeBPFMaps(policyID)
+		default:
+			panic("unhandled operation")
+		}
+	}
 }

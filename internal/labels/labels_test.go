@@ -32,7 +32,7 @@ func TestLabels(t *testing.T) {
 			},
 		}, {
 			labelSelector: &metav1.LabelSelector{
-				MatchLabels: map[string]metav1.MatchLabelsValue{
+				MatchLabels: map[string]string{
 					"app": "tetragon",
 				},
 			},
@@ -96,7 +96,7 @@ func TestLabels(t *testing.T) {
 					Key:      "application",
 					Operator: "DoesNotExist",
 				}},
-				MatchLabels: map[string]metav1.MatchLabelsValue{
+				MatchLabels: map[string]string{
 					"app": "tetragon",
 				},
 			},

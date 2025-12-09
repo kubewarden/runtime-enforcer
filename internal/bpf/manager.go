@@ -23,26 +23,19 @@ const (
 	// 100 should be enough to avoid blocking in normal conditions, let's monitor this later
 	learningEventChanSize = 100
 	monitorEventChanSize  = 100
-	CommSize              = 16
 )
 
 // ProcessEvent represents an event coming from BPF programs, for now used for learning and monitoring
 type ProcessEvent struct {
 	CgroupID    uint64
 	CgTrackerID uint64
-	// todo!: replace this with the full executable path
-	Comm [CommSize]int8
+	ExePath     string
 }
 
-func (pe *ProcessEvent) GetCommString() string {
-	commBytes := make([]byte, 0, CommSize)
-	for _, b := range pe.Comm {
-		if b == 0 {
-			break
-		}
-		commBytes = append(commBytes, byte(b))
-	}
-	return string(commBytes)
+type bpfEventHeader struct {
+	Cgid        uint64
+	CgTrackerId uint64
+	PathLen     uint16
 }
 
 type Manager struct {
@@ -58,7 +51,7 @@ type Manager struct {
 	monitoringEventChan chan ProcessEvent
 }
 
-func NewManager(logger *slog.Logger, enableLearning bool) (*Manager, error) {
+func NewManager(logger *slog.Logger, enableLearning bool, eBPFLogLevel ebpf.LogLevel) (*Manager, error) {
 	if err := rlimit.RemoveMemlock(); err != nil {
 		return nil, fmt.Errorf("failed to remove memlock: %w", err)
 	}
@@ -86,7 +79,12 @@ func NewManager(logger *slog.Logger, enableLearning bool) (*Manager, error) {
 
 	// We just load the objects here so that we can pass the maps to other components but we don't load ebpf progs yet
 	objs := bpfObjects{}
-	if err := spec.LoadAndAssign(&objs, nil); err != nil {
+	opts := &ebpf.CollectionOptions{
+		Programs: ebpf.ProgramOptions{
+			LogLevel: eBPFLogLevel,
+		},
+	}
+	if err := spec.LoadAndAssign(&objs, opts); err != nil {
 		return nil, fmt.Errorf("Error loading objects: %w", err)
 	}
 

@@ -19,25 +19,20 @@ const (
 const (
 	StringMapsNumSubMapsSmall = 8
 	StringMapsNumSubMaps      = 11
-	MaxStringMapsSize         = 4096 + 2
+	MaxStringMapsSize         = 4096
 	stringMapsKeyIncSize      = 24
 
-	// Maps with key string length <256 only require a single byte
-	// to store string length. Maps with key string length >=256
-	// require two bytes to store string length.
-	stringMapSize0  = 1*stringMapsKeyIncSize + 1
-	stringMapSize1  = 2*stringMapsKeyIncSize + 1
-	stringMapSize2  = 3*stringMapsKeyIncSize + 1
-	stringMapSize3  = 4*stringMapsKeyIncSize + 1
-	stringMapSize4  = 5*stringMapsKeyIncSize + 1
-	stringMapSize5  = 6*stringMapsKeyIncSize + 1
-	stringMapSize6  = 256 + 2
-	stringMapSize7  = 512 + 2
-	stringMapSize8  = 1024 + 2
-	stringMapSize9  = 2048 + 2
-	stringMapSize10 = 4096 + 2
-
-	StringMapSize7a = 512
+	stringMapSize0  = 1 * stringMapsKeyIncSize
+	stringMapSize1  = 2 * stringMapsKeyIncSize
+	stringMapSize2  = 3 * stringMapsKeyIncSize
+	stringMapSize3  = 4 * stringMapsKeyIncSize
+	stringMapSize4  = 5 * stringMapsKeyIncSize
+	stringMapSize5  = 6 * stringMapsKeyIncSize
+	stringMapSize6  = 256
+	stringMapSize7  = 512
+	stringMapSize8  = 1024
+	stringMapSize9  = 2048
+	stringMapSize10 = 4096
 
 	// For kernels before 5.9 we need to fix the max entries for inner maps, the chosen value is arbitrary
 	fixedMaxEntriesPre5_9 = 500
@@ -93,22 +88,22 @@ func stringPaddedLen(s int) int {
 	}
 	// The '-2' is to reduce the key size to the key string size -
 	// the key includes a string length that is 2 bytes long.
-	if s <= stringMapSize6-2 {
-		return stringMapSize6 - 2
+	if s <= stringMapSize6 {
+		return stringMapSize6
 	}
 	if kernels.MinKernelVersion("5.11") {
-		if s <= stringMapSize7-2 {
-			return stringMapSize7 - 2
+		if s <= stringMapSize7 {
+			return stringMapSize7
 		}
-		if s <= stringMapSize8-2 {
-			return stringMapSize8 - 2
+		if s <= stringMapSize8 {
+			return stringMapSize8
 		}
-		if s <= stringMapSize9-2 {
-			return stringMapSize9 - 2
+		if s <= stringMapSize9 {
+			return stringMapSize9
 		}
-		return stringMapSize10 - 2
+		return stringMapSize10
 	}
-	return StringMapSize7a - 2
+	return stringMapSize7
 }
 
 func argStringSelectorValue(v string, removeNul bool) ([MaxStringMapsSize]byte, int, error) {
@@ -121,38 +116,28 @@ func argStringSelectorValue(v string, removeNul bool) ([MaxStringMapsSize]byte, 
 	ret := [MaxStringMapsSize]byte{}
 	b := []byte(v)
 	s := len(b)
-	if kernels.MinKernelVersion("5.11") {
-		if s > MaxStringMapsSize-2 {
-			return ret, 0, errors.New("string is too long")
-		}
-	} else if kernels.MinKernelVersion("5.4") {
-		if s > StringMapSize7a-2 {
-			return ret, 0, errors.New("string is too long")
-		}
-	} else {
-		if s > stringMapSize5-1 {
-			return ret, 0, errors.New("string is too long")
-		}
-	}
+
 	if s == 0 {
 		return ret, 0, errors.New("string is empty")
 	}
+
+	if kernels.MinKernelVersion("5.11") {
+		if s > MaxStringMapsSize {
+			return ret, 0, errors.New("string is too long")
+		}
+	} else if kernels.MinKernelVersion("5.4") {
+		if s > stringMapSize7 {
+			return ret, 0, errors.New("string is too long")
+		}
+	} else {
+		return ret, 0, errors.New("unsupported kernel version")
+	}
+
 	// Calculate length of string padded to next multiple of key increment size
 	paddedLen := stringPaddedLen(s)
 
-	// Add real length to start and padding to end.
-	// u8 for first 6 maps and u16 little endian for latter maps.
-	if paddedLen <= 6*stringMapsKeyIncSize {
-		ret[0] = byte(s)
-		copy(ret[1:], b)
-		// Total length is padded string len + prefixed length byte.
-		return ret, paddedLen + 1, nil
-	}
-	ret[0] = byte(s % 0x100)
-	ret[1] = byte(s / 0x100)
-	copy(ret[2:], b)
-	// Total length is padded string len + prefixed length half word.
-	return ret, paddedLen + 2, nil
+	copy(ret[:], b)
+	return ret, paddedLen, nil
 }
 
 func convertValuesToMaps(values []string) (SelectorStringMaps, error) {
@@ -171,7 +156,7 @@ func convertValuesToMaps(values []string) (SelectorStringMaps, error) {
 		for sizeIdx := range numSubMaps {
 			stringMapSize := StringMapsSizes[sizeIdx]
 			if sizeIdx == 7 && !kernels.MinKernelVersion("5.11") {
-				stringMapSize = StringMapSize7a
+				stringMapSize = stringMapSize7
 			}
 
 			if size == stringMapSize {
@@ -192,6 +177,7 @@ func (m *Manager) generateBPFMaps(policyID uint64, values []string) error {
 	preKernelVersion5_9 := !kernels.MinKernelVersion("5.9")
 	preKernelVersion5_11 := !kernels.MinKernelVersion("5.11")
 
+	// todo!: here we can probably use the number of maps that the manager successfully loaded, so that we avoid all the kernel version checks again
 	for i := range subMaps {
 		// if the subMap is empty we skip it
 		if len(subMaps[i]) == 0 {
@@ -200,7 +186,7 @@ func (m *Manager) generateBPFMaps(policyID uint64, values []string) error {
 
 		mapKeySize := StringMapsSizes[i]
 		if i == 7 && preKernelVersion5_11 {
-			mapKeySize = StringMapSize7a
+			mapKeySize = stringMapSize7
 		}
 
 		name := fmt.Sprintf("p_%d_str_map_%d", policyID, i)

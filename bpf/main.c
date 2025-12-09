@@ -7,6 +7,7 @@
 #include "load_conf.h"
 #include "helpers.h"
 #include "string_maps.h"
+#include "d_path_resolution.h"
 
 char __license[] SEC("license") = "Dual MIT/GPL";
 
@@ -53,16 +54,9 @@ static __always_inline __u64 cgrp_get_tracker_id(__u64 cgid) {
 static __always_inline __u32 get_cgroup_level(const struct cgroup *cgrp) {
 	__u32 level = 0;
 
-	bpf_probe_read_kernel(&level, sizeof(level), _(&cgrp->level));
+	bpf_core_read(&level, sizeof(level), &cgrp->level);
 	return level;
 }
-
-/* Represent old kernfs node with the kernfs_node_id
- * union to read the id in 5.4 kernels and older
- */
-struct kernfs_node___old {
-	union kernfs_node_id id;
-};
 
 /**
  * get_cgroup_kn_id() Returns the kernfs node id
@@ -87,7 +81,7 @@ static __always_inline __u64 __get_cgroup_kn_id(const struct kernfs_node *kn) {
 		if(BPF_CORE_READ_INTO(&id, old_kn, id.id) != 0)
 			return 0;
 	} else {
-		bpf_probe_read_kernel(&id, sizeof(id), _(&kn->id));
+		bpf_core_read(&id, sizeof(id), &kn->id);
 	}
 
 	return id;
@@ -104,7 +98,7 @@ static __always_inline struct kernfs_node *__get_cgroup_kn(const struct cgroup *
 		return NULL;
 	}
 	struct kernfs_node *kn = NULL;
-	bpf_probe_read_kernel(&kn, sizeof(cgrp->kn), _(&cgrp->kn));
+	bpf_core_read(&kn, sizeof(cgrp->kn), &cgrp->kn);
 	return kn;
 }
 
@@ -151,9 +145,8 @@ static __always_inline struct cgroup *get_task_cgroup(struct task_struct *task,
 	struct css_set *cgroups;
 	struct cgroup *cgrp = NULL;
 
-	bpf_probe_read_kernel(&cgroups, sizeof(cgroups), _(&task->cgroups));
+	bpf_core_read(&cgroups, sizeof(cgroups), &task->cgroups);
 	if(unlikely(!cgroups)) {
-		// todo!: we could use atomic_counters/send messages in case of errors
 		return NULL;
 	}
 
@@ -161,7 +154,7 @@ static __always_inline struct cgroup *get_task_cgroup(struct task_struct *task,
 #ifndef __RHEL7_BPF_PROG
 	/* If we are in Cgroupv2 return the default css_set cgroup */
 	if(cgrpfs_ver == CGROUP2_SUPER_MAGIC) {
-		bpf_probe_read_kernel(&cgrp, sizeof(cgrp), _(&cgroups->dfl_cgrp));
+		bpf_core_read(&cgrp, sizeof(cgrp), &cgroups->dfl_cgrp);
 		// cgrp could be NULL in case of failures
 		return cgrp;
 	}
@@ -193,12 +186,12 @@ static __always_inline struct cgroup *get_task_cgroup(struct task_struct *task,
 	 * support as much as workload as possible. It also reduces errors
 	 * in a significant way.
 	 */
-	bpf_probe_read_kernel(&subsys, sizeof(subsys), _(&cgroups->subsys[subsys_idx]));
+	bpf_core_read(&subsys, sizeof(subsys), &cgroups->subsys[subsys_idx]);
 	if(unlikely(!subsys)) {
 		return NULL;
 	}
 
-	bpf_probe_read_kernel(&cgrp, sizeof(cgrp), _(&subsys->cgroup));
+	bpf_core_read(&cgrp, sizeof(cgrp), &subsys->cgroup);
 	// cgrp could be NULL in case of failures
 	return cgrp;
 }
@@ -226,7 +219,7 @@ static __always_inline __u64 tg_get_current_cgroup_id(void) {
 	return get_cgroup_id(cgrp);
 }
 
-static __always_inline __u64 get_cgroup_id_from_curr_task() {
+static __always_inline __u64 get_tracker_id_from_curr_task() {
 	__u64 cgroupid = tg_get_current_cgroup_id();
 	if(!cgroupid)
 		return 0;
@@ -288,7 +281,6 @@ int tg_cgtracker_cgroup_mkdir(struct bpf_raw_tracepoint_args *ctx) {
 	__u64 *cgid_tracker = bpf_map_lookup_elem(&cgtracker_map, &cgid_parent);
 	if(cgid_tracker) {
 		// if parent is being tracked, track the new cgroup too
-		// todo!: add some metrics here
 		bpf_map_update_elem(&cgtracker_map, &cgid, cgid_tracker, BPF_ANY);
 	}
 	return 0;
@@ -309,7 +301,7 @@ int tg_cgtracker_cgroup_release(struct bpf_raw_tracepoint_args *ctx) {
 /////////////////////////
 
 // A single buffer shared between all CPUs
-#define BUF_DIM 8 * 1024 * 1024
+#define BUF_DIM 16 * 1024 * 1024
 
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -322,37 +314,74 @@ struct {
 } ringbuf_execve SEC(".maps");
 
 struct process_evt {
-	__u64 cgid;
-	__u64 cg_tracker_id;
-	char comm[16];
+	u64 cgid;
+	u64 cg_tracker_id;
+	u16 path_len;
+	// MAX_PATH_LEN for the final path +
+	// MAX_PATH_LEN for storing the progressive path +
+	// MAX_PATH_LEN of empty space for padding when we do the string map lookups
+	char path[MAX_PATH_LEN * 4];
+	// todo!: we need to add the atomic value for concurrency, see
+	// https://github.com/falcosecurity/libs/issues/2719
 };
+
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+	__uint(max_entries, 1);
+	__type(key, int);
+	__type(value, struct process_evt);
+} process_evt_storage_map SEC(".maps");
 
 // Force emitting struct event into the ELF.
 const struct process_evt *unused __attribute__((unused));
 
 SEC("tp_btf/sched_process_exec")
 int BPF_PROG(execve_send, struct task_struct *p, pid_t old_pid, struct linux_binprm *bprm) {
-	struct process_evt *e = bpf_ringbuf_reserve(&ringbuf_execve, sizeof(*e), 0);
-	if(!e) {
-		// todo!: implement some metrics if we are dropping events
-		bpf_printk("cannot reserve space in ringbuf");
+	int zero = 0;
+	struct process_evt *evt =
+	        (struct process_evt *)bpf_map_lookup_elem(&process_evt_storage_map, &zero);
+	if(!evt) {
+		bpf_printk("cannot get process_evt from storage map");
+		// todo!: implement error handling with a dedicated buffer
 		return 0;
 	}
-	e->cgid = tg_get_current_cgroup_id();
-	e->cg_tracker_id = cgrp_get_tracker_id(e->cgid);
-	bpf_get_current_comm(&e->comm, sizeof(e->comm));
 
-	bpf_printk("sent execve event, comm: %s, cgid: %d, cg_tracker_id: %d\n",
-	           e->comm,
-	           e->cgid,
-	           e->cg_tracker_id);
+	evt->cgid = tg_get_current_cgroup_id();
+	evt->cg_tracker_id = cgrp_get_tracker_id(evt->cgid);
 
-	bpf_ringbuf_submit(e, 0);
+	struct file *file = bprm->file;
+	if(file == NULL) {
+		return 0;
+	}
+	struct path *path_arg = &file->f_path;
+	int current_offset = bpf_d_path_approx(path_arg, evt->path);
+	if(current_offset <= 0) {
+		bpf_printk("Failed to resolve path for execve");
+		return 0;
+	}
+	evt->path_len = MAX_PATH_LEN * 2 - current_offset;
+	int err = bpf_probe_read_kernel(evt->path,
+	                                SAFE_PATH_LEN(evt->path_len),
+	                                &evt->path[SAFE_PATH_ACCESS(current_offset)]);
+	if(err != 0) {
+		bpf_printk("Failed to copy path for execve %d", err);
+		return 0;
+	}
+
+	bpf_printk("sent execve event, path: %s, cgid: %d, cg_tracker_id: %d",
+	           evt->path,
+	           evt->cgid,
+	           evt->cg_tracker_id);
+
+	err = bpf_ringbuf_output(&ringbuf_execve, evt, 18 + SAFE_PATH_LEN(evt->path_len), 0);
+	if(err != 0) {
+		bpf_printk("Failed to output execve event to ringbuf %d", err);
+	}
 	return 0;
 }
 
 /////////////////////////
-// Enforcing
+// Monitoring/Enforcing
 /////////////////////////
 
 #define CGROUP_TO_POLICY_MAX_ENTRIES 65536
@@ -373,6 +402,10 @@ struct {
 	__type(value, __u8); /* mode of the policy (e.g. enforce, monitor) */
 } policy_mode_map SEC(".maps");
 
+#define POLICY_MODE_MONITOR 1
+#define POLICY_MODE_ENFORCE 2
+#define EPERM 1
+
 static __always_inline u16 string_padded_len(u16 len) {
 	u16 padded_len = len;
 
@@ -383,20 +416,20 @@ static __always_inline u16 string_padded_len(u16 len) {
 		return padded_len;
 	}
 
-	if(len <= STRING_MAPS_SIZE_6 - 2)
-		return STRING_MAPS_SIZE_6 - 2;
+	if(len <= STRING_MAPS_SIZE_6)
+		return STRING_MAPS_SIZE_6;
 
 	if(LINUX_KERNEL_VERSION < KERNEL_VERSION(5, 11, 0)) {
-		return STRING_MAPS_SIZE_7 - 2;
+		return STRING_MAPS_SIZE_7;
 	}
 
-	if(len <= STRING_MAPS_SIZE_7 - 2)
-		return STRING_MAPS_SIZE_7 - 2;
-	if(len <= STRING_MAPS_SIZE_8 - 2)
-		return STRING_MAPS_SIZE_8 - 2;
-	if(len <= STRING_MAPS_SIZE_9 - 2)
-		return STRING_MAPS_SIZE_9 - 2;
-	return STRING_MAPS_SIZE_10 - 2;
+	if(len <= STRING_MAPS_SIZE_7)
+		return STRING_MAPS_SIZE_7;
+	if(len <= STRING_MAPS_SIZE_8)
+		return STRING_MAPS_SIZE_8;
+	if(len <= STRING_MAPS_SIZE_9)
+		return STRING_MAPS_SIZE_9;
+	return STRING_MAPS_SIZE_10;
 }
 
 static __always_inline int string_map_index(u16 padded_len) {
@@ -404,19 +437,19 @@ static __always_inline int string_map_index(u16 padded_len) {
 		return (padded_len / STRING_MAPS_KEY_INC_SIZE) - 1;
 
 	if(LINUX_KERNEL_VERSION < KERNEL_VERSION(5, 11, 0)) {
-		if(padded_len == STRING_MAPS_SIZE_6 - 2)
+		if(padded_len == STRING_MAPS_SIZE_6)
 			return 6;
 		return 7;
 	}
 
 	switch(padded_len) {
-	case STRING_MAPS_SIZE_6 - 2:
+	case STRING_MAPS_SIZE_6:
 		return 6;
-	case STRING_MAPS_SIZE_7 - 2:
+	case STRING_MAPS_SIZE_7:
 		return 7;
-	case STRING_MAPS_SIZE_8 - 2:
+	case STRING_MAPS_SIZE_8:
 		return 8;
-	case STRING_MAPS_SIZE_9 - 2:
+	case STRING_MAPS_SIZE_9:
 		return 9;
 	}
 	return 10;
@@ -424,66 +457,121 @@ static __always_inline int string_map_index(u16 padded_len) {
 
 SEC("fmod_ret/security_bprm_creds_for_exec")
 int BPF_PROG(enforce_cgroup_policy, struct linux_binprm *bprm) {
-	__u64 cgid = get_cgroup_id_from_curr_task();
-	if(cgid == 0) {
+	__u64 cg_tracker_id = get_tracker_id_from_curr_task();
+	if(cg_tracker_id == 0) {
 		// we return if we cannot get cgroup id, since our logic is based on cgroup ids
 		return 0;
 	}
 
-	__u64 *policy_id = bpf_map_lookup_elem(&cg_to_policy_map, &cgid);
+	__u64 *policy_id = bpf_map_lookup_elem(&cg_to_policy_map, &cg_tracker_id);
 	if(!policy_id) {
 		// no policy associated with this cgroup
 		return 0;
 	}
 
-	// todo!: We need to extract the binary path now. We have 2 main ways:
-	// 1.
-	// https://github.com/Andreagit97/tetragon/blob/657f19eb85569de48314875d3e0f9f63d81ecc90/bpf/lib/bpf_d_path.h#L328
-	// 2.
-	// https://github.com/falcosecurity/libs/blob/f9a1b9343fb4b256087857bdb97492fc25c69c0c/driver/modern_bpf/helpers/store/auxmap_store_params.h#L1800
-	// See what is the best way to do it
-	//
-	// struct file *file = bprm->file;
-	// if(file == NULL) {
-	// 	return 0;
-	// }
-	// struct path *path_arg = file->f_path;
-	// ...
+	// We get some scratch space
+	//  Input buffer layout:
+	//        4096  |  4096  |  4096
+	//  ----------------------------------
+	//  |                  <--           |
+	//  ----------------------------------
+	//                       ^
+	//                       |-we write here
 
-	// 5.11+ kernels support hash key lengths > 512 bytes
-	// https://github.com/cilium/tetragon/commit/834b5fe7d4063928cf7b89f61252637d833ca018
-
-	// if(LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 11, 0)) {
-	// 	// This should be impossible since we are evaluating a path, but just in case
-	// 	if(buflen > STRING_MAPS_SIZE_10 - 2 || !buflen) {
-	// 		return 0;
-	// 	}
-	// } else {
-	// 	if(buflen > STRING_MAPS_SIZE_7 - 2 || !buflen) {
-	// 		return 0;
-	// 	}
-	// }
-
-	// Calculate padded string length
-
-	// u16 padded_len = string_padded_len(len);
-
-	// Check if we have entries for this padded length.
-	// Do this before we copy data for efficiency.
-
-	// int index = string_map_index(padded_len);
-
-	struct process_evt *e = bpf_ringbuf_reserve(&ringbuf_monitoring, sizeof(*e), 0);
-	if(!e) {
-		bpf_printk("Failed to reserve ring buffer monitoring space\n");
+	int zero = 0;
+	struct process_evt *evt =
+	        (struct process_evt *)bpf_map_lookup_elem(&process_evt_storage_map, &zero);
+	if(!evt) {
+		bpf_printk("cannot get process_evt from storage map");
 		return 0;
 	}
 
-	e->cgid = tg_get_current_cgroup_id();
-	e->cg_tracker_id = cgrp_get_tracker_id(e->cgid);
-	bpf_get_current_comm(&e->comm, sizeof(e->comm));
-	bpf_printk("Enforce policy  id %d, comm: %s\n", *policy_id, e->comm);
+	evt->cgid = tg_get_current_cgroup_id();
+	evt->cg_tracker_id = cgrp_get_tracker_id(evt->cgid);
 
-	bpf_ringbuf_submit(e, 0);
-	return 0;
+	struct file *file = bprm->file;
+	if(file == NULL) {
+		return 0;
+	}
+	struct path *path_arg = &file->f_path;
+	int current_offset = bpf_d_path_approx(path_arg, evt->path);
+	if(current_offset <= 0) {
+		bpf_printk("Failed to resolve path for execve");
+		return 0;
+	}
+	evt->path_len = MAX_PATH_LEN * 2 - current_offset;
+
+	///////////////////////////////
+	// We now do the comparison
+	///////////////////////////////
+
+	// Only 5.11+ kernels support hash key lengths > 512 bytes
+	// https://github.com/cilium/tetragon/commit/834b5fe7d4063928cf7b89f61252637d833ca018
+	if(LINUX_KERNEL_VERSION < KERNEL_VERSION(5, 11, 0)) {
+		if(evt->path_len > STRING_MAPS_SIZE_7) {
+			bpf_printk("Path length %d exceeds max supported length", evt->path_len);
+			return 0;
+		}
+	}
+
+	int padded_len = string_padded_len(evt->path_len);
+	if(padded_len == 0) {
+		bpf_printk("Padded length is zero for path length %d", evt->path_len);
+		return 0;
+	}
+	int index = string_map_index(padded_len);
+	void *string_map = get_policy_string_map(index, policy_id);
+	if(!string_map) {
+		bpf_printk("No string map for policy id %d, index %d, padded_len %d",
+		           *policy_id,
+		           index,
+		           padded_len);
+		return 0;
+	}
+
+	__u8 *match = bpf_map_lookup_elem(string_map, &evt->path[SAFE_PATH_ACCESS(current_offset)]);
+	if(match != NULL) {
+		// We have this binary in the list so we do nothing
+		return 0;
+	}
+
+	///////////////////////////////
+	// We send the event
+	///////////////////////////////
+
+	// we move the data at the beginning of the buffer so that we can send them
+	int err = bpf_probe_read_kernel(evt->path,
+	                                SAFE_PATH_LEN(evt->path_len),
+	                                &evt->path[SAFE_PATH_ACCESS(current_offset)]);
+	if(err != 0) {
+		bpf_printk("Failed to copy path for execve %d", err);
+		return 0;
+	}
+
+	err = bpf_ringbuf_output(&ringbuf_monitoring, evt, 18 + SAFE_PATH_LEN(evt->path_len), 0);
+	if(err != 0) {
+		bpf_printk("Failed to output enforce event to ringbuf %d", err);
+	}
+
+	bpf_printk("sent enforce event, path: %s, cgid: %d, cg_tracker_id: %d",
+	           evt->path,
+	           evt->cgid,
+	           evt->cg_tracker_id);
+
+	// We check if we are in monitoring or enforcing mode for this policy
+	__u8 *mode = bpf_map_lookup_elem(&policy_mode_map, policy_id);
+	if(!mode) {
+		// this is an error...
+		bpf_printk("No policy mode found for policy id %d", *policy_id);
+		return 0;
+	}
+
+	bpf_printk("Mode %d for policy id %d", *mode, *policy_id);
+	if(*mode == POLICY_MODE_MONITOR) {
+		return 0;
+	}
+
+	bpf_printk("Blocking policy id %d", *policy_id);
+	// We are in enforcing mode
+	return -EPERM;
 }

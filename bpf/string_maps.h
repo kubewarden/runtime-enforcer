@@ -34,26 +34,22 @@
  * following 5 maps notionally double in size, with lengths equal to 2^k + 2. On kernels
  * <5.11, the last four maps are replaced with a single map with key size 512. This is due
  * to key size limitations on kernels <5.11.
- *
- * In order to distinguish between character buffers that end in 0s and similar buffers
- * that are padded with 0s, each string will be prefixed by its length stored in a
- * single byte (for first 6 maps) or as a little endian u16 (latter maps).
  */
 #define STRING_MAPS_KEY_INC_SIZE 24
-#define STRING_MAPS_SIZE_0 (1 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_1 (2 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_2 (3 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_3 (4 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_4 (5 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_5 (6 * STRING_MAPS_KEY_INC_SIZE + 1)
-#define STRING_MAPS_SIZE_6 (256 + 2)
-#define STRING_MAPS_SIZE_7 (512 + 2)
-#define STRING_MAPS_SIZE_8 (1024 + 2)
-#define STRING_MAPS_SIZE_9 (2048 + 2)
-#define STRING_MAPS_SIZE_10 (4096 + 2)
+#define STRING_MAPS_SIZE_0 (1 * STRING_MAPS_KEY_INC_SIZE)
+#define STRING_MAPS_SIZE_1 (2 * STRING_MAPS_KEY_INC_SIZE)
+#define STRING_MAPS_SIZE_2 (3 * STRING_MAPS_KEY_INC_SIZE)
+#define STRING_MAPS_SIZE_3 (4 * STRING_MAPS_KEY_INC_SIZE)
+#define STRING_MAPS_SIZE_4 (5 * STRING_MAPS_KEY_INC_SIZE)
+#define STRING_MAPS_SIZE_5 (6 * STRING_MAPS_KEY_INC_SIZE)
+#define STRING_MAPS_SIZE_6 (256)
+#define STRING_MAPS_SIZE_7 (512)
+#define STRING_MAPS_SIZE_8 (1024)
+#define STRING_MAPS_SIZE_9 (2048)
+#define STRING_MAPS_SIZE_10 (4096)
 
-// todo!: we want to compile only once so we should avoid the ifdef, let's see what is the best way
-// to do it. Test it on kernels <5.11
+// todo!: we want to compile only once so we should avoid the ifdef. We should probably not create
+// maps > 8. Test it, if it is feasible
 //
 // #ifdef __V511_BPF_PROG
 // #define STRING_MAPS_SIZE_7  (512 + 2)
@@ -91,6 +87,34 @@ DEFINE_POLICY_STR_HASH_OF_MAPS(7)
 DEFINE_POLICY_STR_HASH_OF_MAPS(8)
 DEFINE_POLICY_STR_HASH_OF_MAPS(9)
 DEFINE_POLICY_STR_HASH_OF_MAPS(10)
+
+static __always_inline void* get_policy_string_map(int index, u64* policy_id) {
+	switch(index) {
+	case 0:
+		return bpf_map_lookup_elem(&pol_str_maps_0, policy_id);
+	case 1:
+		return bpf_map_lookup_elem(&pol_str_maps_1, policy_id);
+	case 2:
+		return bpf_map_lookup_elem(&pol_str_maps_2, policy_id);
+	case 3:
+		return bpf_map_lookup_elem(&pol_str_maps_3, policy_id);
+	case 4:
+		return bpf_map_lookup_elem(&pol_str_maps_4, policy_id);
+	case 5:
+		return bpf_map_lookup_elem(&pol_str_maps_5, policy_id);
+	case 6:
+		return bpf_map_lookup_elem(&pol_str_maps_6, policy_id);
+	case 7:
+		return bpf_map_lookup_elem(&pol_str_maps_7, policy_id);
+	case 8:
+		return bpf_map_lookup_elem(&pol_str_maps_8, policy_id);
+	case 9:
+		return bpf_map_lookup_elem(&pol_str_maps_9, policy_id);
+	case 10:
+		return bpf_map_lookup_elem(&pol_str_maps_10, policy_id);
+	}
+	return 0;
+}
 
 // todo!: same as before for `__V511_BPF_PROG`
 // #ifdef __V511_BPF_PROG

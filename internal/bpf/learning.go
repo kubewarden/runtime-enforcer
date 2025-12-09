@@ -54,18 +54,29 @@ func (m *Manager) learningStart(ctx context.Context) error {
 			return fmt.Errorf("reading from reader: %w", err)
 		}
 
-		ev := bpfProcessEvt{}
-
-		// Parse the ringbuf event entry into a bpfEvent structure.
-		if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &ev); err != nil {
+		buf := bytes.NewBuffer(record.RawSample)
+		var header bpfEventHeader
+		if err := binary.Read(buf, binary.LittleEndian, &header); err != nil {
 			m.logger.ErrorContext(ctx, "parsing ringbuf event:", "error", err)
 			continue
 		}
 
+		if header.PathLen > 4096 {
+			m.logger.ErrorContext(ctx, "invalid path length in ringbuf event:", "length", header.PathLen)
+			continue
+		}
+
+		pathBytes := make([]byte, header.PathLen)
+		_, err = buf.Read(pathBytes)
+		if err != nil {
+			m.logger.ErrorContext(ctx, "reading path bytes:", "error", err)
+			continue
+		}
+
 		m.learningEventChan <- ProcessEvent{
-			CgroupID:    ev.Cgid,
-			CgTrackerID: ev.CgTrackerId,
-			Comm:        ev.Comm,
+			CgroupID:    header.Cgid,
+			CgTrackerID: header.CgTrackerId,
+			ExePath:     string(pathBytes),
 		}
 	}
 }

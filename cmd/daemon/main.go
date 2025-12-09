@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cilium/ebpf"
 	"github.com/neuvector/runtime-enforcer/internal/bpf"
 	"github.com/neuvector/runtime-enforcer/internal/eventhandler"
 	"github.com/neuvector/runtime-enforcer/internal/eventscraper"
@@ -125,7 +126,7 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 	//////////////////////
 	// Create BPF manager
 	//////////////////////
-	bpfManager, err := bpf.NewManager(logger, enableLearning)
+	bpfManager, err := bpf.NewManager(logger, enableLearning, ebpf.LogLevelBranch)
 	if err != nil {
 		return fmt.Errorf("Cannot create BPF manager: %w", err)
 	}
@@ -174,7 +175,7 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 	if err != nil {
 		return fmt.Errorf("Cannot get workload security policy informer: %w", err)
 	}
-	policygenerator.SetupPolicyGenerator(logger, workloadPolicyInformer, resolver, bpfManager.GetPolicyValuesUpdateFunc())
+	policygenerator.SetupPolicyGenerator(logger, workloadPolicyInformer, resolver, bpfManager.GetPolicyValuesUpdateFunc(), bpfManager.GetPolicyModeUpdateFunc())
 
 	logger.InfoContext(ctx, "starting manager")
 	if err = ctrlMgr.Start(ctx); err != nil {

@@ -50,7 +50,7 @@ func (es *EventScraper) Start(ctx context.Context) error {
 				continue
 			}
 			// todo!: we need to send this info to the learning controller
-			es.logger.Info("learning event", "comm", event.GetCommString(), "cgID", event.CgTrackerID, "info", info)
+			es.logger.Info("learning event", "comm", event.ExePath, "cgID", event.CgTrackerID, "info", info)
 
 		case event := <-es.monitoringChannel:
 			cgIDLookup := event.CgTrackerID
@@ -69,7 +69,7 @@ func (es *EventScraper) Start(ctx context.Context) error {
 				continue
 			}
 			// todo!: we need to send this info to OTEL
-			es.logger.Info("monitoring event", "comm", event.GetCommString(), "cgID", event.CgTrackerID, "info", info)
+			es.logger.Info("monitoring event", "comm", event.ExePath, "cgID", event.CgTrackerID, "info", info)
 		}
 	}
 }

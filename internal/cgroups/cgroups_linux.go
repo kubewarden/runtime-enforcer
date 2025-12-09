@@ -272,7 +272,7 @@ func setDeploymentMode(cgroupPath string) error {
 		return nil
 	}
 
-	// todo!: not sure we will need this deploymentMode
+	// todo!: not sure we will need this `deploymentMode` variable
 	deploymentMode = DEPLOY_K8S
 	return nil
 }

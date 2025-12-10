@@ -30,7 +30,7 @@ func (m *Manager) updateCgTrackerMap(cgID uint64, cgroupPath string) error {
 
 	// We now walk the cgroup path to find all the child cgroups and map them to the same tracker id. This is useful is the container is already running and has already created child cgroups
 	var walkErr error
-	filepath.WalkDir(cgroupPath, func(p string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(cgroupPath, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			if d == nil {
 				return fmt.Errorf("cgrouptracker: failed to walk dir %s: %w", p, err)
@@ -65,6 +65,9 @@ func (m *Manager) updateCgTrackerMap(cgID uint64, cgroupPath string) error {
 
 		return nil
 	})
+	if err != nil {
+		m.logger.Warn("failed to run walkdir", "error", err)
+	}
 
 	// we just log the error here, as the main update operation could be successful even if some child cgroups failed
 	if walkErr != nil {
@@ -79,10 +82,14 @@ func (m *Manager) cgroupTrackerStart(ctx context.Context) error {
 	defer func() {
 		m.logger.InfoContext(ctx, "BPF Cgroup Tracker stopped")
 		if cgroupMkdir != nil {
-			cgroupMkdir.Close()
+			if err := cgroupMkdir.Close(); err != nil {
+				m.logger.ErrorContext(ctx, "failed to close cgroup mkdir link", "error", err)
+			}
 		}
 		if cgroupRelease != nil {
-			cgroupRelease.Close()
+			if err := cgroupRelease.Close(); err != nil {
+				m.logger.ErrorContext(ctx, "failed to close cgroup release link", "error", err)
+			}
 		}
 	}()
 

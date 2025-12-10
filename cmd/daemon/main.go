@@ -21,7 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	securityv1alpha1 "github.com/neuvector/runtime-enforcer/api/v1alpha1"
-	internalTetragon "github.com/neuvector/runtime-enforcer/internal/tetragon"
 	"github.com/neuvector/runtime-enforcer/internal/traces"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/node/v1alpha1"
@@ -38,56 +37,11 @@ type Config struct {
 	enableLearning    bool
 }
 
-func startTetragonEventController(ctx context.Context, logger *slog.Logger, enableLearning bool) error {
-	var err error
-	var connector *internalTetragon.Connector
-
-	scheme := runtime.NewScheme()
-	err = securityv1alpha1.AddToScheme(scheme)
-	if err != nil {
-		return fmt.Errorf("failed to initialize scheme: %w", err)
-	}
-
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme: scheme,
-	})
-	if err != nil {
-		return fmt.Errorf("unable to start manager: %w", err)
-	}
-
-	// Initialize with a panic function, replaced when learning is enabled
-	enqueueFunc := func(_ context.Context, _ eventhandler.ProcessLearningEvent) {
-		panic("enqueue function should be never called when learning is disabled")
-	}
-
-	if enableLearning {
-		tetragonEventReconciler := eventhandler.NewTetragonEventReconciler(mgr.GetClient(), mgr.GetScheme())
-		if err = tetragonEventReconciler.SetupWithManager(mgr); err != nil {
-			return fmt.Errorf("unable to create tetragon event reconciler: %w", err)
-		}
-		enqueueFunc = tetragonEventReconciler.EnqueueEvent
-		logger.InfoContext(ctx, "learning mode is enabled")
-	} else {
-		logger.InfoContext(ctx, "learning mode is disabled")
-	}
-
-	connector, err = internalTetragon.CreateConnector(logger, enqueueFunc, enableLearning)
-	if err != nil {
-		return fmt.Errorf("failed to create tetragon connector: %w", err)
-	}
-
-	if err = mgr.Add(connector); err != nil {
-		return fmt.Errorf("failed to add tetragon connector to manager: %w", err)
-	}
-
-	logger.InfoContext(ctx, "starting manager")
-	if err = mgr.Start(ctx); err != nil {
-		logger.ErrorContext(ctx, "failed to start manager", "error", err)
-	}
-
-	return nil
-}
-
+// todo!: kubebuilder doesn't not consider these annotations, for now we add them manually in the role
+// used by the policy generator
+// +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicies,verbs=get;list;watch
+// used by the resolver
+// +kubebuilder:rbac:groups=,resources=pods;nodes,verbs=get;list;watch
 func newControllerManager() (manager.Manager, error) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
@@ -120,7 +74,7 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 	//////////////////////
 	ctrlMgr, err := newControllerManager()
 	if err != nil {
-		return fmt.Errorf("Cannot create manager: %w", err)
+		return fmt.Errorf("cannot create manager: %w", err)
 	}
 
 	//////////////////////
@@ -128,10 +82,29 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 	//////////////////////
 	bpfManager, err := bpf.NewManager(logger, enableLearning, ebpf.LogLevelBranch)
 	if err != nil {
-		return fmt.Errorf("Cannot create BPF manager: %w", err)
+		return fmt.Errorf("cannot create BPF manager: %w", err)
 	}
 	if err := ctrlMgr.Add(bpfManager); err != nil {
 		return fmt.Errorf("failed to add BPF manager to controller manager: %w", err)
+	}
+
+	//////////////////////
+	// Create Learning Reconciler if learning is enabled
+	//////////////////////
+	// Initialize with a panic function, replaced when learning is enabled
+	enqueueFunc := func(_ eventscraper.KubeProcessInfo) {
+		panic("enqueue function should be never called when learning is disabled")
+	}
+
+	if enableLearning {
+		LearningReconciler := eventhandler.NewLearningReconciler(ctrlMgr.GetClient(), ctrlMgr.GetScheme())
+		if err = LearningReconciler.SetupWithManager(ctrlMgr); err != nil {
+			return fmt.Errorf("unable to create learning reconciler: %w", err)
+		}
+		enqueueFunc = LearningReconciler.EnqueueEvent
+		logger.InfoContext(ctx, "learning mode is enabled")
+	} else {
+		logger.InfoContext(ctx, "learning mode is disabled")
 	}
 
 	//////////////////////
@@ -139,7 +112,7 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 	//////////////////////
 	podInformer, err := ctrlMgr.GetCache().GetInformer(ctx, &corev1.Pod{})
 	if err != nil {
-		return fmt.Errorf("Cannot get pod informer: %w", err)
+		return fmt.Errorf("cannot get pod informer: %w", err)
 	}
 	// Add some indexes to the pod informer
 	// todo!: understand when we use them
@@ -148,14 +121,19 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 		resolver.PodIdx:       resolver.PodIndexFunc,
 	})
 	if err != nil {
-		return fmt.Errorf("Cannot add indexers to pod informer: %w", err)
+		return fmt.Errorf("cannot add indexers to pod informer: %w", err)
 	}
 
 	//////////////////////
 	// Create the resolver
 	//////////////////////
-
-	resolver, err := resolver.NewResolver(ctx, logger, podInformer, bpfManager.GetCgroupTrackerUpdateFunc(), bpfManager.GetCgroupPolicyUpdateFunc())
+	resolver, err := resolver.NewResolver(
+		ctx,
+		logger,
+		podInformer,
+		bpfManager.GetCgroupTrackerUpdateFunc(),
+		bpfManager.GetCgroupPolicyUpdateFunc(),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create resolver: %w", err)
 	}
@@ -163,7 +141,7 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 	//////////////////////
 	// Create the scraper
 	//////////////////////
-	evtScraper := eventscraper.NewEventScraper(bpfManager.GetLearningChannel(), bpfManager.GetMonitoringChannel(), logger, resolver)
+	evtScraper := eventscraper.NewEventScraper(bpfManager.GetLearningChannel(), bpfManager.GetMonitoringChannel(), logger, resolver, enqueueFunc)
 	if err := ctrlMgr.Add(evtScraper); err != nil {
 		return fmt.Errorf("failed to add event scraper to controller manager: %w", err)
 	}
@@ -173,7 +151,7 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 	//////////////////////
 	workloadPolicyInformer, err := ctrlMgr.GetCache().GetInformer(ctx, &securityv1alpha1.WorkloadSecurityPolicy{})
 	if err != nil {
-		return fmt.Errorf("Cannot get workload security policy informer: %w", err)
+		return fmt.Errorf("cannot get workload security policy informer: %w", err)
 	}
 	policygenerator.SetupPolicyGenerator(logger, workloadPolicyInformer, resolver, bpfManager.GetPolicyValuesUpdateFunc(), bpfManager.GetPolicyModeUpdateFunc())
 
@@ -194,7 +172,7 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 
 	opts := zap.Options{
-		Development: true,
+		Development: false,
 	}
 	opts.BindFlags(flag.CommandLine)
 
@@ -205,8 +183,7 @@ func main() {
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		// todo!: revert this
-		Level: slog.LevelDebug,
+		Level: slog.LevelInfo,
 	})).With("component", "daemon")
 	slog.SetDefault(logger)
 

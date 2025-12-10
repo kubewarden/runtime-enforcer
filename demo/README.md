@@ -30,14 +30,3 @@ kubectl patch workloadsecuritypolicy deploy-ubuntu -n default --type='json' -p='
 kubectl delete -f ./runtime-enforcer/demo/ubuntu.yaml
 kubectl delete -f ./runtime-enforcer/demo/wp.yaml
 ```
-
-## TODO
-
-- support binaries policies
-- disable tetragon and the operator
-- improve logs
-- make a list of TODOs
-
-## BUGS
-
-- when i switch a policy from monitor to enforce, i don't see the enforcement event from ebpf `kubectl patch workloadsecuritypolicy deploy-ubuntu -n default --type='json' -p='[{"op": "replace", "path": "/spec/mode", "value": "protect"}]'`

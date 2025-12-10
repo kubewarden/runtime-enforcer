@@ -26,13 +26,13 @@ func (m *Manager) updateCgroupPolicy(targetPolID uint64, cgroupIDs []uint64, op 
 	// todo!: to be sure the manager is not closing the ebpf objects, we should add a mutex around this function to avoid issues at cleanup time
 	cgToPol := m.objs.CgToPolicyMap
 	if cgToPol == nil {
-		return fmt.Errorf("cgroup to policy map is nil")
+		return errors.New("cgroup to policy map is nil")
 	}
 
 	switch op {
 	case AddPolicyToCgroups:
 		if targetPolID == 0 {
-			return fmt.Errorf("cannot add cgroups to policy 0")
+			return errors.New("cannot add cgroups to policy 0")
 		}
 
 		for _, cgID := range cgroupIDs {
@@ -44,7 +44,7 @@ func (m *Manager) updateCgroupPolicy(targetPolID uint64, cgroupIDs []uint64, op 
 		}
 	case RemovePolicy:
 		if targetPolID == 0 {
-			return fmt.Errorf("cannot remove policy 0 from the map")
+			return errors.New("cannot remove policy 0 from the map")
 		}
 		var cgID uint64
 		var polID uint64

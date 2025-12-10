@@ -1,3 +1,4 @@
+//nolint:testpackage
 package bpf
 
 import (
@@ -58,19 +59,19 @@ func createTestCgroup() (cgroupInfo, error) {
 
 	err = os.Mkdir(cgroupPath, 0755)
 	if err != nil {
-		return cgInfo, fmt.Errorf("Error creating cgroup: %v", err)
+		return cgInfo, fmt.Errorf("error creating cgroup: %w", err)
 	}
 	cgInfo.path = cgroupPath
 
 	fd, err := syscall.Open(cgInfo.path, syscall.O_RDONLY|syscall.O_CLOEXEC, 0)
 	if err != nil {
-		return cgInfo, fmt.Errorf("Error opening cgroup path: %v", err)
+		return cgInfo, fmt.Errorf("error opening cgroup path: %w", err)
 	}
 	cgInfo.fd = fd
 
 	cgroupID, err := cgroups.GetCgroupIdFromPath(cgInfo.path)
 	if err != nil {
-		return cgInfo, fmt.Errorf("Error getting cgroup ID from path: %v", err)
+		return cgInfo, fmt.Errorf("error getting cgroup ID from path: %w", err)
 	}
 	cgInfo.id = cgroupID
 
@@ -81,7 +82,7 @@ type testLogWriter struct {
 	t *testing.T
 }
 
-func (w *testLogWriter) Write(p []byte) (n int, err error) {
+func (w *testLogWriter) Write(p []byte) (int, error) {
 	// use the formatted output to avoid the new line
 	w.t.Logf("%s", string(p))
 	return len(p), nil
@@ -123,12 +124,12 @@ func (m *Manager) findEventInChannel(ty ChannelType, cgID uint64, command string
 				return nil
 			}
 		case <-time.After(1 * time.Second):
-			return fmt.Errorf("Timeout waiting for event")
+			return errors.New("timeout waiting for event")
 		}
 	}
 }
 
-// run it with: go test -v -run TestNoVerifierFailures ./internal/bpf -count=1 -exec "sudo -E"
+// run it with: go test -v -run TestNoVerifierFailures ./internal/bpf -count=1 -exec "sudo -E".
 func TestNoVerifierFailures(t *testing.T) {
 	enableLearning := true
 	// Loading happens here so we can catch verifier errors without running the manager
@@ -140,7 +141,7 @@ func TestNoVerifierFailures(t *testing.T) {
 	var verr *ebpf.VerifierError
 	if errors.As(err, &verr) {
 		for _, log := range verr.Log {
-			fmt.Println(log)
+			t.Log(log)
 		}
 	}
 	t.FailNow()

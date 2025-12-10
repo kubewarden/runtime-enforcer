@@ -92,12 +92,6 @@ func SetupControllers(logger logr.Logger,
 	webhookCertWatcher *certwatcher.CertWatcher,
 ) error {
 	var err error
-	if err = (&controller.WorkloadSecurityPolicyReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create workload security policy controller: %w", err)
-	}
 
 	if err = (&controller.WorkloadSecurityPolicyProposalReconciler{
 		Client: mgr.GetClient(),

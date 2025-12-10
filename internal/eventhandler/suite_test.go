@@ -20,7 +20,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	tetragonv1alpha1 "github.com/cilium/tetragon/pkg/k8s/apis/cilium.io/v1alpha1"
 	batchv1 "k8s.io/api/batch/v1"
 
 	securityv1alpha1 "github.com/neuvector/runtime-enforcer/api/v1alpha1"
@@ -61,9 +60,6 @@ var _ = BeforeSuite(func() {
 	err = corev1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = tetragonv1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
 	err = batchv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -73,7 +69,6 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "charts", "runtime-enforcer", "templates", "crd"),
-			filepath.Join("..", "..", "test", "testdata"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}

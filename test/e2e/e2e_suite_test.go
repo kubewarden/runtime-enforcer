@@ -114,7 +114,7 @@ func InstallRuntimeEnforcer() env.Func {
 		)
 
 		if err != nil {
-			return ctx, fmt.Errorf("failed to install Tetragon: %w", err)
+			return ctx, fmt.Errorf("failed to install Runtime Enforcer: %w", err)
 		}
 		return ctx, nil
 	}

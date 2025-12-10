@@ -1,10 +1,7 @@
 package bpf
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
-	"errors"
 	"fmt"
 
 	"github.com/cilium/ebpf/link"
@@ -21,7 +18,9 @@ func (m *Manager) learningStart(ctx context.Context) error {
 	defer func() {
 		m.logger.InfoContext(ctx, "BPF Learner stopped")
 		if execveLink != nil {
-			execveLink.Close()
+			if err := execveLink.Close(); err != nil {
+				m.logger.ErrorContext(ctx, "closing execve link", "error", err)
+			}
 		}
 	}()
 
@@ -38,45 +37,5 @@ func (m *Manager) learningStart(ctx context.Context) error {
 		return fmt.Errorf("opening execve ringbuf reader: %w", err)
 	}
 
-	// Goroutine to close the reader when context is done
-	go func() {
-		<-ctx.Done()
-		rd.Close()
-	}()
-
-	for {
-		record, err := rd.Read()
-		if err != nil {
-			if errors.Is(err, ringbuf.ErrClosed) {
-				m.logger.InfoContext(ctx, "ringbuf reader closed")
-				return nil
-			}
-			return fmt.Errorf("reading from reader: %w", err)
-		}
-
-		buf := bytes.NewBuffer(record.RawSample)
-		var header bpfEventHeader
-		if err := binary.Read(buf, binary.LittleEndian, &header); err != nil {
-			m.logger.ErrorContext(ctx, "parsing ringbuf event:", "error", err)
-			continue
-		}
-
-		if header.PathLen > 4096 {
-			m.logger.ErrorContext(ctx, "invalid path length in ringbuf event:", "length", header.PathLen)
-			continue
-		}
-
-		pathBytes := make([]byte, header.PathLen)
-		_, err = buf.Read(pathBytes)
-		if err != nil {
-			m.logger.ErrorContext(ctx, "reading path bytes:", "error", err)
-			continue
-		}
-
-		m.learningEventChan <- ProcessEvent{
-			CgroupID:    header.Cgid,
-			CgTrackerID: header.CgTrackerId,
-			ExePath:     string(pathBytes),
-		}
-	}
+	return m.processRingbufEvents(ctx, rd, m.learningEventChan)
 }

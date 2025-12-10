@@ -6,6 +6,7 @@ import (
 	"time"
 
 	securityv1alpha1 "github.com/neuvector/runtime-enforcer/api/v1alpha1"
+	"github.com/neuvector/runtime-enforcer/internal/eventscraper"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -23,18 +24,10 @@ import (
 )
 
 // DefaultEventChannelBufferSize defines the channel buffer size used to
-// deliver Tetragon events to tetragon_event_controller.
+// deliver events to learning_controller.
 // This is a arbitrary number right now and can be fine-tuned or made configurable in the future.
-// On a simple kind cluster we saw more than 4200 process exec during the initial process cache dump from Tetragon, so this seems a reasonable default for now.
+// On a simple kind cluster we saw more than 4200 process exec during the initial process cache dump, so this seems a reasonable default for now.
 const DefaultEventChannelBufferSize = 4096
-
-type ProcessLearningEvent struct {
-	Namespace      string `json:"namespace"`
-	Workload       string `json:"workload"`
-	WorkloadKind   string `json:"workloadKind"`
-	ContainerName  string `json:"containerName"`
-	ExecutablePath string `json:"executablePath"`
-}
 
 // GetWorkloadSecurityPolicyProposalName returns the name of WorkloadSecurityPolicyProposal
 // based on a high level resource and its name.
@@ -66,19 +59,19 @@ func GetWorkloadSecurityPolicyProposalName(kind string, resourceName string) (st
 	return shortname + "-" + resourceName, nil
 }
 
-type TetragonEventReconciler struct {
+type LearningReconciler struct {
 	client.Client
 
 	Scheme    *runtime.Scheme
-	eventChan chan event.TypedGenericEvent[ProcessLearningEvent]
+	eventChan chan event.TypedGenericEvent[eventscraper.KubeProcessInfo]
 	tracer    trace.Tracer
 }
 
-func NewTetragonEventReconciler(client client.Client, scheme *runtime.Scheme) *TetragonEventReconciler {
-	return &TetragonEventReconciler{
+func NewLearningReconciler(client client.Client, scheme *runtime.Scheme) *LearningReconciler {
+	return &LearningReconciler{
 		Client:    client,
 		Scheme:    scheme,
-		eventChan: make(chan event.TypedGenericEvent[ProcessLearningEvent], DefaultEventChannelBufferSize),
+		eventChan: make(chan event.TypedGenericEvent[eventscraper.KubeProcessInfo], DefaultEventChannelBufferSize),
 		tracer:    otel.Tracer("runtime-enforcer-learner"),
 	}
 }
@@ -86,10 +79,10 @@ func NewTetragonEventReconciler(client client.Client, scheme *runtime.Scheme) *T
 // kubebuilder annotations for accessing policy proposals.
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals,verbs=create;get;list;watch;update;patch
 
-// todo!: the learning event should be received directly by this controller that will try to enrich it with k8s metadata... We should rename the controller in something like `LearningEventReconciler`
-func (r *TetragonEventReconciler) Reconcile(
+// Reconcile receives learning events and creates/updates WorkloadSecurityPolicyProposal resources accordingly.
+func (r *LearningReconciler) Reconcile(
 	ctx context.Context,
-	req ProcessLearningEvent,
+	req eventscraper.KubeProcessInfo,
 ) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
@@ -158,53 +151,50 @@ func (r *TetragonEventReconciler) Reconcile(
 	return ctrl.Result{}, nil
 }
 
-func (r *TetragonEventReconciler) EnqueueEvent(
-	_ context.Context,
-	evt ProcessLearningEvent,
-) {
-	r.eventChan <- event.TypedGenericEvent[ProcessLearningEvent]{Object: evt}
+func (r *LearningReconciler) EnqueueEvent(evt eventscraper.KubeProcessInfo) {
+	r.eventChan <- event.TypedGenericEvent[eventscraper.KubeProcessInfo]{Object: evt}
 }
 
-// ProcessEventHandler implements handler.TypedEventHandler[ProcessLearningEvent, ProcessLearningEvent].
+// ProcessEventHandler implements handler.TypedEventHandler[eventscraper.KubeProcessInfo, eventscraper.KubeProcessInfo].
 type ProcessEventHandler struct {
 }
 
 func (e ProcessEventHandler) Create(
 	_ context.Context,
-	_ event.TypedCreateEvent[ProcessLearningEvent],
-	_ workqueue.TypedRateLimitingInterface[ProcessLearningEvent],
+	_ event.TypedCreateEvent[eventscraper.KubeProcessInfo],
+	_ workqueue.TypedRateLimitingInterface[eventscraper.KubeProcessInfo],
 ) {
 
 }
 
 func (e ProcessEventHandler) Update(
 	_ context.Context,
-	_ event.TypedUpdateEvent[ProcessLearningEvent],
-	_ workqueue.TypedRateLimitingInterface[ProcessLearningEvent],
+	_ event.TypedUpdateEvent[eventscraper.KubeProcessInfo],
+	_ workqueue.TypedRateLimitingInterface[eventscraper.KubeProcessInfo],
 ) {
 
 }
 
 func (e ProcessEventHandler) Delete(
 	_ context.Context,
-	_ event.TypedDeleteEvent[ProcessLearningEvent],
-	_ workqueue.TypedRateLimitingInterface[ProcessLearningEvent],
+	_ event.TypedDeleteEvent[eventscraper.KubeProcessInfo],
+	_ workqueue.TypedRateLimitingInterface[eventscraper.KubeProcessInfo],
 ) {
 
 }
 
 func (e ProcessEventHandler) Generic(
 	_ context.Context,
-	evt event.TypedGenericEvent[ProcessLearningEvent],
-	q workqueue.TypedRateLimitingInterface[ProcessLearningEvent],
+	evt event.TypedGenericEvent[eventscraper.KubeProcessInfo],
+	q workqueue.TypedRateLimitingInterface[eventscraper.KubeProcessInfo],
 ) {
 	q.AddRateLimited(evt.Object)
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *TetragonEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return builder.TypedControllerManagedBy[ProcessLearningEvent](mgr).
-		Named("tetragonEvent").
+func (r *LearningReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return builder.TypedControllerManagedBy[eventscraper.KubeProcessInfo](mgr).
+		Named("learningEvent").
 		WatchesRawSource(
 			source.TypedChannel(
 				r.eventChan,

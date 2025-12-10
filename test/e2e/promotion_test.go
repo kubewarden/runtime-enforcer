@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	tragonv1alpha1 "github.com/cilium/tetragon/pkg/k8s/apis/cilium.io/v1alpha1"
 	"github.com/neuvector/runtime-enforcer/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,7 +118,7 @@ func getPromotionTest() types.Feature {
 
 				return context.WithValue(ctx, key("proposal"), &proposal)
 			}).
-		Assess("a proposal is promoted to a security policy through labeling and its Tetragon rules is created",
+		Assess("a proposal is promoted to a security policy through labeling and the workloadPolicy is created",
 			func(ctx context.Context, t *testing.T, _ *envconf.Config) context.Context {
 				t.Log("create a security policy")
 
@@ -139,7 +138,7 @@ func getPromotionTest() types.Feature {
 				err := r.Update(ctx, proposal)
 				require.NoError(t, err)
 
-				t.Log("waiting for the policy and the tetragon rule to be created: ", proposal.Name)
+				t.Log("waiting for the policy to be created: ", proposal.Name)
 
 				policy := v1alpha1.WorkloadSecurityPolicy{
 					ObjectMeta: metav1.ObjectMeta{
@@ -158,24 +157,10 @@ func getPromotionTest() types.Feature {
 					},
 				}
 
-				tracingPolicy := tragonv1alpha1.TracingPolicyNamespaced{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      policy.Name,
-						Namespace: proposal.Namespace,
-					},
-				}
-
 				err = wait.For(conditions.New(r).ResourceMatch(&policy, func(_ k8s.Object) bool {
 					return true
 				}), wait.WithTimeout(DefaultOperationTimeout))
 				require.NoError(t, err)
-
-				err = wait.For(conditions.New(r).ResourceMatch(&tracingPolicy, func(_ k8s.Object) bool {
-					return true
-				}), wait.WithTimeout(DefaultOperationTimeout))
-				require.NoError(t, err)
-
-				assert.Len(t, "1", len(tracingPolicy.Spec.KProbes))
 
 				return context.WithValue(ctx, key("policy"), &policy)
 			}).
@@ -213,14 +198,6 @@ func getPromotionTest() types.Feature {
 			require.NoError(t, err)
 
 			err = r.Delete(ctx, policy)
-			require.NoError(t, err)
-
-			err = wait.For(conditions.New(r).ResourceDeleted(&tragonv1alpha1.TracingPolicyNamespaced{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      policy.ObjectMeta.Name,
-					Namespace: policy.ObjectMeta.Namespace,
-				},
-			}))
 			require.NoError(t, err)
 
 			return ctx

@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	tragonv1alpha1 "github.com/cilium/tetragon/pkg/k8s/apis/cilium.io/v1alpha1"
 	"github.com/neuvector/runtime-enforcer/api/v1alpha1"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -30,9 +29,6 @@ func SetupSharedK8sClient(ctx context.Context, t *testing.T, config *envconf.Con
 	err = v1alpha1.AddToScheme(r.GetScheme())
 	require.NoError(t, err)
 
-	err = tragonv1alpha1.AddToScheme(r.GetScheme())
-	require.NoError(t, err)
-
 	return context.WithValue(ctx, key("client"), r)
 }
 
@@ -54,17 +50,6 @@ func IfRequiredResourcesAreCreated(ctx context.Context, t *testing.T, _ *envconf
 		&appsv1.DaemonSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "runtime-enforcer-daemon",
-				Namespace: namespace,
-			},
-		}),
-		wait.WithTimeout(DefaultOperationTimeout),
-	)
-	require.NoError(t, err)
-
-	err = wait.For(conditions.New(r).DaemonSetReady(
-		&appsv1.DaemonSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "tetragon",
 				Namespace: namespace,
 			},
 		}),

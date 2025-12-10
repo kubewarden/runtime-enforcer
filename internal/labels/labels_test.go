@@ -1,17 +1,15 @@
-// SPDX-License-Identifier: Apache-2.0
-// Copyright Authors of Tetragon
-
-package labels
+package labels_test
 
 import (
 	"testing"
 
+	"github.com/neuvector/runtime-enforcer/internal/labels"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type testLabel struct {
-	labels      Labels
+	labels      labels.Labels
 	expectedRes bool
 	namespace   string
 }
@@ -27,44 +25,44 @@ func TestLabels(t *testing.T) {
 			// empty label selector should match everything
 			labelSelector: &metav1.LabelSelector{},
 			tests: []testLabel{
-				{map[string]string{"app": "tetragon"}, true, "default"},
-				{Labels{}, true, "default"},
+				{map[string]string{"app": "app1"}, true, "default"},
+				{labels.Labels{}, true, "default"},
 			},
 		}, {
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app": "tetragon",
+					"app": "app1",
 				},
 			},
 			tests: []testLabel{
-				{map[string]string{"app": "tetragon"}, true, "default"},
-				{map[string]string{"app": "cilium"}, false, "default"},
+				{map[string]string{"app": "app1"}, true, "default"},
+				{map[string]string{"app": "app2"}, false, "default"},
 			},
 		}, {
 			labelSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{
 					Key:      "app",
 					Operator: "In",
-					Values:   []string{"tetragon", "cilium"},
+					Values:   []string{"app1", "app2"},
 				}},
 			},
 			tests: []testLabel{
-				{map[string]string{"app": "tetragon"}, true, "default"},
-				{map[string]string{"app": "cilium"}, true, "default"},
-				{map[string]string{"app": "hubble"}, false, "default"},
+				{map[string]string{"app": "app1"}, true, "default"},
+				{map[string]string{"app": "app2"}, true, "default"},
+				{map[string]string{"app": "app3"}, false, "default"},
 			},
 		}, {
 			labelSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{
 					Key:      "app",
 					Operator: "NotIn",
-					Values:   []string{"tetragon", "cilium"},
+					Values:   []string{"app1", "app2"},
 				}},
 			},
 			tests: []testLabel{
-				{map[string]string{"app": "tetragon"}, false, "default"},
-				{map[string]string{"app": "cilium"}, false, "default"},
-				{map[string]string{"app": "hubble"}, true, "default"},
+				{map[string]string{"app": "app1"}, false, "default"},
+				{map[string]string{"app": "app2"}, false, "default"},
+				{map[string]string{"app": "app3"}, true, "default"},
 			},
 		}, {
 			labelSelector: &metav1.LabelSelector{
@@ -74,9 +72,9 @@ func TestLabels(t *testing.T) {
 				}},
 			},
 			tests: []testLabel{
-				{map[string]string{"app": "tetragon"}, true, "default"},
-				{map[string]string{"application": "cilium"}, false, "default"},
-				{map[string]string{"app": "hubble"}, true, "default"},
+				{map[string]string{"app": "app1"}, true, "default"},
+				{map[string]string{"application": "app2"}, false, "default"},
+				{map[string]string{"app": "app3"}, true, "default"},
 			},
 		}, {
 			labelSelector: &metav1.LabelSelector{
@@ -86,9 +84,9 @@ func TestLabels(t *testing.T) {
 				}},
 			},
 			tests: []testLabel{
-				{map[string]string{"app": "tetragon"}, false, "default"},
-				{map[string]string{"application": "cilium"}, true, "default"},
-				{map[string]string{"app": "hubble"}, false, "default"},
+				{map[string]string{"app": "app1"}, false, "default"},
+				{map[string]string{"application": "app2"}, true, "default"},
+				{map[string]string{"app": "app3"}, false, "default"},
 			},
 		}, {
 			labelSelector: &metav1.LabelSelector{
@@ -97,62 +95,62 @@ func TestLabels(t *testing.T) {
 					Operator: "DoesNotExist",
 				}},
 				MatchLabels: map[string]string{
-					"app": "tetragon",
+					"app": "app1",
 				},
 			},
 			tests: []testLabel{
-				{map[string]string{"app": "tetragon"}, true, "default"},
-				{map[string]string{"application": "tetragon"}, false, "default"},
-				{map[string]string{"app": "tetragon", "application": "tetragon"}, false, "default"},
-				{map[string]string{"app": "tetragon", "pizza": "yes"}, true, "default"},
+				{map[string]string{"app": "app1"}, true, "default"},
+				{map[string]string{"application": "app1"}, false, "default"},
+				{map[string]string{"app": "app1", "application": "app1"}, false, "default"},
+				{map[string]string{"app": "app1", "pizza": "yes"}, true, "default"},
 			},
 		}, {
 			labelSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{
-					Key:      K8sPodNamespace,
+					Key:      labels.K8sPodNamespace,
 					Operator: "In",
-					Values:   []string{"tetragon"},
+					Values:   []string{"app1"},
 				}},
 			},
 			tests: []testLabel{
-				{map[string]string{K8sPodNamespace: "tetragon"}, true, "tetragon"},
-				{map[string]string{K8sPodNamespace: "test"}, false, "default"},
+				{map[string]string{labels.K8sPodNamespace: "app1"}, true, "app1"},
+				{map[string]string{labels.K8sPodNamespace: "test"}, false, "default"},
 			},
 		}, {
 			labelSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{
-					Key:      K8sPodNamespace,
+					Key:      labels.K8sPodNamespace,
 					Operator: "In",
-					Values:   []string{"cilium", "tetragon"},
+					Values:   []string{"app2", "app1"},
 				}},
 			},
 			tests: []testLabel{
-				{map[string]string{"app": "tetragon"}, true, "cilium"},
-				{map[string]string{"app": "cilium"}, true, "tetragon"},
-				{map[string]string{"app": "hubble"}, false, "default"},
+				{map[string]string{"app": "app1"}, true, "app2"},
+				{map[string]string{"app": "app2"}, true, "app1"},
+				{map[string]string{"app": "app3"}, false, "default"},
 			},
 		}, {
 			labelSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{
-					Key:      K8sPodNamespace,
+					Key:      labels.K8sPodNamespace,
 					Operator: "NotIn",
-					Values:   []string{"cilium", "tetragon"},
+					Values:   []string{"app2", "app1"},
 				}},
 			},
 			tests: []testLabel{
-				{map[string]string{"app": "tetragon"}, false, "cilium"},
-				{map[string]string{"app": "cilium"}, false, "tetragon"},
-				{map[string]string{"app": "hubble"}, true, "default"},
+				{map[string]string{"app": "app1"}, false, "app2"},
+				{map[string]string{"app": "app2"}, false, "app1"},
+				{map[string]string{"app": "app3"}, true, "default"},
 			},
 		}, {
 			labelSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{
-					Key:      K8sPodNamespace,
+					Key:      labels.K8sPodNamespace,
 					Operator: "Exists",
 				}},
 			},
 			tests: []testLabel{
-				{map[string]string{K8sPodNamespace: "tetragon"}, true, "tetragon"},
+				{map[string]string{labels.K8sPodNamespace: "app1"}, true, "app1"},
 				{map[string]string{}, true, ""},
 			},
 		}, {
@@ -172,11 +170,11 @@ func TestLabels(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		selector, err := SelectorFromLabelSelector(tc.labelSelector)
+		selector, err := labels.SelectorFromLabelSelector(tc.labelSelector)
 		require.NoError(t, err)
 		for _, test := range tc.tests {
-			if _, ok := test.labels[K8sPodNamespace]; !ok {
-				test.labels[K8sPodNamespace] = test.namespace
+			if _, ok := test.labels[labels.K8sPodNamespace]; !ok {
+				test.labels[labels.K8sPodNamespace] = test.namespace
 			}
 			res := selector.Match(test.labels)
 			if res != test.expectedRes {
@@ -192,7 +190,6 @@ type testCmp struct {
 }
 
 func TestCmp(t *testing.T) {
-
 	cases := []testCmp{
 		{l1: map[string]string{}, l2: map[string]string{}, expected: false},
 		{l1: map[string]string{"label1": "a"}, l2: map[string]string{}, expected: true},
@@ -202,7 +199,7 @@ func TestCmp(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		require.Equal(t, tc.expected, Labels(tc.l1).Cmp(tc.l2), "test: %+v", tc)
-		require.Equal(t, tc.expected, Labels(tc.l2).Cmp(tc.l1), "reverse-test: %+v", tc)
+		require.Equal(t, tc.expected, labels.Labels(tc.l1).Cmp(tc.l2), "test: %+v", tc)
+		require.Equal(t, tc.expected, labels.Labels(tc.l2).Cmp(tc.l1), "reverse-test: %+v", tc)
 	}
 }

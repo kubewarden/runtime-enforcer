@@ -7,6 +7,7 @@ import (
 
 	securityv1alpha1 "github.com/neuvector/runtime-enforcer/api/v1alpha1"
 	"github.com/neuvector/runtime-enforcer/internal/eventhandler"
+	"github.com/neuvector/runtime-enforcer/internal/eventscraper"
 
 	. "github.com/onsi/ginkgo/v2" //nolint:revive // Required for testing
 	. "github.com/onsi/gomega"    //nolint:revive // Required for testing
@@ -20,7 +21,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-var _ = Describe("Tetragon", func() {
+var _ = Describe("Learning", func() {
 	Context("When reconciling a resource", func() {
 		ctx = context.Background()
 
@@ -100,11 +101,11 @@ var _ = Describe("Tetragon", func() {
 			const workerNum = 10
 			const eventsToProcessNum = 10
 
-			eventsToProcess := []eventhandler.ProcessLearningEvent{}
+			eventsToProcess := []eventscraper.KubeProcessInfo{}
 			expectedAllowList := []string{}
 
 			for i := range eventsToProcessNum {
-				eventsToProcess = append(eventsToProcess, eventhandler.ProcessLearningEvent{
+				eventsToProcess = append(eventsToProcess, eventscraper.KubeProcessInfo{
 					Namespace:      "default",
 					ContainerName:  "ubuntu",
 					ExecutablePath: fmt.Sprintf("/usr/bin/sleep%d", i),
@@ -133,7 +134,7 @@ var _ = Describe("Tetragon", func() {
 					})
 					Expect(err).NotTo(HaveOccurred())
 
-					reconciler := eventhandler.NewTetragonEventReconciler(perWorkerClient, perWorkerClient.Scheme())
+					reconciler := eventhandler.NewLearningReconciler(perWorkerClient, perWorkerClient.Scheme())
 
 					for _, learningEvent := range eventsToProcess {
 						var lastErr error
@@ -179,11 +180,11 @@ var _ = Describe("Tetragon", func() {
 			const testProposalName = "deploy-ubuntu-deployment-2"
 
 			tcs := []struct {
-				processEvents  []eventhandler.ProcessLearningEvent
+				processEvents  []eventscraper.KubeProcessInfo
 				expectedResult []string
 			}{
 				{
-					processEvents: []eventhandler.ProcessLearningEvent{
+					processEvents: []eventscraper.KubeProcessInfo{
 						{
 							Namespace:      testNamespace,
 							Workload:       testResourceName,
@@ -213,7 +214,7 @@ var _ = Describe("Tetragon", func() {
 					},
 				},
 				{
-					processEvents: []eventhandler.ProcessLearningEvent{
+					processEvents: []eventscraper.KubeProcessInfo{
 						{
 							Namespace:      testNamespace,
 							Workload:       testResourceName,
@@ -242,7 +243,7 @@ var _ = Describe("Tetragon", func() {
 				},
 			}
 
-			reconciler := eventhandler.NewTetragonEventReconciler(k8sClient, k8sClient.Scheme())
+			reconciler := eventhandler.NewLearningReconciler(k8sClient, k8sClient.Scheme())
 
 			for _, tc := range tcs {
 				// Create an empty policy proposal
@@ -281,7 +282,7 @@ var _ = Describe("Tetragon", func() {
 
 			var err error
 
-			processEvents := []eventhandler.ProcessLearningEvent{
+			processEvents := []eventscraper.KubeProcessInfo{
 				{
 					Namespace:      testNamespace,
 					Workload:       testResourceName,
@@ -305,7 +306,7 @@ var _ = Describe("Tetragon", func() {
 				},
 			}
 
-			reconciler := eventhandler.NewTetragonEventReconciler(k8sClient, k8sClient.Scheme())
+			reconciler := eventhandler.NewLearningReconciler(k8sClient, k8sClient.Scheme())
 
 			testProposal := proposal.DeepCopy()
 			testProposal.Namespace = testNamespace

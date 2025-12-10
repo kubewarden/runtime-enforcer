@@ -21,7 +21,6 @@ func getLoadTimeConfig() (*bpfLoadConf, error) {
 	return &bpfLoadConf{
 		CgrpFsMagic:     cgroupFsMagic,
 		Cgrpv1SubsysIdx: cgroups.GetCgrpv1SubsystemIdx(),
-		CgrpHierarchy:   cgroups.GetCgrpHierarchyID(),
 		DebugMode:       0, // disable debug mode for now
 	}, nil
 }

@@ -1,10 +1,6 @@
 package v1alpha1
 
 import (
-	"fmt"
-
-	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
-	tetragonv1alpha1 "github.com/cilium/tetragon/pkg/k8s/apis/cilium.io/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -76,90 +72,6 @@ type WorkloadSecurityPolicySpec struct {
 	// +kubebuilder:validation:MaxLength=200
 	// +optional
 	Message string `json:"message"`
-}
-
-func (spec *WorkloadSecurityPolicySpec) intoTetragonKProbeSelector() tetragonv1alpha1.KProbeSelector {
-	var selector tetragonv1alpha1.KProbeSelector
-
-	if spec.Mode == ProtectMode {
-		selector.MatchActions = []tetragonv1alpha1.ActionSelector{
-			{
-				Action:   "Override",
-				ArgError: -1,
-			},
-		}
-	}
-
-	if len(spec.Rules.Executables.Allowed) > 0 {
-		selector.MatchArgs = append(selector.MatchArgs, tetragonv1alpha1.ArgSelector{
-			Index:    0,
-			Operator: "NotEqual",
-			Values:   spec.Rules.Executables.Allowed,
-		})
-	}
-	if len(spec.Rules.Executables.AllowedPrefixes) > 0 {
-		selector.MatchArgs = append(selector.MatchArgs, tetragonv1alpha1.ArgSelector{
-			Index:    0,
-			Operator: "NotPrefix",
-			Values:   spec.Rules.Executables.AllowedPrefixes,
-		})
-	}
-
-	return selector
-}
-
-func (spec *WorkloadSecurityPolicySpec) intoTetragonPodSelector() *slimv1.LabelSelector {
-	if spec.Selector == nil {
-		return nil
-	}
-
-	selector := slimv1.LabelSelector{
-		MatchLabels: spec.Selector.MatchLabels,
-	}
-
-	for _, labelSelectorRequirement := range spec.Selector.MatchExpressions {
-		selector.MatchExpressions = append(selector.MatchExpressions, slimv1.LabelSelectorRequirement{
-			Key:      labelSelectorRequirement.Key,
-			Operator: slimv1.LabelSelectorOperator(labelSelectorRequirement.Operator),
-			Values:   labelSelectorRequirement.Values,
-		})
-	}
-
-	return &selector
-}
-
-func (spec *WorkloadSecurityPolicySpec) intoTetragonKProbeSpec() tetragonv1alpha1.KProbeSpec {
-	return tetragonv1alpha1.KProbeSpec{
-		Call:    "security_bprm_creds_for_exec",
-		Syscall: false,
-		Args: []tetragonv1alpha1.KProbeArg{
-			{
-				Index: 0,
-				Type:  "linux_binprm",
-			},
-		},
-		Selectors: []tetragonv1alpha1.KProbeSelector{
-			spec.intoTetragonKProbeSelector(),
-		},
-		Tags:    spec.Tags,
-		Message: fmt.Sprintf("[%d] %s", spec.Severity, spec.Message),
-	}
-}
-
-func (spec *WorkloadSecurityPolicySpec) IntoTetragonPolicySpec() tetragonv1alpha1.TracingPolicySpec {
-	// KProbe only for now
-	return tetragonv1alpha1.TracingPolicySpec{
-		KProbes: []tetragonv1alpha1.KProbeSpec{
-			spec.intoTetragonKProbeSpec(),
-		},
-		Options: []tetragonv1alpha1.OptionSpec{
-			{
-				Name:  "disable-kprobe-multi",
-				Value: "1",
-			},
-		},
-		PodSelector: spec.intoTetragonPodSelector(),
-	}
 }
 
 type WorkloadSecurityPolicyStatus struct {

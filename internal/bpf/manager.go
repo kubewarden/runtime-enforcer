@@ -20,12 +20,12 @@ const (
 )
 
 const (
-	// 100 should be enough to avoid blocking in normal conditions, let's monitor this later
+	// 100 should be enough to avoid blocking in normal conditions, let's monitor this later.
 	learningEventChanSize = 100
 	monitorEventChanSize  = 100
 )
 
-// ProcessEvent represents an event coming from BPF programs, for now used for learning and monitoring
+// ProcessEvent represents an event coming from BPF programs, for now used for learning and monitoring.
 type ProcessEvent struct {
 	CgroupID    uint64
 	CgTrackerID uint64
@@ -67,14 +67,13 @@ func NewManager(logger *slog.Logger, enableLearning bool, eBPFLogLevel ebpf.LogL
 	}
 
 	if err := spec.Variables[loadTimeConfigBPFVar].Set(conf); err != nil {
-		return nil, fmt.Errorf("Error rewriting load_time_config: %w", err)
+		return nil, fmt.Errorf("error rewriting load_time_config: %w", err)
 	}
 
 	newLogger := logger.With("component", "ebpf-manager")
 	newLogger.Info("Load time configuration detected",
 		"cgrp_fs_magic", cgroups.CgroupFsMagicStr(conf.CgrpFsMagic),
 		"cgrp_v1_subsys_idx", conf.Cgrpv1SubsysIdx,
-		"cgrp_hierarchy_id", conf.CgrpHierarchy,
 		"debug_mode", conf.DebugMode)
 
 	// We just load the objects here so that we can pass the maps to other components but we don't load ebpf progs yet
@@ -85,7 +84,7 @@ func NewManager(logger *slog.Logger, enableLearning bool, eBPFLogLevel ebpf.LogL
 		},
 	}
 	if err := spec.LoadAndAssign(&objs, opts); err != nil {
-		return nil, fmt.Errorf("Error loading objects: %w", err)
+		return nil, fmt.Errorf("error loading objects: %w", err)
 	}
 
 	return &Manager{
@@ -113,7 +112,9 @@ func NewManager(logger *slog.Logger, enableLearning bool, eBPFLogLevel ebpf.LogL
 func (m *Manager) Start(ctx context.Context) error {
 	defer func() {
 		m.logger.InfoContext(ctx, "BPF Manager stopped")
-		m.objs.Close()
+		if err := m.objs.Close(); err != nil {
+			m.logger.ErrorContext(ctx, "failed to close BPF objects", "error", err)
+		}
 	}()
 
 	m.logger.InfoContext(ctx, "Starting BPF Manager...")

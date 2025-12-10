@@ -64,9 +64,6 @@ spec:
         resources: {{- toYaml .Values.daemon.daemon.resources | nindent 10 }}
         securityContext: {{- toYaml .Values.daemon.daemon.containerSecurityContext | nindent 10 }}
         volumeMounts:
-        # todo!: remove tetragon volume mounts when tetragon is fully integrated
-        - name: tetragon-sock
-          mountPath: /var/run/tetragon/
         - name: crio-socket
           mountPath: /run/crio/crio.sock
           readOnly: true
@@ -85,9 +82,6 @@ spec:
       serviceAccountName: {{ include "runtime-enforcer.fullname" . }}-daemon
       terminationGracePeriodSeconds: 10
       volumes:
-      - name: tetragon-sock
-        hostPath:
-          path: /var/run/tetragon/
       # We try to mount common CRI socket paths. If these are not enough, users should mount the correct socket using criSocketPath value.
       - name: crio-socket
         hostPath:

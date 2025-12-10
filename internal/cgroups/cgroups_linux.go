@@ -1,5 +1,3 @@
-//go:build linux
-
 package cgroups
 
 import (
@@ -20,12 +18,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type deploymentEnv struct {
-	id       DeploymentCode
-	str      string
-	endsWith string
-}
-
 type CgroupController struct {
 	Id     uint32 // Hierarchy unique ID
 	Idx    uint32 // Cgroup SubSys index
@@ -40,10 +32,6 @@ var (
 	// todo!: we should allow to configure this.
 	defaultProcFS = "/proc"
 
-	// defaultCgroup2Dir is the default path to where cgroup2 is mounted (Prefix with /run)
-	// todo!: not clear why.
-	defaultCgroup2Dir = "/run/tetragon/cgroup2"
-
 	/* Cgroup controllers that we are interested in
 	 * are usually the ones that are setup by systemd
 	 * or other init programs.
@@ -54,25 +42,6 @@ var (
 		{Name: "cpuset"}, // fallback
 	}
 
-	cgroupv2Hierarchy = "0::"
-
-	/* Ordered from nested to top cgroup parents
-	 * For k8s we check also config k8s flags.
-	 */
-	deployments = []deploymentEnv{
-		{id: DEPLOY_K8S, str: "kube"},
-		{id: DEPLOY_CONTAINER, str: "docker"},
-		{id: DEPLOY_CONTAINER, str: "podman"},
-		{id: DEPLOY_CONTAINER, str: "libpod"},
-		// If Tetragon is running as a systemd service, its
-		// cgroup path will end with .service
-		{id: DEPLOY_SD_SERVICE, endsWith: ".service"},
-		{id: DEPLOY_SD_USER, str: "user.slice"},
-	}
-
-	detectDeploymentOnce sync.Once
-	deploymentMode       DeploymentCode
-
 	detectCgrpModeOnce sync.Once
 	cgroupMode         CgroupModeCode
 
@@ -80,12 +49,6 @@ var (
 	cgroupFSPath       string
 	cgroupFSMagic      uint64
 
-	// Cgroup Migration Path.
-	findMigPath       sync.Once
-	cgrpMigrationPath string
-
-	// Cgroup Tracking Hierarchy.
-	cgrpHierarchy      uint32 // 0 in case of cgroupv2
 	cgrpv1SubsystemIdx uint32 // Not set in case of cgroupv2
 )
 
@@ -113,10 +76,6 @@ func CgroupFsMagicStr(magic uint64) string {
 
 func GetCgroupFSMagic() uint64 {
 	return cgroupFSMagic
-}
-
-func GetCgroupFSPath() string {
-	return cgroupFSPath
 }
 
 type FileHandle struct {
@@ -263,47 +222,6 @@ func DiscoverSubSysIds() error {
 	return errors.New("could not detect Cgroup filesystem")
 }
 
-func setDeploymentMode(cgroupPath string) error {
-	if cgroupPath == "" {
-		return errors.New("cgroup path is empty")
-	}
-
-	if deploymentMode != DEPLOY_UNKNOWN {
-		return nil
-	}
-
-	// todo!: not sure we will need this `deploymentMode` variable
-	deploymentMode = DEPLOY_K8S
-	return nil
-}
-
-func GetDeploymentMode() DeploymentCode {
-	return deploymentMode
-}
-
-func GetCgroupMode() CgroupModeCode {
-	return cgroupMode
-}
-
-func setCgrpHierarchyID(controller *CgroupController) {
-	cgrpHierarchy = controller.Id
-}
-
-func setCgrp2HierarchyID() {
-	cgrpHierarchy = CGROUP_DEFAULT_HIERARCHY
-}
-
-func setCgrpv1SubsystemIdx(controller *CgroupController) {
-	cgrpv1SubsystemIdx = controller.Idx
-}
-
-// GetCgrpHierarchyID() returns the ID of the Cgroup hierarchy
-// that is used to track processes. This is used mostly for
-// Cgroupv1 as for Cgroupv2 we run in the default hierarchy.
-func GetCgrpHierarchyID() uint32 {
-	return cgrpHierarchy
-}
-
 // GetCgrpSubsystemIdx() returns the Index of the subsys
 // or hierarchy to be used to track processes.
 func GetCgrpv1SubsystemIdx() uint32 {
@@ -320,90 +238,6 @@ func GetCgrpControllerName() string {
 		}
 	}
 	return ""
-}
-
-// Validates cgroupPaths obtained from /proc/self/cgroup based on Cgroupv1
-// and returns it on success.
-func getValidCgroupv1Path(cgroupPaths []string) (string, error) {
-	for _, controller := range CgroupControllers {
-		// First lets go again over list of active controllers
-		if !controller.Active {
-			slog.Debug(fmt.Sprintf("Cgroup controller '%s' is not active", controller.Name), "cgroup.fs", cgroupFSPath)
-			continue
-		}
-
-		for _, s := range cgroupPaths {
-			if strings.Contains(s, fmt.Sprintf(":%s:", controller.Name)) {
-				idx := strings.Index(s, "/")
-				path := s[idx+1:]
-				cgroupPath := filepath.Join(cgroupFSPath, controller.Name, path)
-				finalpath := filepath.Join(cgroupPath, "cgroup.procs")
-				slog.Debug("Cgroupv1 probing environment and deployment detection",
-					"cgroup.fs", cgroupFSPath,
-					"cgroup.controller.name", controller.Name,
-					"cgroup.path", cgroupPath)
-				_, err := os.Stat(finalpath)
-				if err != nil {
-					// Probably running from root hierarchy or namespaced
-					// run the detection again.
-					slog.Debug("Cgroupv1 detected namespaces or running from root hierarchy, trying again",
-						"cgroup.fs", cgroupFSPath,
-						"cgroup.controller.name", controller.Name)
-					err = setDeploymentMode(path)
-					if err == nil {
-						mode := GetDeploymentMode()
-						if mode == DEPLOY_K8S || mode == DEPLOY_CONTAINER {
-							// Cgroups are namespaced let's try again
-							cgroupPath = filepath.Join(cgroupFSPath, controller.Name)
-							finalpath = filepath.Join(cgroupPath, "cgroup.procs")
-							_, err = os.Stat(finalpath)
-						}
-					}
-				}
-
-				if err != nil {
-					slog.Warn(
-						fmt.Sprintf("Failed to validate Cgroupv1 path '%s'", finalpath),
-						"cgroup.fs",
-						cgroupFSPath,
-						"error",
-						err,
-					)
-					continue
-				}
-
-				// Run the deployment mode detection last again, fine to rerun.
-				err = setDeploymentMode(path)
-				if err != nil {
-					slog.Warn(
-						"Failed to detect deployment mode from Cgroupv1 path",
-						"cgroup.fs",
-						cgroupFSPath,
-						"error",
-						err,
-					)
-					continue
-				}
-
-				slog.Info(fmt.Sprintf("Cgroupv1 controller '%s' will be used", controller.Name),
-					"cgroup.fs", cgroupFSPath,
-					"cgroup.controller.name", controller.Name,
-					"cgroup.controller.hierarchyID", controller.Id,
-					"cgroup.controller.index", controller.Idx)
-
-				setCgrpHierarchyID(&controller)
-				setCgrpv1SubsystemIdx(&controller)
-				slog.Info("Cgroupv1 hierarchy validated successfully",
-					"cgroup.fs", cgroupFSPath,
-					"cgroup.path", cgroupPath)
-				return finalpath, nil
-			}
-		}
-	}
-
-	// Cgroupv1 hierarchy is not properly setup we can not support such systems,
-	// reason should have been logged in above messages.
-	return "", errors.New("could not validate Cgroupv1 hierarchies")
 }
 
 // Check and log Cgroupv2 active controllers.
@@ -426,146 +260,6 @@ func checkCgroupv2Controllers(cgroupPath string) error {
 		"cgroup.hierarchyID", CGROUP_DEFAULT_HIERARCHY)
 
 	return nil
-}
-
-// Validates cgroupPaths obtained from /proc/self/cgroup based on Cgroupv2.
-func getValidCgroupv2Path(cgroupPaths []string) (string, error) {
-	for _, s := range cgroupPaths {
-		if strings.Contains(s, cgroupv2Hierarchy) {
-			idx := strings.Index(s, "/")
-			path := s[idx+1:]
-			cgroupPath := filepath.Join(cgroupFSPath, path)
-			finalpath := filepath.Join(cgroupPath, "cgroup.procs")
-			_, err := os.Stat(finalpath)
-			if err != nil {
-				// Namespaced ? let's force the check
-				err = setDeploymentMode(path)
-				if err == nil {
-					mode := GetDeploymentMode()
-					if mode == DEPLOY_K8S || mode == DEPLOY_CONTAINER {
-						// Cgroups are namespaced let's try again
-						cgroupPath = cgroupFSPath
-						finalpath = filepath.Join(cgroupPath, "cgroup.procs")
-						_, err = os.Stat(finalpath)
-					}
-				}
-			}
-
-			if err != nil {
-				slog.Warn(
-					fmt.Sprintf("Failed to validate Cgroupv2 path '%s'", finalpath),
-					"cgroup.fs",
-					cgroupFSPath,
-					"error",
-					err,
-				)
-				break
-			}
-
-			// This should not be necessary but we have experienced some
-			// container cgroup association errors in the past, and also
-			// noticed some race conditions when a process is spawned into
-			// a new cgroup, so to gather more information, let's try to
-			// get the list of active cgroupv2 controllers in Tetragon
-			// context, that should be same for all other k8s hierarchy.
-			err = checkCgroupv2Controllers(cgroupPath)
-			if err != nil {
-				slog.Warn(
-					"Cgroupv2: failed to detect current active controllers",
-					"cgroup.fs",
-					cgroupFSPath,
-					"error",
-					err,
-				)
-			}
-
-			// Run the deployment mode detection last again, fine to rerun.
-			err = setDeploymentMode(path)
-			if err != nil {
-				slog.Warn(
-					"Failed to detect deployment mode from Cgroupv2 path",
-					"cgroup.fs",
-					cgroupFSPath,
-					"error",
-					err,
-				)
-				break
-			}
-
-			setCgrp2HierarchyID()
-			slog.Info("Cgroupv2 hierarchy validated successfully",
-				"cgroup.fs", cgroupFSPath,
-				"cgroup.path", cgroupPath)
-			return finalpath, nil
-		}
-	}
-
-	// Cgroupv2 hierarchy is not properly setup we can not support such systems,
-	// reason should have been logged in above messages.
-	return "", errors.New("could not validate Cgroupv2 hierarchy")
-}
-
-func getPidCgroupPaths(pid uint32) ([]string, error) {
-	file := filepath.Join(defaultProcFS, strconv.FormatUint(uint64(pid), 10), "cgroup")
-
-	cgroups, err := os.ReadFile(file)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %w", file, err)
-	}
-
-	if len(cgroups) == 0 {
-		return nil, fmt.Errorf("no entry from %s", file)
-	}
-
-	return strings.Split(strings.TrimSpace(string(cgroups)), "\n"), nil
-}
-
-func findMigrationPath(pid uint32) (string, error) {
-	if cgrpMigrationPath != "" {
-		return cgrpMigrationPath, nil
-	}
-
-	cgroupPaths, err := getPidCgroupPaths(pid)
-	if err != nil {
-		slog.Warn(fmt.Sprintf("Unable to get Cgroup paths for pid=%d", pid), "cgroup.fs", cgroupFSPath, "error", err)
-		return "", err
-	}
-
-	mode, err := DetectCgroupMode()
-	if err != nil {
-		return "", err
-	}
-
-	/* Run the validate and get cgroup migration path once
-	 * as it triggers lot of checks.
-	 */
-	findMigPath.Do(func() {
-		var err error
-		switch mode {
-		case CGROUP_LEGACY, CGROUP_HYBRID:
-			cgrpMigrationPath, err = getValidCgroupv1Path(cgroupPaths)
-		case CGROUP_UNIFIED:
-			cgrpMigrationPath, err = getValidCgroupv2Path(cgroupPaths)
-		default:
-			err = errors.New("could not detect Cgroup Mode")
-		}
-
-		if err != nil {
-			slog.Warn(
-				fmt.Sprintf("Unable to find Cgroup migration path for pid=%d", pid),
-				"cgroup.fs",
-				cgroupFSPath,
-				"error",
-				err,
-			)
-		}
-	})
-
-	if cgrpMigrationPath == "" {
-		return "", fmt.Errorf("could not detect Cgroup migration path for pid=%d", pid)
-	}
-
-	return cgrpMigrationPath, nil
 }
 
 func detectCgroupMode(cgroupfs string) (CgroupModeCode, error) {
@@ -603,13 +297,7 @@ func DetectCgroupMode() (CgroupModeCode, error) {
 		cgroupFSPath = defaultCgroupRoot
 		cgroupMode, err = detectCgroupMode(cgroupFSPath)
 		if err != nil {
-			slog.Debug("Could not detect Cgroup Mode", "cgroup.fs", cgroupFSPath, "error", err)
-			cgroupMode, err = detectCgroupMode(defaultCgroup2Dir)
-			if err != nil {
-				slog.Debug("Could not detect Cgroup Mode", "cgroup.fs", defaultCgroup2Dir, "error", err)
-			} else {
-				cgroupFSPath = defaultCgroup2Dir
-			}
+			slog.Error("Could not detect Cgroup Mode", "cgroup.fs", cgroupFSPath, "error", err)
 		}
 		if cgroupMode != CGROUP_UNDEF {
 			slog.Info("Cgroup mode detection succeeded",
@@ -623,46 +311,6 @@ func DetectCgroupMode() (CgroupModeCode, error) {
 	}
 
 	return cgroupMode, nil
-}
-
-func detectDeploymentMode() (DeploymentCode, error) {
-	mode := GetDeploymentMode()
-	if mode != DEPLOY_UNKNOWN {
-		return mode, nil
-	}
-
-	// Let's call findMigrationPath in case to parse own cgroup
-	// paths and detect the deployment mode.
-	pid := os.Getpid()
-	_, err := findMigrationPath(uint32(pid))
-	if err != nil {
-		return DEPLOY_UNKNOWN, err
-	}
-
-	return GetDeploymentMode(), nil
-}
-
-func DetectDeploymentMode() (DeploymentCode, error) {
-	detectDeploymentOnce.Do(func() {
-		_, err := detectDeploymentMode()
-		if err != nil {
-			slog.Warn("Detection of deployment mode failed", "cgroup.fs", cgroupFSPath, "error", err)
-			return
-		}
-	})
-
-	mode := GetDeploymentMode()
-	if mode == DEPLOY_UNKNOWN {
-		slog.Warn("Deployment mode detection failed",
-			"cgroup.fs", cgroupFSPath,
-			"deployment.mode", DeploymentCode(mode).String())
-	} else {
-		slog.Info("Deployment mode detection succeeded",
-			"cgroup.fs", cgroupFSPath,
-			"deployment.mode", DeploymentCode(mode).String())
-	}
-
-	return mode, nil
 }
 
 // DetectCgroupFSMagic() runs by default DetectCgroupMode()
@@ -757,103 +405,4 @@ func HostCgroupRoot() (string, error) {
 		fmt.Errorf("failed to set path %s as cgroup root %w", path2, err2),
 	)
 	return "", fmt.Errorf("failed to set cgroup root: %w", err)
-}
-
-// CgroupIDFromPID returns the cgroup id for a given pid.
-func CgroupIDFromPID(pid uint32) (uint64, error) {
-	cgroupFile := fmt.Sprintf("%s/%d/cgroup", defaultProcFS, pid)
-	data, err := os.ReadFile(cgroupFile)
-	if err != nil {
-		return 0, err
-	}
-
-	pathPrefix := defaultProcFS + "/1/root/sys/fs/cgroup"
-
-	// pathFunc returns (true, path) if it found the proper cgroup path, or (false, "") if it
-	// did not. There are two versions of this function, one for cgroup v1 and one for cgroup
-	// v2.
-	var pathFunc func(line string) (bool, string)
-
-	switch GetCgroupMode() {
-	case CGROUP_UNDEF:
-		return 0, errors.New("cgroup mode undefined")
-	case CGROUP_UNIFIED:
-		pathFunc = func(line string) (bool, string) {
-			v2Prefix := "0::"
-			if !strings.HasPrefix(line, v2Prefix) {
-				return false, ""
-			}
-			return true, fmt.Sprintf("%s/%s", pathPrefix, line[len(v2Prefix):])
-		}
-	case CGROUP_LEGACY, CGROUP_HYBRID:
-		pathFunc = func(line string) (bool, string) {
-			// TODO: test the cgroup v1 implementation
-			v1Prefix := fmt.Sprintf("%d:%s:", GetCgrpHierarchyID(), GetCgrpControllerName())
-			if !strings.HasPrefix(line, v1Prefix) {
-				return false, ""
-			}
-			return true, fmt.Sprintf("%s/%s/%s", pathPrefix, GetCgrpControllerName(), line[len(v1Prefix):])
-		}
-	}
-
-	lines := strings.Split(string(data), "\n")
-	var path string
-	for _, line := range lines {
-		var ok bool
-		if ok, path = pathFunc(line); ok {
-			break
-		}
-	}
-
-	if len(path) == 0 {
-		return 0, errors.New("failed to find proper cgroup")
-	}
-
-	cgID, err := GetCgroupIdFromPath(path)
-	if err != nil {
-		return 0, err
-	}
-
-	return cgID, nil
-}
-
-// GetCgroupIDFromSubCgroup deals with some idiosyncrancies of container runtimes
-//
-// Typically, the container processes run in the cgroup path specified in the OCI spec under
-// cgroupsPath. crun, however, is an exception because it uses another directory (called subgroup)
-// under the cgroupsPath:
-// https://github.com/containers/crun/blob/main/crun.1.md#runocisystemdsubgroupsubgroup.
-//
-// This function deals with this by checking for a child directory. If it finds one (and only one)
-// it uses the cgroup id from the child.
-func GetCgroupIDFromSubCgroup(p string) (uint64, error) {
-	getSingleDirChild := func() string {
-		var ret string
-		dentries, err := os.ReadDir(p)
-		if err != nil {
-			return ""
-		}
-		for _, dentry := range dentries {
-			if !dentry.IsDir() {
-				continue
-			}
-
-			if ret == "" {
-				ret = dentry.Name()
-			} else {
-				// NB: there are more than one directories :( nothing reasonable we
-				// can do at this point bail out
-				return ""
-			}
-		}
-
-		return ret
-	}
-
-	child := getSingleDirChild()
-	if child != "" {
-		p = filepath.Join(p, child)
-	}
-
-	return GetCgroupIdFromPath(p)
 }

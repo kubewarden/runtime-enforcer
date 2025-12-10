@@ -45,8 +45,8 @@ func newCRIResolver(ctx context.Context, logger *slog.Logger) (*criResolver, err
 	if os.Getenv("CUSTOM_CRI_SOCKET_PATH") != "" {
 		criClient.endpoint = os.Getenv("CUSTOM_CRI_SOCKET_PATH")
 		criClient.endpoint = "unix://" + criClient.endpoint
-		criClient.logger.Info("using custom CRI socket path", "path", criClient.endpoint)
-		criClient.client, err = newClientTry(ctx, criClient.endpoint)
+		criClient.logger.InfoContext(ctx, "using custom CRI socket path", "path", criClient.endpoint)
+		criClient.client, err = newClientTry(criClient.endpoint)
 		if err != nil {
 			return nil, err
 		}
@@ -55,16 +55,16 @@ func newCRIResolver(ctx context.Context, logger *slog.Logger) (*criResolver, err
 
 	for _, ep := range defaultEndpoints {
 		criClient.endpoint = ep
-		criClient.client, err = newClientTry(ctx, criClient.endpoint)
+		criClient.client, err = newClientTry(criClient.endpoint)
 		if err == nil {
 			return criClient, nil
 		}
-		criClient.logger.Error("cannot create CRI client", "endpoint", criClient.endpoint, "error", err)
+		criClient.logger.ErrorContext(ctx, "cannot create CRI client", "endpoint", criClient.endpoint, "error", err)
 	}
 	return nil, err
 }
 
-func newClientTry(ctx context.Context, endpoint string) (criapi.RuntimeServiceClient, error) {
+func newClientTry(endpoint string) (criapi.RuntimeServiceClient, error) {
 	u, err := url.Parse(endpoint)
 	if err != nil {
 		return nil, err
@@ -87,6 +87,8 @@ func newClientTry(ctx context.Context, endpoint string) (criapi.RuntimeServiceCl
 	return rtcli, nil
 }
 
+// SystemdExpandSlice expands a systemd slice name into its full path.
+//
 // taken from github.com/opencontainers/runc/libcontainer/cgroups/systemd
 // which does not work due to a ebpf incomaptibility:
 // # github.com/opencontainers/runc/libcontainer/cgroups/ebpf
@@ -95,7 +97,7 @@ func newClientTry(ctx context.Context, endpoint string) (criapi.RuntimeServiceCl
 // systemd represents slice hierarchy using `-`, so we need to follow suit when
 // generating the path of slice. Essentially, test-a-b.slice becomes
 // /test.slice/test-a.slice/test-a-b.slice.
-func systemdExpandSlice(slice string) (string, error) {
+func SystemdExpandSlice(slice string) (string, error) {
 	suffix := ".slice"
 	// Name has to end with ".slice", but can't be just ".slice".
 	if len(slice) < len(suffix) || !strings.HasSuffix(slice, suffix) {
@@ -126,12 +128,14 @@ func systemdExpandSlice(slice string) (string, error) {
 	return path, nil
 }
 
+// ParseCgroupsPath parses the cgroup path from the CRI response.
+//
 // Example input: kubelet-kubepods-besteffort-pod83b090de_9676_407c_99aa_d33dc6aa0c0d.slice:cri-containerd:18b2adc8507104e412c946bec11679590801f547eee513fa298054f14fbf4240
 //
 // Example output:
 // /kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod83b090de_9676_407c_99aa_d33dc6aa0c0d.slice/cri-containerd-18b2adc8507104e412c946bec11679590801f547eee513fa298054f14fbf4240.scope
 //
-// todo!: the resolver should start with the resolution of itself, to check if the cgroup path is valid
+// todo!: the resolver should start with the resolution of itself, to check if the cgroup path is valid.
 func ParseCgroupsPath(cgroupPath string) (string, error) {
 	if strings.Contains(cgroupPath, "/") {
 		return cgroupPath, nil
@@ -148,7 +152,7 @@ func ParseCgroupsPath(cgroupPath string) (string, error) {
 		var err error
 		// kubelet-kubepods-besteffort-pod83b090de_9676_407c_99aa_d33dc6aa0c0d.slice:cri-containerd:18b2adc8507104e412c946bec11679590801f547eee513fa298054f14fbf4240
 		slice, containerRuntimeName, containerID := parts[0], parts[1], parts[2]
-		slice, err = systemdExpandSlice(slice)
+		slice, err = SystemdExpandSlice(slice)
 		if err != nil {
 			return "", fmt.Errorf("failed to parse cgroup path: %s (%s does not seem to be a slice)", cgroupPath, slice)
 		}
@@ -179,15 +183,15 @@ func (c *criResolver) getCgroupPath(containerID string) (string, error) {
 		return "", errors.New("no container info")
 	}
 
-	var path, json string
-	if infoJson, ok := info["info"]; ok {
-		json = infoJson
+	var path, containerJSON string
+	if infoJSON, ok := info["info"]; ok {
+		containerJSON = infoJSON
 		path = "runtimeSpec.linux.cgroupsPath"
 	} else {
 		return "", errors.New("could not find info")
 	}
 
-	ret := gjson.Get(json, path).String()
+	ret := gjson.Get(containerJSON, path).String()
 	if ret == "" {
 		return "", errors.New("failed to find cgroupsPath in json")
 	}
@@ -205,10 +209,8 @@ func (c *criResolver) resolveCgroup(containerID string) (uint64, string, error) 
 		return 0, "", err
 	}
 
-	var getCgroupID func(string) (uint64, error) = cgroups.GetCgroupIdFromPath
-
 	path := filepath.Join(cgRoot, cgPath)
-	cgID, err := getCgroupID(path)
+	cgID, err := cgroups.GetCgroupIdFromPath(path)
 	if err != nil {
 		return 0, "", err
 	}

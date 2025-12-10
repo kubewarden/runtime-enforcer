@@ -18,7 +18,6 @@ type CgroupID = uint64
 type ContainerID = string
 type PodID = string
 type ContainerName = string
-type operation int
 
 type Resolver struct {
 	// let's see if we can split this unique lock in multiple locks later
@@ -50,7 +49,10 @@ func NewResolver(ctx context.Context, logger *slog.Logger, informer cmCache.Info
 		return nil, err
 	}
 
-	informer.AddEventHandler(r.EventHandlers())
+	// We deliberately ignore the returned cache.ResourceEventHandlerRegistration and error here because
+	// we don't need to remove the handler for the lifetime of the daemon and informer construction
+	// already succeeded.
+	_, _ = informer.AddEventHandler(r.EventHandlers())
 	// todo!: add handlers for the rthook
 	// todo!: we can do a first scan of all existing containers to populate the cache initially
 	return r, nil
@@ -85,7 +87,7 @@ func (r *Resolver) recomputePodPolicies(state *podState) {
 	}
 
 	// We should delete cgroup IDs that are not involved in any policy anymore, since they could still be bounded to old policies associated to old labels.
-	for cgID, _ := range state.getCgroupIDsHash() {
+	for cgID := range state.getCgroupIDsHash() {
 		if !involvedCgroupIDs[cgID] {
 			if err := r.cgroupToPolicyMapUpdateFunc(PolicyIDNone, []CgroupID{cgID}, bpf.RemoveCgroups); err != nil {
 				r.logger.Error("failed to remove no more involved cgroup from policy map",
@@ -152,6 +154,7 @@ func (r *Resolver) addPod(pod *corev1.Pod) {
 	}
 
 	state = &podState{
+		// When a pod is created it should have all the labels necessary for the workload resolution (e.g. pod-template-hash). If we face some issues we can consider to update the workload type/name also with pod updates.
 		info: getPodInfo(pod),
 		// populate containers info, but we still miss the cgroup for each container since we receive the pod from k8s api server
 		containers: podContainersInfoWithoutCgroups(pod),
@@ -271,6 +274,7 @@ func (r *Resolver) updatePod(oldPod, newPod *corev1.Pod) {
 }
 
 // todo!: Using an informer is ok for now, but it is difficult to manage critical failures, for now we log errors but we should really handle them. One solution could be to use a gRPC channel instead of informers. An external controller will send to each agent pod/workload-policies updates only when necessary and will handle retry or policy redeployment in case of failure.
+// EventHandlers returns the event handlers for pod events.
 func (r *Resolver) EventHandlers() cache.ResourceEventHandler {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {

@@ -7,7 +7,7 @@ import (
 type PolicyID = uint64
 
 const (
-	// PolicyIDNone is used to indicate no policy associated with the cgroup
+	// PolicyIDNone is used to indicate no policy associated with the cgroup.
 	PolicyIDNone PolicyID = 0
 )
 
@@ -24,12 +24,6 @@ type policy struct {
 
 func (pol *policy) getID() PolicyID {
 	return pol.id
-}
-
-func (pol *policy) setFilters(namespace string, podSelector labels.Selector, containerSelector labels.Selector) {
-	pol.namespace = namespace
-	pol.podSelector = podSelector
-	pol.containerSelector = containerSelector
 }
 
 func (pol *policy) podInfoMatches(pod *podInfo) bool {

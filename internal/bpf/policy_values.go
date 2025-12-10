@@ -34,7 +34,7 @@ const (
 	stringMapSize9  = 2048
 	stringMapSize10 = 4096
 
-	// For kernels before 5.9 we need to fix the max entries for inner maps, the chosen value is arbitrary
+	// For kernels before 5.9 we need to fix the max entries for inner maps, the chosen value is arbitrary.
 	fixedMaxEntriesPre5_9 = 500
 )
 
@@ -143,7 +143,6 @@ func argStringSelectorValue(v string, removeNul bool) ([MaxStringMapsSize]byte, 
 func convertValuesToMaps(values []string) (SelectorStringMaps, error) {
 	maps := createStringMaps()
 	for _, v := range values {
-		// todo!: we use `linux_binprm` so according to tetragon we shouldn't remove the nul, double check
 		value, size, err := argStringSelectorValue(v, false)
 		if err != nil {
 			return maps, fmt.Errorf("value %s invalid: %w", v, err)

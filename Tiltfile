@@ -106,6 +106,7 @@ docker_build_with_restart(
 
 exclusions = [
     "internal/bpf/bpf_**",
+    "internal/controller/"
 ]
 
 local_resource(

@@ -35,7 +35,10 @@ func SetupPolicyGenerator(logger *slog.Logger, informer cmCache.Informer, resolv
 		wpState:              make(map[string]map[string]policyID),
 		policyModeUpdateFunc: policyModeUpdateFunc,
 	}
-	informer.AddEventHandler(p.EventHandlers())
+	// We deliberately ignore the returned cache.ResourceEventHandlerRegistration and error here because
+	// we don't need to remove the handler for the lifetime of the daemon and informer construction
+	// already succeeded.
+	_, _ = informer.AddEventHandler(p.EventHandlers())
 }
 
 func (p *PolicyGenerator) allocPolicyID() policyID {
@@ -156,7 +159,6 @@ func (p *PolicyGenerator) EventHandlers() cache.ResourceEventHandler {
 					return
 				}
 			}
-			return
 		},
 		DeleteFunc: func(obj interface{}) {
 			wp := resourceCheck(p.logger, "delete-policy", obj)
@@ -183,7 +185,6 @@ func (p *PolicyGenerator) EventHandlers() cache.ResourceEventHandler {
 					return
 				}
 			}
-			return
 		},
 	}
 }

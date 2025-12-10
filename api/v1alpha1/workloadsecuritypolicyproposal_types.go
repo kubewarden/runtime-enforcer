@@ -79,6 +79,10 @@ type WorkloadSecurityPolicyProposalList struct {
 }
 
 func (p *WorkloadSecurityPolicyProposal) getExecutablesLength() int {
+	if p.Spec.RulesByContainer == nil {
+		return 0
+	}
+
 	result := 0
 	for _, value := range p.Spec.RulesByContainer {
 		result += len(value.Executables.Allowed)

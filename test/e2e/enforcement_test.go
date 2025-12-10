@@ -5,18 +5,15 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
-	tragonv1alpha1 "github.com/cilium/tetragon/pkg/k8s/apis/cilium.io/v1alpha1"
 	"github.com/neuvector/runtime-enforcer/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/e2e-framework/klient/decoder"
-	"sigs.k8s.io/e2e-framework/klient/k8s"
 	"sigs.k8s.io/e2e-framework/klient/k8s/resources"
-	"sigs.k8s.io/e2e-framework/klient/wait"
-	"sigs.k8s.io/e2e-framework/klient/wait/conditions"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 	"sigs.k8s.io/e2e-framework/pkg/features"
 	"sigs.k8s.io/e2e-framework/pkg/types"
@@ -132,25 +129,12 @@ func getEnforcementTest() types.Feature {
 						},
 					}
 
-					// 1. Create the resource and wait for Tetragon policy to be created.
+					// 1. Create the resource and wait for it to be deployed.
 					err := r.Create(ctx, &policy)
 					require.NoError(t, err, "create policy")
 
-					tp := tragonv1alpha1.TracingPolicyNamespaced{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      policy.Name,
-							Namespace: policy.Namespace,
-						},
-					}
-
-					err = wait.For(conditions.New(r).ResourceMatch(&tp, func(_ k8s.Object) bool {
-						return true
-					}), wait.WithTimeout(DefaultOperationTimeout))
-					require.NoError(t, err)
-
-					assert.Len(t, "1", len(tp.Spec.KProbes))
-					assert.Equal(t, []string{"test-policy"}, tp.Spec.KProbes[0].Tags)
-					assert.Equal(t, "[9] test-policy", tp.Spec.KProbes[0].Message)
+					// todo!: we should now wait for the status of the WP to be updated
+					time.Sleep(5 * time.Second)
 
 					// 2. Run command in the pod and verify the result.
 					var podName string
@@ -190,14 +174,6 @@ func getEnforcementTest() types.Feature {
 
 					// 3. Delete WorkloadSecurityPolicy
 					err = r.Delete(ctx, &policy)
-					require.NoError(t, err)
-
-					err = wait.For(conditions.New(r).ResourceDeleted(&tragonv1alpha1.TracingPolicyNamespaced{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      policy.Name,
-							Namespace: policy.Namespace,
-						},
-					}))
 					require.NoError(t, err)
 				}
 

@@ -1,0 +1,3 @@
+# Exclude vmlinux from github stats
+bpf/vmlinux_generated_arm64.h linguist-vendored
+bpf/vmlinux_generated_x86_64.h linguist-vendored

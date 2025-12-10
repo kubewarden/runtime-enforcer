@@ -5,10 +5,7 @@ type: application
 version: 0.1.1
 appVersion: v0.0.2
 
-dependencies:
-  - name: tetragon
-    version: "1.6.0"
-    repository: "https://helm.cilium.io"
+dependencies: []
 
 annotations:
   catalog.cattle.io/certified: rancher # Any application we are adding as a helm chart

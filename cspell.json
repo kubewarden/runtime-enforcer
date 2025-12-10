@@ -68,7 +68,6 @@
         "certwatcher",
         "logr",
         "securityv1alpha1",
-        "tetragonv1alpha1",
         "appsv1",
         "batchv1",
         "corev1",

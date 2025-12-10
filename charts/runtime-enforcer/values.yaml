@@ -33,11 +33,8 @@ daemon:
     args:
     - ""
     containerSecurityContext:
-      runAsUser: 1000
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-        - ALL
+      # todo!: evaluate the list of capabilities needed and drop the unneeded ones
+      privileged: true
     image:
       repository: ghcr.io/neuvector/runtime-enforcer/daemon
       tag: v0.0.2
@@ -49,10 +46,9 @@ daemon:
       requests:
         cpu: 10m
         memory: 64Mi
+  customCRISocketPath: ""
   podSecurityContext:
-    runAsNonRoot: true
-    seccompProfile:
-      type: RuntimeDefault
+    privileged: true
   serviceAccount:
     annotations: {}
 kubernetesClusterDomain: cluster.local
@@ -106,22 +102,3 @@ telemetry:
     # (mTLS). It should contains two keys: tls.crt and tls.key storing the client
     # certificate and key respectively.
     otelCollectorClientCertificateSecret: ""
-
-# NOTE: This section is used to configure Tetragon and its components
-# deployed by the Tetragon chart dependency.
-# Do not edit this section manually.
-tetragon:
-  tetragon:
-    nameOverride: tetragon
-    grpc:
-      address: unix:///var/run/tetragon/tetragon.sock
-    prometheus:
-      enabled: false
-  tetragonOperator:
-    enabled: false
-  crds:
-    installMethod: helm
-  extraHostPathMounts:
-    - name: tetragon-socket
-      mountPath: /var/run/tetragon/
-

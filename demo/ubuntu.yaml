@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ubuntu
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ubuntu
+      security.rancher.io/policy: deploy-ubuntu
+  template:
+    metadata:
+      labels:
+        app: ubuntu
+        security.rancher.io/policy: deploy-ubuntu
+    spec:
+      containers:
+      - name: ubuntu
+        image: ubuntu:latest
+        command: ["sleep", "10d"]

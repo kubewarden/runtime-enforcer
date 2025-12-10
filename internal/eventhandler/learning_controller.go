@@ -113,7 +113,7 @@ func (r *LearningReconciler) Reconcile(
 			return nil
 		}
 
-		if innerErr := policyProposal.AddProcess(req.ContainerName, req.ExecutablePath); err != nil {
+		if innerErr := policyProposal.AddProcess(req.ContainerName, req.ExecutablePath); innerErr != nil {
 			return fmt.Errorf("failed to add process to policy proposal: %w", innerErr)
 		}
 

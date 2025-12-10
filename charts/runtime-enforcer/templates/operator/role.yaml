@@ -23,7 +23,6 @@ rules:
 - apiGroups:
   - cilium.io
   resources:
-  - tracingpolicies
   - tracingpoliciesnamespaced
   verbs:
   - create

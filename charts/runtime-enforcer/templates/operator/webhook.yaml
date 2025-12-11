@@ -33,3 +33,26 @@ webhooks:
     expression: '!has(object.spec.selector) || object.spec.selector.size() == 0'
   - name: no-owner-reference-uid
     expression: '!has(object.metadata.ownerReferences) || object.metadata.ownerReferences.size() == 0 || object.metadata.ownerReferences[0].uid.size() == 0'
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: {{ include "runtime-enforcer.fullname" . }}-mutating-webhook
+      namespace: {{ .Release.Namespace }}
+      path: /mutate-security-rancher-io-v1alpha1-workloadsecuritypolicy
+  failurePolicy: Fail
+  name: workloadsecuritypolicies.rancher.io
+  rules:
+  - apiGroups:
+    - security.rancher.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - workloadsecuritypolicies
+  sideEffects: None
+  matchConditions:
+  - name: finalizer-not-present
+    expression: '!has(object.metadata.finalizers) || !("workloadsecuritypolicy.security.rancher.io/finalizer" in object.metadata.finalizers)'

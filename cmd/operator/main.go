@@ -256,7 +256,16 @@ func main() {
 		WithDefaulter(&controller.ProposalWebhook{Client: mgr.GetClient()}).
 		Complete()
 	if err != nil {
-		setupLog.Error(err, "unable to create a webhook")
+		setupLog.Error(err, "unable to create WorkloadSecurityPolicyProposal webhook")
+		os.Exit(1)
+	}
+
+	err = builder.WebhookManagedBy(mgr).
+		For(&securityv1alpha1.WorkloadSecurityPolicy{}).
+		WithDefaulter(&controller.PolicyWebhook{}).
+		Complete()
+	if err != nil {
+		setupLog.Error(err, "unable to create WorkloadSecurityPolicy webhook")
 		os.Exit(1)
 	}
 

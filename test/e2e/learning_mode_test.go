@@ -148,7 +148,7 @@ func getLearningModeTest() types.Feature {
 							if !ok {
 								return false
 							}
-							
+
 							return verifyUbuntuLearnedProcesses(rules.Executables.Allowed)
 						}),
 						wait.WithTimeout(DefaultOperationTimeout),

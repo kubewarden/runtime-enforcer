@@ -106,7 +106,6 @@ func getMainTest() types.Feature {
 						rules := proposal.Spec.RulesByContainer["ubuntu"]
 
 						return verifyUbuntuLearnedProcesses(rules.Executables.Allowed)
-
 					}),
 					wait.WithTimeout(DefaultOperationTimeout),
 				)

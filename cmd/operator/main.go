@@ -93,11 +93,11 @@ func SetupControllers(logger logr.Logger,
 ) error {
 	var err error
 
-	if err = (&controller.WorkloadSecurityPolicyProposalReconciler{
+	if err = (&controller.WorkloadPolicyProposalReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create WorkloadSecurityProposalPolicyReconciler controller: %w", err)
+		return fmt.Errorf("unable to create WorkloadPolicyProposalReconciler controller: %w", err)
 	}
 	// +kubebuilder:scaffold:builder
 
@@ -246,7 +246,7 @@ func main() {
 	}
 
 	err = builder.WebhookManagedBy(mgr).
-		For(&securityv1alpha1.WorkloadSecurityPolicyProposal{}).
+		For(&securityv1alpha1.WorkloadPolicyProposal{}).
 		WithDefaulter(&controller.ProposalWebhook{Client: mgr.GetClient()}).
 		Complete()
 	if err != nil {

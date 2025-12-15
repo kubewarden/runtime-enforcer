@@ -12,12 +12,12 @@ type FakeSecurityV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeSecurityV1alpha1) WorkloadSecurityPolicies(namespace string) v1alpha1.WorkloadSecurityPolicyInterface {
-	return newFakeWorkloadSecurityPolicies(c, namespace)
+func (c *FakeSecurityV1alpha1) WorkloadPolicyProposals(namespace string) v1alpha1.WorkloadPolicyProposalInterface {
+	return newFakeWorkloadPolicyProposals(c, namespace)
 }
 
-func (c *FakeSecurityV1alpha1) WorkloadSecurityPolicyProposals(namespace string) v1alpha1.WorkloadSecurityPolicyProposalInterface {
-	return newFakeWorkloadSecurityPolicyProposals(c, namespace)
+func (c *FakeSecurityV1alpha1) WorkloadSecurityPolicies(namespace string) v1alpha1.WorkloadSecurityPolicyInterface {
+	return newFakeWorkloadSecurityPolicies(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

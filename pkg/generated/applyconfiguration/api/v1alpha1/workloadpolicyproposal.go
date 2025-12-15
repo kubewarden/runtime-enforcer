@@ -8,31 +8,31 @@ import (
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
-// WorkloadSecurityPolicyProposalApplyConfiguration represents a declarative configuration of the WorkloadSecurityPolicyProposal type for use
+// WorkloadPolicyProposalApplyConfiguration represents a declarative configuration of the WorkloadPolicyProposal type for use
 // with apply.
-type WorkloadSecurityPolicyProposalApplyConfiguration struct {
+type WorkloadPolicyProposalApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                             *WorkloadSecurityPolicyProposalSpecApplyConfiguration   `json:"spec,omitempty"`
-	Status                           *WorkloadSecurityPolicyProposalStatusApplyConfiguration `json:"status,omitempty"`
+	Spec                             *WorkloadPolicyProposalSpecApplyConfiguration   `json:"spec,omitempty"`
+	Status                           *WorkloadPolicyProposalStatusApplyConfiguration `json:"status,omitempty"`
 }
 
-// WorkloadSecurityPolicyProposal constructs a declarative configuration of the WorkloadSecurityPolicyProposal type for use with
+// WorkloadPolicyProposal constructs a declarative configuration of the WorkloadPolicyProposal type for use with
 // apply.
-func WorkloadSecurityPolicyProposal(name, namespace string) *WorkloadSecurityPolicyProposalApplyConfiguration {
-	b := &WorkloadSecurityPolicyProposalApplyConfiguration{}
+func WorkloadPolicyProposal(name, namespace string) *WorkloadPolicyProposalApplyConfiguration {
+	b := &WorkloadPolicyProposalApplyConfiguration{}
 	b.WithName(name)
 	b.WithNamespace(namespace)
-	b.WithKind("WorkloadSecurityPolicyProposal")
+	b.WithKind("WorkloadPolicyProposal")
 	b.WithAPIVersion("security.rancher.io/v1alpha1")
 	return b
 }
-func (b WorkloadSecurityPolicyProposalApplyConfiguration) IsApplyConfiguration() {}
+func (b WorkloadPolicyProposalApplyConfiguration) IsApplyConfiguration() {}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Kind field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithKind(value string) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithKind(value string) *WorkloadPolicyProposalApplyConfiguration {
 	b.TypeMetaApplyConfiguration.Kind = &value
 	return b
 }
@@ -40,7 +40,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithKind(value string
 // WithAPIVersion sets the APIVersion field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the APIVersion field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithAPIVersion(value string) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithAPIVersion(value string) *WorkloadPolicyProposalApplyConfiguration {
 	b.TypeMetaApplyConfiguration.APIVersion = &value
 	return b
 }
@@ -48,7 +48,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithAPIVersion(value 
 // WithName sets the Name field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Name field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithName(value string) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithName(value string) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.ObjectMetaApplyConfiguration.Name = &value
 	return b
@@ -57,7 +57,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithName(value string
 // WithGenerateName sets the GenerateName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the GenerateName field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithGenerateName(value string) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithGenerateName(value string) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.ObjectMetaApplyConfiguration.GenerateName = &value
 	return b
@@ -66,7 +66,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithGenerateName(valu
 // WithNamespace sets the Namespace field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Namespace field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithNamespace(value string) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithNamespace(value string) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.ObjectMetaApplyConfiguration.Namespace = &value
 	return b
@@ -75,7 +75,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithNamespace(value s
 // WithUID sets the UID field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the UID field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithUID(value types.UID) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithUID(value types.UID) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.ObjectMetaApplyConfiguration.UID = &value
 	return b
@@ -84,7 +84,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithUID(value types.U
 // WithResourceVersion sets the ResourceVersion field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ResourceVersion field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithResourceVersion(value string) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithResourceVersion(value string) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.ObjectMetaApplyConfiguration.ResourceVersion = &value
 	return b
@@ -93,7 +93,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithResourceVersion(v
 // WithGeneration sets the Generation field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Generation field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithGeneration(value int64) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithGeneration(value int64) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.ObjectMetaApplyConfiguration.Generation = &value
 	return b
@@ -102,7 +102,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithGeneration(value 
 // WithCreationTimestamp sets the CreationTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CreationTimestamp field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithCreationTimestamp(value metav1.Time) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithCreationTimestamp(value metav1.Time) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.ObjectMetaApplyConfiguration.CreationTimestamp = &value
 	return b
@@ -111,7 +111,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithCreationTimestamp
 // WithDeletionTimestamp sets the DeletionTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DeletionTimestamp field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.ObjectMetaApplyConfiguration.DeletionTimestamp = &value
 	return b
@@ -120,7 +120,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithDeletionTimestamp
 // WithDeletionGracePeriodSeconds sets the DeletionGracePeriodSeconds field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DeletionGracePeriodSeconds field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.ObjectMetaApplyConfiguration.DeletionGracePeriodSeconds = &value
 	return b
@@ -130,7 +130,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithDeletionGracePeri
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, the entries provided by each call will be put on the Labels field,
 // overwriting an existing map entries in Labels field with the same key.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithLabels(entries map[string]string) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithLabels(entries map[string]string) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	if b.ObjectMetaApplyConfiguration.Labels == nil && len(entries) > 0 {
 		b.ObjectMetaApplyConfiguration.Labels = make(map[string]string, len(entries))
@@ -145,7 +145,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithLabels(entries ma
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, the entries provided by each call will be put on the Annotations field,
 // overwriting an existing map entries in Annotations field with the same key.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithAnnotations(entries map[string]string) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithAnnotations(entries map[string]string) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	if b.ObjectMetaApplyConfiguration.Annotations == nil && len(entries) > 0 {
 		b.ObjectMetaApplyConfiguration.Annotations = make(map[string]string, len(entries))
@@ -159,7 +159,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithAnnotations(entri
 // WithOwnerReferences adds the given value to the OwnerReferences field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the OwnerReferences field.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerReferenceApplyConfiguration) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerReferenceApplyConfiguration) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
 		if values[i] == nil {
@@ -173,7 +173,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithOwnerReferences(v
 // WithFinalizers adds the given value to the Finalizers field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Finalizers field.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithFinalizers(values ...string) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithFinalizers(values ...string) *WorkloadPolicyProposalApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
 		b.ObjectMetaApplyConfiguration.Finalizers = append(b.ObjectMetaApplyConfiguration.Finalizers, values[i])
@@ -181,7 +181,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithFinalizers(values
 	return b
 }
 
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) ensureObjectMetaApplyConfigurationExists() {
+func (b *WorkloadPolicyProposalApplyConfiguration) ensureObjectMetaApplyConfigurationExists() {
 	if b.ObjectMetaApplyConfiguration == nil {
 		b.ObjectMetaApplyConfiguration = &v1.ObjectMetaApplyConfiguration{}
 	}
@@ -190,7 +190,7 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) ensureObjectMetaApply
 // WithSpec sets the Spec field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Spec field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithSpec(value *WorkloadSecurityPolicyProposalSpecApplyConfiguration) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithSpec(value *WorkloadPolicyProposalSpecApplyConfiguration) *WorkloadPolicyProposalApplyConfiguration {
 	b.Spec = value
 	return b
 }
@@ -198,29 +198,29 @@ func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithSpec(value *Workl
 // WithStatus sets the Status field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Status field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) WithStatus(value *WorkloadSecurityPolicyProposalStatusApplyConfiguration) *WorkloadSecurityPolicyProposalApplyConfiguration {
+func (b *WorkloadPolicyProposalApplyConfiguration) WithStatus(value *WorkloadPolicyProposalStatusApplyConfiguration) *WorkloadPolicyProposalApplyConfiguration {
 	b.Status = value
 	return b
 }
 
 // GetKind retrieves the value of the Kind field in the declarative configuration.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) GetKind() *string {
+func (b *WorkloadPolicyProposalApplyConfiguration) GetKind() *string {
 	return b.TypeMetaApplyConfiguration.Kind
 }
 
 // GetAPIVersion retrieves the value of the APIVersion field in the declarative configuration.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) GetAPIVersion() *string {
+func (b *WorkloadPolicyProposalApplyConfiguration) GetAPIVersion() *string {
 	return b.TypeMetaApplyConfiguration.APIVersion
 }
 
 // GetName retrieves the value of the Name field in the declarative configuration.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) GetName() *string {
+func (b *WorkloadPolicyProposalApplyConfiguration) GetName() *string {
 	b.ensureObjectMetaApplyConfigurationExists()
 	return b.ObjectMetaApplyConfiguration.Name
 }
 
 // GetNamespace retrieves the value of the Namespace field in the declarative configuration.
-func (b *WorkloadSecurityPolicyProposalApplyConfiguration) GetNamespace() *string {
+func (b *WorkloadPolicyProposalApplyConfiguration) GetNamespace() *string {
 	b.ensureObjectMetaApplyConfigurationExists()
 	return b.ObjectMetaApplyConfiguration.Namespace
 }

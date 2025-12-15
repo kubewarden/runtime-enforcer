@@ -29,9 +29,9 @@ import (
 // On a simple kind cluster we saw more than 4200 process exec during the initial process cache dump, so this seems a reasonable default for now.
 const DefaultEventChannelBufferSize = 4096
 
-// GetWorkloadSecurityPolicyProposalName returns the name of WorkloadSecurityPolicyProposal
+// GetWorkloadPolicyProposalName returns the name of WorkloadPolicyProposal
 // based on a high level resource and its name.
-func GetWorkloadSecurityPolicyProposalName(kind string, resourceName string) (string, error) {
+func GetWorkloadPolicyProposalName(kind string, resourceName string) (string, error) {
 	var shortname string
 	switch kind {
 	case "Deployment":
@@ -77,7 +77,7 @@ func NewLearningReconciler(client client.Client, scheme *runtime.Scheme) *Learni
 }
 
 // kubebuilder annotations for accessing policy proposals.
-// +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals,verbs=create;get;list;watch;update;patch
+// +kubebuilder:rbac:groups=security.rancher.io,resources=workloadpolicyproposals,verbs=create;get;list;watch;update;patch
 
 // Reconcile receives learning events and creates/updates WorkloadSecurityPolicyProposal resources accordingly.
 func (r *LearningReconciler) Reconcile(
@@ -91,12 +91,12 @@ func (r *LearningReconciler) Reconcile(
 	var err error
 	var proposalName string
 
-	proposalName, err = GetWorkloadSecurityPolicyProposalName(req.WorkloadKind, req.Workload)
+	proposalName, err = GetWorkloadPolicyProposalName(req.WorkloadKind, req.Workload)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get proposal name: %w", err)
 	}
 
-	policyProposal := &securityv1alpha1.WorkloadSecurityPolicyProposal{
+	policyProposal := &securityv1alpha1.WorkloadPolicyProposal{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      proposalName,
 			Namespace: req.Namespace,

@@ -13,19 +13,19 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-var _ = Describe("WorkloadSecurityPolicyProposal Webhook", func() {
+var _ = Describe("WorkloadPolicyProposal Webhook", func() {
 	Context("When learning a process", func() {
 		typeNamespacedName := types.NamespacedName{
 			Name:      "ubuntu-deployment",
 			Namespace: "default",
 		}
 
-		proposal := &securityv1alpha1.WorkloadSecurityPolicyProposal{
+		proposal := &securityv1alpha1.WorkloadPolicyProposal{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "deploy-ubuntu-deployment",
 				Namespace: "default",
 			},
-			Spec: securityv1alpha1.WorkloadSecurityPolicyProposalSpec{
+			Spec: securityv1alpha1.WorkloadPolicyProposalSpec{
 				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"app": "ubuntu",
@@ -76,7 +76,7 @@ var _ = Describe("WorkloadSecurityPolicyProposal Webhook", func() {
 					Namespace: deployment.Namespace,
 				},
 			})).To(Succeed())
-			Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadSecurityPolicyProposal{
+			Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadPolicyProposal{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      proposal.Name,
 					Namespace: proposal.Namespace,
@@ -88,12 +88,12 @@ var _ = Describe("WorkloadSecurityPolicyProposal Webhook", func() {
 			By("injecting the owner refernces and selector correctly")
 
 			tcs := []struct {
-				Resource *securityv1alpha1.WorkloadSecurityPolicyProposal
-				Expected *securityv1alpha1.WorkloadSecurityPolicyProposal
+				Resource *securityv1alpha1.WorkloadPolicyProposal
+				Expected *securityv1alpha1.WorkloadPolicyProposal
 				Success  bool
 			}{
 				{
-					Resource: &securityv1alpha1.WorkloadSecurityPolicyProposal{
+					Resource: &securityv1alpha1.WorkloadPolicyProposal{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "deploy-ubuntu-deployment",
 							Namespace: "default",
@@ -104,9 +104,9 @@ var _ = Describe("WorkloadSecurityPolicyProposal Webhook", func() {
 								},
 							},
 						},
-						Spec: securityv1alpha1.WorkloadSecurityPolicyProposalSpec{},
+						Spec: securityv1alpha1.WorkloadPolicyProposalSpec{},
 					},
-					Expected: &securityv1alpha1.WorkloadSecurityPolicyProposal{
+					Expected: &securityv1alpha1.WorkloadPolicyProposal{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "deploy-ubuntu-deployment",
 							Namespace: "default",
@@ -120,7 +120,7 @@ var _ = Describe("WorkloadSecurityPolicyProposal Webhook", func() {
 								},
 							},
 						},
-						Spec: securityv1alpha1.WorkloadSecurityPolicyProposalSpec{
+						Spec: securityv1alpha1.WorkloadPolicyProposalSpec{
 							Selector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"app": "ubuntu",

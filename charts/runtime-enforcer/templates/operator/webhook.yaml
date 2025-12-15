@@ -14,9 +14,9 @@ webhooks:
     service:
       name: {{ include "runtime-enforcer.fullname" . }}-mutating-webhook
       namespace: {{ .Release.Namespace }}
-      path: /mutate-security-rancher-io-v1alpha1-workloadsecuritypolicyproposal
+      path: /mutate-security-rancher-io-v1alpha1-workloadpolicyproposal
   failurePolicy: Fail
-  name: workloadsecuritypolicyproposals.rancher.io
+  name: workloadpolicyproposals.rancher.io
   rules:
   - apiGroups:
     - security.rancher.io
@@ -26,7 +26,7 @@ webhooks:
     - CREATE
     - UPDATE
     resources:
-    - workloadsecuritypolicyproposals
+    - workloadpolicyproposals
   sideEffects: None
   matchConditions:
   - name: no-selector

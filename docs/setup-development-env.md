@@ -25,7 +25,7 @@ Runtime enforcer supports Tilt to run development environment in your local.
 You can use this command to list the policy proposals:
 
 ```sh
-kubectl get workloadsecuritypolicyproposals.security.rancher.io -A
+kubectl get workloadpolicyproposals.security.rancher.io -A
 ```
 
 ## Optional

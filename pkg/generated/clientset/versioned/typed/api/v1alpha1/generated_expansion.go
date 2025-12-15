@@ -2,6 +2,6 @@
 
 package v1alpha1
 
-type WorkloadSecurityPolicyExpansion interface{}
+type WorkloadPolicyProposalExpansion interface{}
 
-type WorkloadSecurityPolicyProposalExpansion interface{}
+type WorkloadSecurityPolicyExpansion interface{}

@@ -1,7 +1,7 @@
 apiVersion: security.rancher.io/v1alpha1
-kind: WorkloadSecurityPolicyProposal
+kind: WorkloadPolicyProposal
 metadata:
-  name: workloadsecuritypolicyproposal-sample
+  name: workloadpolicyproposal-sample
 spec:
   selector:
     matchLabels:

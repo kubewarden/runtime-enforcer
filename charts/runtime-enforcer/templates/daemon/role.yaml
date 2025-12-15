@@ -24,7 +24,7 @@ rules:
 - apiGroups:
   - security.rancher.io
   resources:
-  - workloadsecuritypolicyproposals
+  - workloadpolicyproposals
   verbs:
   - create
   - get

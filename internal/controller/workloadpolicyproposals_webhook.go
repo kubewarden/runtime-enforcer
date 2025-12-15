@@ -58,7 +58,7 @@ func (p *ProposalWebhook) getSelectorFromObject(
 
 func (p *ProposalWebhook) updateResource(
 	ctx context.Context,
-	proposal *securityv1alpha1.WorkloadSecurityPolicyProposal,
+	proposal *securityv1alpha1.WorkloadPolicyProposal,
 ) error {
 	var res schema.GroupVersionKind
 	var selector *metav1.LabelSelector
@@ -118,9 +118,9 @@ func (p *ProposalWebhook) updateResource(
 func (p *ProposalWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	logger := log.FromContext(ctx)
 
-	proposal, ok := obj.(*securityv1alpha1.WorkloadSecurityPolicyProposal)
+	proposal, ok := obj.(*securityv1alpha1.WorkloadPolicyProposal)
 	if !ok {
-		return fmt.Errorf("expected a WorkloadSecurityPolicyProposal but got a %T", obj)
+		return fmt.Errorf("expected a WorkloadPolicyProposal but got a %T", obj)
 	}
 
 	logger.Info("mutating resource")

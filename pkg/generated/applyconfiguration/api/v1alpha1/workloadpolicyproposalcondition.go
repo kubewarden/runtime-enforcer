@@ -7,9 +7,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// WorkloadSecurityPolicyProposalConditionApplyConfiguration represents a declarative configuration of the WorkloadSecurityPolicyProposalCondition type for use
+// WorkloadPolicyProposalConditionApplyConfiguration represents a declarative configuration of the WorkloadPolicyProposalCondition type for use
 // with apply.
-type WorkloadSecurityPolicyProposalConditionApplyConfiguration struct {
+type WorkloadPolicyProposalConditionApplyConfiguration struct {
 	Type               *string             `json:"type,omitempty"`
 	Status             *v1.ConditionStatus `json:"status,omitempty"`
 	LastProbeTime      *metav1.Time        `json:"lastProbeTime,omitempty"`
@@ -18,16 +18,16 @@ type WorkloadSecurityPolicyProposalConditionApplyConfiguration struct {
 	Message            *string             `json:"message,omitempty"`
 }
 
-// WorkloadSecurityPolicyProposalConditionApplyConfiguration constructs a declarative configuration of the WorkloadSecurityPolicyProposalCondition type for use with
+// WorkloadPolicyProposalConditionApplyConfiguration constructs a declarative configuration of the WorkloadPolicyProposalCondition type for use with
 // apply.
-func WorkloadSecurityPolicyProposalCondition() *WorkloadSecurityPolicyProposalConditionApplyConfiguration {
-	return &WorkloadSecurityPolicyProposalConditionApplyConfiguration{}
+func WorkloadPolicyProposalCondition() *WorkloadPolicyProposalConditionApplyConfiguration {
+	return &WorkloadPolicyProposalConditionApplyConfiguration{}
 }
 
 // WithType sets the Type field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Type field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalConditionApplyConfiguration) WithType(value string) *WorkloadSecurityPolicyProposalConditionApplyConfiguration {
+func (b *WorkloadPolicyProposalConditionApplyConfiguration) WithType(value string) *WorkloadPolicyProposalConditionApplyConfiguration {
 	b.Type = &value
 	return b
 }
@@ -35,7 +35,7 @@ func (b *WorkloadSecurityPolicyProposalConditionApplyConfiguration) WithType(val
 // WithStatus sets the Status field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Status field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalConditionApplyConfiguration) WithStatus(value v1.ConditionStatus) *WorkloadSecurityPolicyProposalConditionApplyConfiguration {
+func (b *WorkloadPolicyProposalConditionApplyConfiguration) WithStatus(value v1.ConditionStatus) *WorkloadPolicyProposalConditionApplyConfiguration {
 	b.Status = &value
 	return b
 }
@@ -43,7 +43,7 @@ func (b *WorkloadSecurityPolicyProposalConditionApplyConfiguration) WithStatus(v
 // WithLastProbeTime sets the LastProbeTime field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LastProbeTime field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalConditionApplyConfiguration) WithLastProbeTime(value metav1.Time) *WorkloadSecurityPolicyProposalConditionApplyConfiguration {
+func (b *WorkloadPolicyProposalConditionApplyConfiguration) WithLastProbeTime(value metav1.Time) *WorkloadPolicyProposalConditionApplyConfiguration {
 	b.LastProbeTime = &value
 	return b
 }
@@ -51,7 +51,7 @@ func (b *WorkloadSecurityPolicyProposalConditionApplyConfiguration) WithLastProb
 // WithLastTransitionTime sets the LastTransitionTime field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LastTransitionTime field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalConditionApplyConfiguration) WithLastTransitionTime(value metav1.Time) *WorkloadSecurityPolicyProposalConditionApplyConfiguration {
+func (b *WorkloadPolicyProposalConditionApplyConfiguration) WithLastTransitionTime(value metav1.Time) *WorkloadPolicyProposalConditionApplyConfiguration {
 	b.LastTransitionTime = &value
 	return b
 }
@@ -59,7 +59,7 @@ func (b *WorkloadSecurityPolicyProposalConditionApplyConfiguration) WithLastTran
 // WithReason sets the Reason field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Reason field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalConditionApplyConfiguration) WithReason(value string) *WorkloadSecurityPolicyProposalConditionApplyConfiguration {
+func (b *WorkloadPolicyProposalConditionApplyConfiguration) WithReason(value string) *WorkloadPolicyProposalConditionApplyConfiguration {
 	b.Reason = &value
 	return b
 }
@@ -67,7 +67,7 @@ func (b *WorkloadSecurityPolicyProposalConditionApplyConfiguration) WithReason(v
 // WithMessage sets the Message field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Message field is set to the value of the last call.
-func (b *WorkloadSecurityPolicyProposalConditionApplyConfiguration) WithMessage(value string) *WorkloadSecurityPolicyProposalConditionApplyConfiguration {
+func (b *WorkloadPolicyProposalConditionApplyConfiguration) WithMessage(value string) *WorkloadPolicyProposalConditionApplyConfiguration {
 	b.Message = &value
 	return b
 }

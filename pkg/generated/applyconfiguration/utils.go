@@ -16,18 +16,18 @@ import (
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
 	// Group=security.rancher.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadPolicyProposal"):
+		return &apiv1alpha1.WorkloadPolicyProposalApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadPolicyProposalCondition"):
+		return &apiv1alpha1.WorkloadPolicyProposalConditionApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadPolicyProposalSpec"):
+		return &apiv1alpha1.WorkloadPolicyProposalSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadPolicyProposalStatus"):
+		return &apiv1alpha1.WorkloadPolicyProposalStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadSecurityPolicy"):
 		return &apiv1alpha1.WorkloadSecurityPolicyApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadSecurityPolicyExecutables"):
 		return &apiv1alpha1.WorkloadSecurityPolicyExecutablesApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadSecurityPolicyProposal"):
-		return &apiv1alpha1.WorkloadSecurityPolicyProposalApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadSecurityPolicyProposalCondition"):
-		return &apiv1alpha1.WorkloadSecurityPolicyProposalConditionApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadSecurityPolicyProposalSpec"):
-		return &apiv1alpha1.WorkloadSecurityPolicyProposalSpecApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadSecurityPolicyProposalStatus"):
-		return &apiv1alpha1.WorkloadSecurityPolicyProposalStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadSecurityPolicyRules"):
 		return &apiv1alpha1.WorkloadSecurityPolicyRulesApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadSecurityPolicySpec"):

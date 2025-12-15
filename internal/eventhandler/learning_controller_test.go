@@ -30,12 +30,12 @@ var _ = Describe("Learning", func() {
 			Namespace: "default",
 		}
 
-		proposal := &securityv1alpha1.WorkloadSecurityPolicyProposal{
+		proposal := &securityv1alpha1.WorkloadPolicyProposal{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "deploy-ubuntu-deployment",
 				Namespace: "default",
 			},
-			Spec: securityv1alpha1.WorkloadSecurityPolicyProposalSpec{
+			Spec: securityv1alpha1.WorkloadPolicyProposalSpec{
 				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"app": "ubuntu",
@@ -86,7 +86,7 @@ var _ = Describe("Learning", func() {
 					Namespace: deployment.Namespace,
 				},
 			})).To(Succeed())
-			Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadSecurityPolicyProposal{
+			Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadPolicyProposal{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      proposal.Name,
 					Namespace: proposal.Namespace,
@@ -155,7 +155,7 @@ var _ = Describe("Learning", func() {
 			}
 			wg.Wait()
 
-			proposalResult := securityv1alpha1.WorkloadSecurityPolicyProposal{
+			proposalResult := securityv1alpha1.WorkloadPolicyProposal{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "deploy-ubuntu-deployment",
 					Namespace: "default",
@@ -268,7 +268,7 @@ var _ = Describe("Learning", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(testProposal.Spec.RulesByContainer["ubuntu"].Executables.Allowed).To(Equal(tc.expectedResult))
 
-				Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadSecurityPolicyProposal{
+				Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadPolicyProposal{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testProposal.Name,
 						Namespace: testProposal.Namespace,
@@ -333,7 +333,7 @@ var _ = Describe("Learning", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(testProposal.Spec.RulesByContainer).To(BeNil())
 
-			Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadSecurityPolicyProposal{
+			Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadPolicyProposal{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testProposal.Name,
 					Namespace: testProposal.Namespace,

@@ -113,10 +113,10 @@ func getLearningModeTest() types.Feature {
 					obj := tc.ParseFunc()
 					t.Log("verifying if a proposal resource can be created: ", kind)
 
-					proposalName, err := eventhandler.GetWorkloadSecurityPolicyProposalName(kind, obj.GetName())
+					proposalName, err := eventhandler.GetWorkloadPolicyProposalName(kind, obj.GetName())
 					require.NoError(t, err)
 
-					proposal := v1alpha1.WorkloadSecurityPolicyProposal{
+					proposal := v1alpha1.WorkloadPolicyProposal{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      proposalName,
 							Namespace: workloadNamespace, // to be consistent with test data.

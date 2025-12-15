@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.1
-  name: workloadsecuritypolicyproposals.security.rancher.io
+  name: workloadpolicyproposals.security.rancher.io
 spec:
   group: security.rancher.io
   names:
-    kind: WorkloadSecurityPolicyProposal
-    listKind: WorkloadSecurityPolicyProposalList
-    plural: workloadsecuritypolicyproposals
-    singular: workloadsecuritypolicyproposal
+    kind: WorkloadPolicyProposal
+    listKind: WorkloadPolicyProposalList
+    plural: workloadpolicyproposals
+    singular: workloadpolicyproposal
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: WorkloadSecurityPolicyProposal is the Schema for the workloadsecuritypolicyproposals
+        description: WorkloadPolicyProposal is the Schema for the workloadpolicyproposals
           API.
         properties:
           apiVersion:
@@ -38,8 +38,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: WorkloadSecurityPolicyProposalSpec defines the desired state
-              of WorkloadSecurityPolicyProposal.
+            description: WorkloadPolicyProposalSpec defines the desired state
+              of WorkloadPolicyProposal.
             properties:
               rulesByContainer:
                 additionalProperties:
@@ -116,8 +116,8 @@ spec:
                 x-kubernetes-map-type: atomic
             type: object
           status:
-            description: WorkloadSecurityPolicyProposalStatus defines the observed
-              state of WorkloadSecurityPolicyProposal.
+            description: WorkloadPolicyProposalStatus defines the observed
+              state of WorkloadPolicyProposal.
             properties:
               conditions:
                 items:

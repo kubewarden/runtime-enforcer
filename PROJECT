@@ -32,7 +32,7 @@ resources:
   controller: true
   domain: rancher.io
   group: security
-  kind: WorkloadSecurityPolicyProposal
+  kind: WorkloadPolicyProposal
   path: github.com/neuvector/runtime-enforcer/api/v1alpha1
   version: v1alpha1
 - api:

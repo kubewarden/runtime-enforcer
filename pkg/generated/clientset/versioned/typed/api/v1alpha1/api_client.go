@@ -12,8 +12,8 @@ import (
 
 type SecurityV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	WorkloadPolicyProposalsGetter
 	WorkloadSecurityPoliciesGetter
-	WorkloadSecurityPolicyProposalsGetter
 }
 
 // SecurityV1alpha1Client is used to interact with features provided by the security.rancher.io group.
@@ -21,12 +21,12 @@ type SecurityV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *SecurityV1alpha1Client) WorkloadSecurityPolicies(namespace string) WorkloadSecurityPolicyInterface {
-	return newWorkloadSecurityPolicies(c, namespace)
+func (c *SecurityV1alpha1Client) WorkloadPolicyProposals(namespace string) WorkloadPolicyProposalInterface {
+	return newWorkloadPolicyProposals(c, namespace)
 }
 
-func (c *SecurityV1alpha1Client) WorkloadSecurityPolicyProposals(namespace string) WorkloadSecurityPolicyProposalInterface {
-	return newWorkloadSecurityPolicyProposals(c, namespace)
+func (c *SecurityV1alpha1Client) WorkloadSecurityPolicies(namespace string) WorkloadSecurityPolicyInterface {
+	return newWorkloadSecurityPolicies(c, namespace)
 }
 
 // NewForConfig creates a new SecurityV1alpha1Client for the given config.

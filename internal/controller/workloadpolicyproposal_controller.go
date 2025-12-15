@@ -14,27 +14,27 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// WorkloadSecurityPolicyProposalReconciler reconciles a WorkloadSecurityPolicyProposal object.
-type WorkloadSecurityPolicyProposalReconciler struct {
+// WorkloadPolicyProposalReconciler reconciles a WorkloadPolicyProposal object.
+type WorkloadPolicyProposalReconciler struct {
 	client.Client
 
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicyproposals/finalizers,verbs=update
+// +kubebuilder:rbac:groups=security.rancher.io,resources=workloadpolicyproposals,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=security.rancher.io,resources=workloadpolicyproposals/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=security.rancher.io,resources=workloadpolicyproposals/finalizers,verbs=update
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadsecuritypolicies,verbs=get;list;watch;create;patch
 
-func (r *WorkloadSecurityPolicyProposalReconciler) Reconcile(
+func (r *WorkloadPolicyProposalReconciler) Reconcile(
 	ctx context.Context,
 	req ctrl.Request,
 ) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
-	log.Info("workloadsecuritypolicyproposal", "req", req)
+	log.Info("workloadpolicyproposal", "req", req)
 
-	var policyProposal securityv1alpha1.WorkloadSecurityPolicyProposal
+	var policyProposal securityv1alpha1.WorkloadPolicyProposal
 	var err error
 
 	if err = r.Get(ctx, req.NamespacedName, &policyProposal); err != nil {
@@ -75,9 +75,9 @@ func (r *WorkloadSecurityPolicyProposalReconciler) Reconcile(
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *WorkloadSecurityPolicyProposalReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *WorkloadPolicyProposalReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&securityv1alpha1.WorkloadSecurityPolicyProposal{}).
-		Named("workloadsecuritypolicyproposal").
+		For(&securityv1alpha1.WorkloadPolicyProposal{}).
+		Named("workloadpolicyproposal").
 		Complete(r)
 }

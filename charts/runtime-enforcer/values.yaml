@@ -38,6 +38,7 @@ daemon:
       # - CAP_PERFMON: Required for attaching tracing programs (kprobes/tracepoints)
       # - CAP_SYS_RESOURCE: Required for removing memlock limits (rlimit.RemoveMemlock)
       # - CAP_SYS_PTRACE: Required to access host cgroup filesystem
+      # - CAP_SYS_ADMIN: Required for mounting BPF filesystem (bpffs) for map pinning
       allowPrivilegeEscalation: false
       capabilities:
         add:
@@ -45,6 +46,7 @@ daemon:
           - PERFMON
           - SYS_RESOURCE
           - SYS_PTRACE
+          - SYS_ADMIN
         drop:
           - ALL
     image:

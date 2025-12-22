@@ -139,7 +139,8 @@ func startManager(t *testing.T) (*Manager, func()) {
 	// We always enable learning in tests for now so that we can wait for the first event to come
 	// and understand that BPF programs are loaded and running
 	enableLearning := true
-	manager, err := NewManager(newTestLogger(t), enableLearning, ebpf.LogLevelBranch)
+	// Don't pin maps in tests - empty string disables pinning
+	manager, err := NewManager(newTestLogger(t), enableLearning, ebpf.LogLevelBranch, "")
 	require.NoError(t, err, "Failed to create BPF manager")
 	require.NotNil(t, manager, "BPF manager is nil")
 
@@ -212,7 +213,8 @@ func waitRunningManager(t *testing.T) (*Manager, func()) {
 func TestNoVerifierFailures(t *testing.T) {
 	enableLearning := true
 	// Loading happens here so we can catch verifier errors without running the manager
-	_, err := NewManager(newTestLogger(t), enableLearning, ebpf.LogLevelBranch)
+	// Don't pin maps in tests - empty string disables pinning
+	_, err := NewManager(newTestLogger(t), enableLearning, ebpf.LogLevelBranch, "")
 	if err == nil {
 		t.Log("BPF manager started successfully :)!!")
 		return

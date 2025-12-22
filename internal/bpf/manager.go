@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
+	"syscall"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
@@ -53,6 +55,7 @@ type Manager struct {
 	logger           *slog.Logger
 	objs             *bpfObjects
 	policyStringMaps []*ebpf.Map
+	pinPath          string
 
 	// Learning
 	enableLearning    bool
@@ -108,7 +111,49 @@ func probeEbpfFeatures() error {
 	return nil
 }
 
-func NewManager(logger *slog.Logger, enableLearning bool, eBPFLogLevel ebpf.LogLevel) (*Manager, error) {
+// verifyBPFMount checks if the given path is mounted as bpffs.
+func verifyBPFMount(path string) error {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(path, &stat); err != nil {
+		return fmt.Errorf("failed to stat path %s: %w", path, err)
+	}
+	// BPF_FS_MAGIC = 0xcafe4a11
+	const bpfFSMagic = 0xcafe4a11
+	if stat.Type != bpfFSMagic {
+		return fmt.Errorf("path %s is not a bpf filesystem (type: 0x%x)", path, stat.Type)
+	}
+	return nil
+}
+
+// mountBPFFS mounts a BPF filesystem at the given path.
+func mountBPFFS(path string, logger *slog.Logger) error {
+	// Create the directory if it doesn't exist
+	if err := os.MkdirAll(path, 0750); err != nil {
+		return fmt.Errorf("failed to create mount directory: %w", err)
+	}
+
+	// Check if already mounted
+	if err := verifyBPFMount(path); err == nil {
+		logger.Info("BPF filesystem already mounted", "path", path)
+		return nil
+	}
+
+	// Mount the BPF filesystem
+	// syscall.Mount(source, target, fstype, flags, data)
+	if err := syscall.Mount("bpffs", path, "bpf", 0, "mode=0750"); err != nil {
+		return fmt.Errorf("failed to mount BPF filesystem at %s: %w", path, err)
+	}
+
+	logger.Info("Successfully mounted BPF filesystem", "path", path)
+	return nil
+}
+
+func NewManager(
+	logger *slog.Logger,
+	enableLearning bool,
+	eBPFLogLevel ebpf.LogLevel,
+	pinPath string,
+) (*Manager, error) {
 	if err := rlimit.RemoveMemlock(); err != nil {
 		return nil, fmt.Errorf("failed to remove memlock: %w", err)
 	}
@@ -157,11 +202,23 @@ func NewManager(logger *slog.Logger, enableLearning bool, eBPFLogLevel ebpf.LogL
 		}
 	}
 
+	// Mount BPF filesystem and enable pinning
+	if pinPath != "" {
+		// Mount the BPF filesystem at the specified path
+		if err = mountBPFFS(pinPath, newLogger); err != nil {
+			return nil, fmt.Errorf("failed to mount BPF filesystem: %w", err)
+		}
+		newLogger.Info("BPF map pinning enabled", "pin_path", pinPath)
+	}
+
 	// We just load the objects here so that we can pass the maps to other components but we don't load ebpf progs yet
 	objs := bpfObjects{}
 	opts := &ebpf.CollectionOptions{
 		Programs: ebpf.ProgramOptions{
 			LogLevel: eBPFLogLevel,
+		},
+		Maps: ebpf.MapOptions{
+			PinPath: pinPath, // Enable automatic pinning for all maps
 		},
 	}
 	if err = spec.LoadAndAssign(&objs, opts); err != nil {
@@ -171,6 +228,7 @@ func NewManager(logger *slog.Logger, enableLearning bool, eBPFLogLevel ebpf.LogL
 	return &Manager{
 		logger:              newLogger,
 		objs:                &objs,
+		pinPath:             pinPath,
 		enableLearning:      enableLearning,
 		learningEventChan:   make(chan ProcessEvent, learningEventChanSize),
 		monitoringEventChan: make(chan ProcessEvent, monitorEventChanSize),

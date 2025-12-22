@@ -29,6 +29,7 @@ spec:
         {{- if .Values.learning.enabled }}
         - --enable-learning
         {{- end }}
+        - --bpf-pin-path=/var/run/runtime-enforcer/bpf
         {{- toYaml .Values.daemon.daemon.args | nindent 8 }}
         command:
         - /daemon
@@ -78,6 +79,9 @@ spec:
           mountPath: {{ .Values.daemon.customCRISocketPath }}
           readOnly: true
         {{- end }}
+        - name: bpf-mount-dir
+          mountPath: /var/run/runtime-enforcer
+          mountPropagation: HostToContainer
       hostPID: {{ .Values.daemon.hostPID }}
       securityContext: {{- toYaml .Values.daemon.podSecurityContext | nindent 8 }}
       serviceAccountName: {{ include "runtime-enforcer.fullname" . }}-daemon
@@ -98,3 +102,7 @@ spec:
         hostPath:
           path: {{ .Values.daemon.customCRISocketPath }}
       {{- end }}
+      - name: bpf-mount-dir
+        hostPath:
+          path: /var/run/runtime-enforcer
+          type: DirectoryOrCreate

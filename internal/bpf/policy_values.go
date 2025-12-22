@@ -3,6 +3,8 @@ package bpf
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/cilium/ebpf"
 	"github.com/neuvector/runtime-enforcer/internal/kernels"
@@ -161,6 +163,23 @@ func convertValuesToBPFStringMaps(values []string) (SelectorStringMaps, error) {
 	return maps, nil
 }
 
+func (m *Manager) cleanupPinnedMaps(name string, innerMap *ebpf.Map) {
+	if m.pinPath != "" {
+		pinFile := filepath.Join(m.pinPath, name)
+		// Remove pin file first (like in removeBPFMaps)
+		if err := os.Remove(pinFile); err != nil && !os.IsNotExist(err) {
+			m.logger.Error("failed to remove pin file", "name", name, "path", pinFile, "error", err)
+		} else if err == nil {
+			m.logger.Debug("cleaned up inner map after error", "name", name, "path", pinFile)
+		}
+	}
+	// Close the map after unpinning
+	err := innerMap.Close()
+	if err != nil {
+		m.logger.Error("failed to close inner map", "name", name)
+	}
+}
+
 func (m *Manager) generateInnerBPFMaps(policyID uint64,
 	index int, isPre5_9 bool, subMap map[[MaxStringMapsSize]byte]struct{}) error {
 	mapKeySize := stringMapsSizes[index]
@@ -184,7 +203,24 @@ func (m *Manager) generateInnerBPFMaps(policyID uint64,
 	if err != nil {
 		return fmt.Errorf("failed to create inner_map: %w", err)
 	}
-	defer inner.Close()
+
+	// Pin the inner map if pinPath is configured
+	if m.pinPath != "" {
+		pinFile := filepath.Join(m.pinPath, name)
+		if err = inner.Pin(pinFile); err != nil {
+			_ = inner.Close()
+			return fmt.Errorf("failed to pin inner map %s: %w", name, err)
+		}
+		m.logger.Debug("pinned inner map", "name", name, "path", pinFile)
+	}
+
+	// Ensure cleanup on error
+	cleanupOnError := true
+	defer func() {
+		if cleanupOnError {
+			m.cleanupPinnedMaps(name, inner)
+		}
+	}()
 
 	// update values
 	// todo: ideally we should rollback if any of these fail
@@ -205,7 +241,16 @@ func (m *Manager) generateInnerBPFMaps(policyID uint64,
 	if err != nil {
 		return fmt.Errorf("failed to insert inner policy (id=%d) map: %w", policyID, err)
 	}
+
+	// Success, don't cleanup
+	cleanupOnError = false
 	m.logger.Info("handler: add new inner map inside policy str", "name", name)
+
+	// Close the map handle but leave it pinned
+	err = inner.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close inner map: %w", err)
+	}
 	return nil
 }
 
@@ -230,6 +275,20 @@ func (m *Manager) generateBPFMaps(policyID uint64, values []string) error {
 }
 
 func (m *Manager) removeBPFMaps(policyID uint64) error {
+	// Unpin inner maps if pinning is enabled
+	if m.pinPath != "" {
+		for i := range StringMapsNumSubMaps {
+			name := fmt.Sprintf("p_%d_str_map_%d", policyID, i)
+			pinFile := filepath.Join(m.pinPath, name)
+			// Try to unpin - ignore errors if the file doesn't exist
+			if err := os.Remove(pinFile); err != nil && !os.IsNotExist(err) {
+				m.logger.Warn("failed to unpin inner map", "name", name, "path", pinFile, "error", err)
+			} else if err == nil {
+				m.logger.Debug("unpinned inner map", "name", name, "path", pinFile)
+			}
+		}
+	}
+
 	for _, policyMap := range m.policyStringMaps {
 		if err := policyMap.Delete(policyID); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 			return fmt.Errorf("failed to remove policy (id=%d) from map %s: %w", policyID, policyMap.String(), err)

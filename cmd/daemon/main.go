@@ -35,6 +35,7 @@ type Config struct {
 	enableTracing     bool
 	enableOtelSidecar bool
 	enableLearning    bool
+	bpfPinPath        string
 }
 
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadpolicies,verbs=get;list;watch
@@ -65,7 +66,7 @@ func newControllerManager() (manager.Manager, error) {
 	return mgr, nil
 }
 
-func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) error {
+func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool, bpfPinPath string) error {
 	var err error
 
 	//////////////////////
@@ -79,7 +80,7 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 	//////////////////////
 	// Create BPF manager
 	//////////////////////
-	bpfManager, err := bpf.NewManager(logger, enableLearning, ebpf.LogLevelBranch)
+	bpfManager, err := bpf.NewManager(logger, enableLearning, ebpf.LogLevelBranch, bpfPinPath)
 	if err != nil {
 		return fmt.Errorf("cannot create BPF manager: %w", err)
 	}
@@ -190,6 +191,7 @@ func main() {
 	flag.BoolVar(&config.enableTracing, "enable-tracing", false, "Enable tracing collection")
 	flag.BoolVar(&config.enableOtelSidecar, "enable-otel-sidecar", false, "Enable OpenTelemetry sidecar")
 	flag.BoolVar(&config.enableLearning, "enable-learning", false, "Enable learning mode")
+	flag.StringVar(&config.bpfPinPath, "bpf-pin-path", "/var/run/runtime-enforcer/bpf", "Path to pin BPF maps")
 
 	flag.Parse()
 
@@ -210,7 +212,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// This function blocks if everything is alright.
-	if err = startDaemon(ctx, logger, config.enableLearning); err != nil {
+	if err = startDaemon(ctx, logger, config.enableLearning, config.bpfPinPath); err != nil {
 		logger.ErrorContext(ctx, "failed to start daemon", "error", err)
 		os.Exit(1)
 	}

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/containerd/nri/pkg/api"
 	"github.com/neuvector/runtime-enforcer/internal/bpf"
 	"github.com/neuvector/runtime-enforcer/internal/labels"
 	corev1 "k8s.io/api/core/v1"
@@ -24,13 +25,18 @@ type Resolver struct {
 	mu     sync.Mutex
 	logger *slog.Logger
 	// todo!: we should add a cache with deleted pods/containers so that we can resolve also recently deleted ones
-	podCache                    map[PodID]*podState
-	cgroupIDToPodID             map[CgroupID]PodID
-	policies                    []policy
+	podCache        map[PodID]*podState
+	cgroupIDToPodID map[CgroupID]PodID
+	policies        []policy
+	criResolver     *criResolver
+
 	cgTrackerUpdateFunc         func(cgID uint64, cgroupPath string) error
 	cgroupToPolicyMapUpdateFunc func(polID PolicyID, cgroupIDs []CgroupID, op bpf.CgroupPolicyOperation) error
-	criResolver                 *criResolver
+	nriSocketPath               string
+	nriPluginIndex              string
 }
+
+// todo: organize these configuration
 
 func NewResolver(
 	ctx context.Context,
@@ -38,6 +44,8 @@ func NewResolver(
 	informer cmCache.Informer,
 	cgTrackerUpdateFunc func(cgID uint64, cgroupPath string) error,
 	cgroupToPolicyMapUpdateFunc func(polID PolicyID, cgroupIDs []CgroupID, op bpf.CgroupPolicyOperation) error,
+	nriSocketPath string,
+	nriPluginIndex string,
 ) (*Resolver, error) {
 	var err error
 	r := &Resolver{
@@ -46,12 +54,16 @@ func NewResolver(
 		cgroupIDToPodID:             make(map[CgroupID]PodID),
 		cgTrackerUpdateFunc:         cgTrackerUpdateFunc,
 		cgroupToPolicyMapUpdateFunc: cgroupToPolicyMapUpdateFunc,
+		nriSocketPath:               nriSocketPath,
+		nriPluginIndex:              nriPluginIndex,
 	}
 
 	r.criResolver, err = newCRIResolver(ctx, r.logger)
 	if err != nil {
 		return nil, err
 	}
+
+	r.StartNriPluginWithRetry(ctx, r.StartNriPlugin)
 
 	// We deliberately ignore the returned cache.ResourceEventHandlerRegistration and error here because
 	// we don't need to remove the handler for the lifetime of the daemon and informer construction
@@ -101,6 +113,28 @@ func (r *Resolver) recomputePodPolicies(state *podState) {
 			}
 		}
 	}
+}
+
+func (r *Resolver) GetPolicyIDForContainer(
+	pod *api.PodSandbox,
+	container *api.Container,
+) (PolicyID, bool) {
+	for _, pol := range r.policies {
+		if !pol.podInfoMatches(&podInfo{
+			namespace: pod.GetNamespace(),
+			labels:    pod.GetLabels(),
+		}) {
+			continue
+		}
+
+		if !pol.containerMatchesFields(&containerInfo{
+			name: container.GetName(),
+		}) {
+			continue
+		}
+		return pol.id, true
+	}
+	return 0, false
 }
 
 func (r *Resolver) applyPoliciesToPod(state *podState) {

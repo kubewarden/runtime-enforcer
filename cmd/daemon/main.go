@@ -35,6 +35,8 @@ type Config struct {
 	enableTracing     bool
 	enableOtelSidecar bool
 	enableLearning    bool
+	nriSocketPath     string
+	nriPluginIdx      string
 }
 
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadpolicies,verbs=get;list;watch
@@ -65,7 +67,7 @@ func newControllerManager() (manager.Manager, error) {
 	return mgr, nil
 }
 
-func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) error {
+func startDaemon(ctx context.Context, logger *slog.Logger, config Config) error {
 	var err error
 
 	//////////////////////
@@ -79,7 +81,7 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 	//////////////////////
 	// Create BPF manager
 	//////////////////////
-	bpfManager, err := bpf.NewManager(logger, enableLearning, ebpf.LogLevelBranch)
+	bpfManager, err := bpf.NewManager(logger, config.enableLearning, ebpf.LogLevelBranch)
 	if err != nil {
 		return fmt.Errorf("cannot create BPF manager: %w", err)
 	}
@@ -95,7 +97,7 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 		panic("enqueue function should be never called when learning is disabled")
 	}
 
-	if enableLearning {
+	if config.enableLearning {
 		learningReconciler := eventhandler.NewLearningReconciler(ctrlMgr.GetClient(), ctrlMgr.GetScheme())
 		if err = learningReconciler.SetupWithManager(ctrlMgr); err != nil {
 			return fmt.Errorf("unable to create learning reconciler: %w", err)
@@ -132,6 +134,8 @@ func startDaemon(ctx context.Context, logger *slog.Logger, enableLearning bool) 
 		podInformer,
 		bpfManager.GetCgroupTrackerUpdateFunc(),
 		bpfManager.GetCgroupPolicyUpdateFunc(),
+		config.nriSocketPath,
+		config.nriPluginIdx,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create resolver: %w", err)
@@ -190,6 +194,8 @@ func main() {
 	flag.BoolVar(&config.enableTracing, "enable-tracing", false, "Enable tracing collection")
 	flag.BoolVar(&config.enableOtelSidecar, "enable-otel-sidecar", false, "Enable OpenTelemetry sidecar")
 	flag.BoolVar(&config.enableLearning, "enable-learning", false, "Enable learning mode")
+	flag.StringVar(&config.nriSocketPath, "nri-socket-path", "/var/run/nri/nri.sock", "NRI socket path")
+	flag.StringVar(&config.nriPluginIdx, "nri-plugin-index", "00", "NRI plugin index")
 
 	flag.Parse()
 
@@ -210,7 +216,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// This function blocks if everything is alright.
-	if err = startDaemon(ctx, logger, config.enableLearning); err != nil {
+	if err = startDaemon(ctx, logger, config); err != nil {
 		logger.ErrorContext(ctx, "failed to start daemon", "error", err)
 		os.Exit(1)
 	}

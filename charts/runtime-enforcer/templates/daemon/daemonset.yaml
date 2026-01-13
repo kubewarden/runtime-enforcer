@@ -73,6 +73,10 @@ spec:
         - name: dockerd-socket
           mountPath: /var/run/cri-dockerd.sock
           readOnly: true
+        - name: nri-socket
+          mountPath: /var/run/nri/nri.sock
+          mountPropagation: HostToContainer
+          readOnly: true
         {{- if .Values.daemon.customCRISocketPath }}
         - name: custom-cri-socket
           mountPath: {{ .Values.daemon.customCRISocketPath }}
@@ -98,3 +102,6 @@ spec:
         hostPath:
           path: {{ .Values.daemon.customCRISocketPath }}
       {{- end }}
+      - name: nri-socket
+        hostPath:
+          path: {{ .Values.daemon.nriSocketPath }}

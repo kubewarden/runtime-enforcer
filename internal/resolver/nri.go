@@ -4,25 +4,22 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
+	"net"
 	"time"
 
 	"github.com/containerd/nri/pkg/api"
 	"github.com/containerd/nri/pkg/stub"
-	"github.com/neuvector/runtime-enforcer/internal/bpf"
-	"github.com/neuvector/runtime-enforcer/internal/cgroups"
 )
 
 const (
-	NRIReconnectTimeout = time.Second * 1
+	NRIReconnectWaitTime = time.Second * 1
+	NRIConnectTimeout    = time.Second * 3
 )
 
 type plugin struct {
-	stub       stub.Stub
-	logger     *slog.Logger
-	resolver   *Resolver
-	cgroupRoot string
+	stub     stub.Stub
+	logger   *slog.Logger
+	resolver *Resolver
 }
 
 func (p *plugin) StartContainer(
@@ -30,6 +27,13 @@ func (p *plugin) StartContainer(
 	pod *api.PodSandbox,
 	container *api.Container,
 ) error {
+	var err error
+	defer func() {
+		if err != nil {
+			p.logger.ErrorContext(ctx, "failed to respond StartContainer hook", "error", err)
+		}
+	}()
+
 	p.logger.DebugContext(
 		ctx,
 		"getting CreateContainer event",
@@ -39,56 +43,9 @@ func (p *plugin) StartContainer(
 		pod,
 	)
 
-	// Note: currently kind is not supported, because the cgroup path received
-	// from container runtime will miss a prefix like below, given that it runs in a cgroup ns.
-	// /system.slice/docker-a52209e9e7f1202949c76bd58341da8a9d0e1e9aca9d389d5390fa503bf153e7.scope/...
-	cgroupPath, err := ParseCgroupsPath(container.GetLinux().GetCgroupsPath())
+	err = p.resolver.AddPodFromNRI(ctx, pod, container)
 	if err != nil {
-		p.logger.ErrorContext(ctx, "failed to parse cgroup path", "error", err)
-		return err
-	}
-
-	polID, ok := p.resolver.GetPolicyIDForContainer(pod, container)
-	if !ok {
-		p.logger.DebugContext(
-			ctx,
-			"no policy for the container",
-			"cgroupPath",
-			cgroupPath,
-			"podName",
-			pod.GetName(),
-			"namespace",
-			pod.GetNamespace(),
-		)
-		return nil
-	}
-
-	cgID, err := cgroups.GetCgroupIDFromPath(filepath.Join(p.cgroupRoot, cgroupPath))
-	if err != nil {
-		p.logger.ErrorContext(ctx, "failed to parse cgroup path", "error", err)
-		return err
-	}
-
-	p.logger.InfoContext(
-		ctx,
-		"assigning policy via NRI",
-		"namespace",
-		pod.GetNamespace(),
-		"podName",
-		pod.GetName(),
-		"containerName",
-		container.GetName(),
-		"cgroupPath",
-		cgroupPath,
-		"cgID",
-		cgID,
-		"policyID",
-		polID,
-	)
-
-	if err = p.resolver.cgroupToPolicyMapUpdateFunc(polID, []CgroupID{cgID}, bpf.AddPolicyToCgroups); err != nil {
-		p.logger.ErrorContext(ctx, "failed to update the cgroup path and policy id in cgPath ebpf map", "error", err)
-		return err
+		return fmt.Errorf("failed to add pod from NRI: %w", err)
 	}
 
 	return nil
@@ -96,11 +53,21 @@ func (p *plugin) StartContainer(
 
 // This would happen when container runtime restarts.
 func (p *plugin) onClose() {
-	p.logger.Info("Connection to the runtime lost, exiting...")
+	p.logger.Info("Connection to the runtime lost...")
 }
 
 // StartNriPluginWithRetry creates a go routine and maintains a persistent connection with container runtime via NRI.
-func (r *Resolver) StartNriPluginWithRetry(ctx context.Context, fn func(context.Context) error) {
+func (r *Resolver) StartNriPluginWithRetry(ctx context.Context, fn func(context.Context) error) error {
+	d := net.Dialer{
+		Timeout: NRIConnectTimeout,
+	}
+	conn, err := d.DialContext(ctx, "unix", r.nriSocketPath)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	// now we know that NRI socket is available and listening.
 	go func() {
 		for {
 			select {
@@ -108,30 +75,23 @@ func (r *Resolver) StartNriPluginWithRetry(ctx context.Context, fn func(context.
 				return
 			default:
 			}
-			err := fn(ctx)
+			err = fn(ctx)
 			if err != nil {
 				r.logger.Info("nri hook restarted", "error", err)
 			}
-			time.Sleep(NRIReconnectTimeout)
+			time.Sleep(NRIReconnectWaitTime)
 		}
 	}()
+	return nil
 }
 
 func (r *Resolver) StartNriPlugin(ctx context.Context) error {
 	var err error
-	var cgroupRoot string
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})).With("component", "nri-hook")
+	logger := r.logger.WithGroup("nri-hook")
 
-	cgroupRoot, err = cgroups.GetHostCgroupRoot()
-	if err != nil {
-		return fmt.Errorf("failed to get host cgroup root: %w", err)
-	}
 	p := &plugin{
-		logger:     logger,
-		resolver:   r,
-		cgroupRoot: cgroupRoot,
+		logger:   logger,
+		resolver: r,
 	}
 
 	opts := []stub.Option{

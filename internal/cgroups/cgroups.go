@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 
 	"go.uber.org/multierr"
@@ -210,12 +211,25 @@ func detectCgroupFSMagic(cgroupRoot string) (uint64, error) {
 	}
 }
 
+var (
+	cgroupRootCheckOnce sync.Once //nolint:gochecknoglobals // we want it global for a global function.
+	cgroupRootPath      string    //nolint:gochecknoglobals // we want it global for a global function.
+	errCgroupRootPath   error
+)
+
 // GetHostCgroupRoot tries to retrieve the host cgroup root
 //
 // for now we are checking /sys/fs/cgroup under host /proc's init.
 // For systems where the cgroup is mounted in a non-standard location, we could
 // also check host's /proc/mounts.
 func GetHostCgroupRoot() (string, error) {
+	cgroupRootCheckOnce.Do(func() {
+		cgroupRootPath, errCgroupRootPath = getHostCgroupRoot()
+	})
+	return cgroupRootPath, errCgroupRootPath
+}
+
+func getHostCgroupRoot() (string, error) {
 	var multiErr error
 
 	// We first try /proc/1/root/sys/fs/cgroup/

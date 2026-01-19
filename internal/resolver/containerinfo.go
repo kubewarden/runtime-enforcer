@@ -9,7 +9,7 @@ import (
 type containerInfo struct {
 	cgID CgroupID
 	name ContainerName
-	repo string
+	repo string // TODO: remove this one
 }
 
 func containerIDFromContainerStatus(c *v1.ContainerStatus) string {

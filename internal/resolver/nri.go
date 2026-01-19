@@ -23,7 +23,120 @@ type plugin struct {
 	logger     *slog.Logger
 	resolver   *Resolver
 	cgroupRoot string
+	// mask       stub.EventMask
 }
+
+// type PodSandboxID string
+
+// type containerState struct {
+// 	name string
+// 	// we don't have the image repo
+// 	podSandbox string
+// }
+
+// type newPodState struct {
+// 	podID        string
+// 	namespace    string
+// 	name         string
+// 	workloadName string
+// 	workloadType string
+// 	labels       labels.Labels
+// }
+
+// var (
+// 	cgroupIDToContainerID map[CgroupID]PodSandboxID
+// 	podCache              map[PodSandboxID]*newPodState
+// )
+
+func (p *plugin) Synchronize(
+	ctx context.Context,
+	pods []*api.PodSandbox,
+	containers []*api.Container,
+) ([]*api.ContainerUpdate, error) {
+	p.logger.InfoContext(ctx, "Synchronizing pod sandboxes", "podCount", len(pods))
+
+	// TODO!: we need to check if we face a timeout.
+	tmpSandboxes := make(map[string]map[ContainerID]*containerInfo)
+	for _, container := range containers {
+		if container == nil {
+			// this is weird the NRI shouldn't send us empty containers
+			p.logger.ErrorContext(ctx, "received empty container")
+			continue
+		}
+
+		// TODO!: this should become a method
+		if container.GetLinux() == nil {
+			p.logger.ErrorContext(
+				ctx,
+				"received container without Linux info",
+				"container-id",
+				container.GetId(),
+				"container-name",
+				container.GetName(),
+			)
+			continue
+		}
+
+		parsedPath, err := ParseCgroupsPath(container.GetLinux().GetCgroupsPath())
+		if err != nil {
+			p.logger.ErrorContext(ctx, "failed to parse cgroup path",
+				"path", container.GetLinux().GetCgroupsPath(),
+				"container-id", container.GetId(),
+				"container-name", container.GetName(),
+				"error", err)
+			continue
+		}
+
+		path := filepath.Join("/sys/fs/cgroup", parsedPath)
+
+		cgroupID, err := cgroups.GetCgroupIDFromPath(path)
+		if err != nil {
+			p.logger.ErrorContext(ctx, "failed to get cgroup ID from path",
+				"path", path,
+				"container-id", container.GetId(),
+				"container-name", container.GetName(),
+				"error", err)
+			continue
+		}
+
+		if _, exists := tmpSandboxes[container.GetPodSandboxId()]; !exists {
+			tmpSandboxes[container.GetPodSandboxId()] = make(map[ContainerID]*containerInfo)
+		}
+		tmpSandboxes[container.GetPodSandboxId()][container.GetId()] = &containerInfo{
+			cgID: cgroupID,
+			name: container.GetName(),
+		}
+	}
+
+	for _, pod := range pods {
+		if pod == nil {
+			// this is weird the NRI shouldn't send us empty pods
+			p.logger.ErrorContext(ctx, "received empty pod")
+			continue
+		}
+
+		// we first populate the state
+
+		// we then check if there is the magic label and we need to apply a policy
+	}
+
+	// 1. For each container we get the cgroupID -> containerID -> podUID/podSandboxID
+	// 2. For each pod we look at the labels and we see if there is a magic label and a policy to apply
+
+	return nil, nil
+}
+
+// func (p *plugin) RunPodSandbox(_ context.Context, pod *api.PodSandbox) error {
+// 	return nil
+// }
+
+// func (p *plugin) RemovePodSandbox(_ context.Context, pod *api.PodSandbox) error {
+// 	return nil
+// }
+
+// func (p *plugin) RemoveContainer(_ context.Context, pod *api.PodSandbox, container *api.Container) error {
+// 	return nil
+// }
 
 func (p *plugin) StartContainer(
 	ctx context.Context,
@@ -133,6 +246,8 @@ func (r *Resolver) StartNriPlugin(ctx context.Context) error {
 		resolver:   r,
 		cgroupRoot: cgroupRoot,
 	}
+
+	// TODO!: not sure which hook are called
 
 	opts := []stub.Option{
 		stub.WithPluginIdx(r.nriPluginIndex),

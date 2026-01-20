@@ -8,7 +8,6 @@ import (
 	"github.com/neuvector/runtime-enforcer/internal/bpf"
 	"github.com/neuvector/runtime-enforcer/internal/labels"
 	"github.com/neuvector/runtime-enforcer/internal/types/policymode"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -19,6 +18,7 @@ const (
 	PolicyIDNone PolicyID = 0
 )
 
+//nolint:unused // next step
 type policy struct {
 	id PolicyID
 
@@ -30,14 +30,17 @@ type policy struct {
 	podSelector labels.Selector
 }
 
+//nolint:unused // next step
 func (pol *policy) getID() PolicyID {
 	return pol.id
 }
 
+//nolint:unused // next step
 func (pol *policy) podInfoMatches(pod *podInfo) bool {
 	return pol.podMatches(pod.namespace, pod.labels)
 }
 
+//nolint:unused // next step
 func (pol *policy) podMatches(podNs string, podLabels labels.Labels) bool {
 	if pol.namespace != "" && podNs != pol.namespace {
 		return false
@@ -56,6 +59,7 @@ func (pol *policy) podMatches(podNs string, podLabels labels.Labels) bool {
 	return pol.podSelector.Match(podLabels1)
 }
 
+//nolint:unused // next step
 func (pol *policy) containerMatchesFields(container *containerInfo) bool {
 	containerFilterFields := labels.Labels{
 		"name": container.name,
@@ -64,6 +68,7 @@ func (pol *policy) containerMatchesFields(container *containerInfo) bool {
 	return pol.containerSelector.Match(containerFilterFields)
 }
 
+//nolint:unused // next step
 func (pol *policy) getMatchingContainersCgroupIDs(containers map[ContainerID]*containerInfo) []CgroupID {
 	var cgroupIDs []CgroupID
 	for _, container := range containers {
@@ -80,12 +85,58 @@ func (r *Resolver) allocPolicyID() PolicyID {
 	return id
 }
 
+// this must be called with the resolver lock held.
+func (r *Resolver) applyPolicyToPod(state *podState, wp map[string]PolicyID) error {
+	for _, container := range state.containers {
+		polID, ok := wp[container.name]
+		if !ok {
+			r.logger.Error("container unprotected",
+				"pod name", state.podName(),
+				"wp", state.policyLabel(),
+				"container", container.name)
+			continue
+		}
+		if err := r.cgroupToPolicyMapUpdateFunc(polID, []CgroupID{container.cgID}, bpf.AddPolicyToCgroups); err != nil {
+			return fmt.Errorf("failed to update cgroup to policy map for pod %s, container %s, wp %s: %w",
+				state.podName(), container.name, state.policyLabel(), err)
+		}
+	}
+	return nil
+}
+
+// this must be called with the resolver lock held.
+func (r *Resolver) applyPolicyToPodIfPresent(state *podState) error {
+	policyName := state.policyLabel()
+
+	// if the policy doesn't have the label we do nothing
+	if policyName == "" {
+		return nil
+	}
+
+	key := fmt.Sprintf("%s/%s", state.podNamespace(), policyName)
+	pol, ok := r.wpState[key]
+	if !ok {
+		return fmt.Errorf(
+			"pod has policy label but policy does not exist. pod-name: %s, pod-namespace: %s, policy-name: %s",
+			state.podName(),
+			state.podNamespace(),
+			policyName,
+		)
+	}
+
+	return r.applyPolicyToPod(state, pol)
+}
+
 func (r *Resolver) addWP(wp *v1alpha1.WorkloadPolicy) error {
 	r.logger.Info(
 		"add-wp-policy",
 		"policy-name", wp.Name,
 		"policy-namespace", wp.Namespace,
 	)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// the key is namespace + / + policyName
 	wpKey := wp.Namespace + "/" + wp.Name
 	if _, exists := r.wpState[wpKey]; exists {
 		return fmt.Errorf("workload policy already exists in internal state: %s", wpKey)
@@ -95,7 +146,9 @@ func (r *Resolver) addWP(wp *v1alpha1.WorkloadPolicy) error {
 
 	for containerName, containerRules := range wp.Spec.RulesByContainer {
 		polID := r.allocPolicyID()
-		r.logger.Info("create policy", "id", polID, "wp", wpKey)
+		r.logger.Info("create policy", "id", polID,
+			"wp", wpKey,
+			"container", containerName)
 
 		// Populate policy values
 		if err := r.policyValuesFunc(polID, containerRules.Executables.Allowed, bpf.AddValuesToPolicy); err != nil {
@@ -111,24 +164,17 @@ func (r *Resolver) addWP(wp *v1alpha1.WorkloadPolicy) error {
 
 		// update the map with the policy ID
 		r.wpState[wpKey][containerName] = polID
+	}
 
-		containerSelector := &metav1.LabelSelector{
-			MatchExpressions: []metav1.LabelSelectorRequirement{
-				{
-					Key:      "name",
-					Operator: metav1.LabelSelectorOpIn,
-					Values:   []string{containerName},
-				},
-			},
-		}
-		podSelector := &metav1.LabelSelector{
-			MatchLabels: map[string]string{
-				v1alpha1.PolicyLabelKey: wp.Name,
-			},
+	wpMap := r.wpState[wpKey]
+	// Now we search for pods that match the policy
+	for _, podState := range r.podCache {
+		if !podState.matchPolicy(wp.Name) {
+			continue
 		}
 
-		if err := r.AddPolicy(polID, wp.Namespace, podSelector, containerSelector); err != nil {
-			return fmt.Errorf("failed to add policy to resolver for wp %s, container %s: %w", wpKey, containerName, err)
+		if err := r.applyPolicyToPod(podState, wpMap); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -140,6 +186,8 @@ func (r *Resolver) updateWP(oldWp, newWp *v1alpha1.WorkloadPolicy) error {
 		"policy-name", newWp.Name,
 		"policy-namespace", newWp.Namespace,
 	)
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	wpKey := newWp.Namespace + "/" + newWp.Name
 	state, exists := r.wpState[wpKey]
@@ -147,6 +195,7 @@ func (r *Resolver) updateWP(oldWp, newWp *v1alpha1.WorkloadPolicy) error {
 		return fmt.Errorf("workload policy does not exist in internal state: %s", wpKey)
 	}
 
+	// For each update of the policy we re-enforce the executable list for each container even if it is the same
 	for containerName, policyID := range state {
 		oldRules := oldWp.Spec.RulesByContainer[containerName]
 		newRules := newWp.Spec.RulesByContainer[containerName]
@@ -201,6 +250,8 @@ func (r *Resolver) deleteWP(wp *v1alpha1.WorkloadPolicy) error {
 		"policy-name", wp.Name,
 		"policy-namespace", wp.Namespace,
 	)
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	wpKey := wp.Namespace + "/" + wp.Name
 	state, exists := r.wpState[wpKey]
@@ -210,17 +261,19 @@ func (r *Resolver) deleteWP(wp *v1alpha1.WorkloadPolicy) error {
 	delete(r.wpState, wpKey)
 
 	for containerName, policyID := range state {
+		// First we remove the association cgroupID -> PolicyID and then we will remove the policy values and modes
+
+		// iteration + deletion on the ebpf map
+		if err := r.cgroupToPolicyMapUpdateFunc(policyID, []CgroupID{}, bpf.RemovePolicy); err != nil {
+			return fmt.Errorf("failed to remove policy from cgroup map: %w", err)
+		}
+
 		if err := r.policyValuesFunc(policyID, []string{}, bpf.RemoveValuesFromPolicy); err != nil {
 			return fmt.Errorf("failed to remove policy values for wp %s, container %s: %w", wpKey, containerName, err)
 		}
 
 		if err := r.policyModeUpdateFunc(policyID, 0, bpf.DeleteMode); err != nil {
 			return fmt.Errorf("failed to remove policy from policy mode map for wp %s, container %s: %w",
-				wpKey, containerName, err)
-		}
-
-		if err := r.DeletePolicy(policyID); err != nil {
-			return fmt.Errorf("failed to remove policy from cgroup map for wp %s, container %s: %w",
 				wpKey, containerName, err)
 		}
 	}

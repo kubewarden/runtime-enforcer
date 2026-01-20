@@ -8,12 +8,11 @@ import (
 	"sync"
 
 	"github.com/containerd/nri/pkg/api"
+	"github.com/neuvector/runtime-enforcer/api/v1alpha1"
 	"github.com/neuvector/runtime-enforcer/internal/bpf"
 	"github.com/neuvector/runtime-enforcer/internal/cgroups"
-	"github.com/neuvector/runtime-enforcer/internal/labels"
 	"github.com/neuvector/runtime-enforcer/internal/types/policymode"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	cmCache "sigs.k8s.io/controller-runtime/pkg/cache"
 )
@@ -30,8 +29,9 @@ type Resolver struct {
 	// todo!: we should add a cache with deleted pods/containers so that we can resolve also recently deleted ones
 	podCache        map[PodID]*podState
 	cgroupIDToPodID map[CgroupID]PodID
-	policies        []policy
-	criResolver     *criResolver
+	//nolint:unused // next step
+	policies    []policy
+	criResolver *criResolver
 
 	nextPolicyID                PolicyID
 	wpState                     map[string]map[string]PolicyID
@@ -63,6 +63,7 @@ func NewResolver(
 		cgroupToPolicyMapUpdateFunc: cgroupToPolicyMapUpdateFunc,
 		policyValuesFunc:            policyValuesFunc,
 		policyModeUpdateFunc:        policyModeUpdateFunc,
+		wpState:                     make(map[string]map[string]PolicyID),
 		nextPolicyID:                PolicyID(1),
 		nriSocketPath:               nriSocketPath,
 		nriPluginIndex:              nriPluginIndex,
@@ -90,85 +91,6 @@ func NewResolver(
 /////////////////////
 // Pod handlers
 /////////////////////
-
-func (r *Resolver) recomputePodPolicies(state *podState) {
-	// Cgroups that are involved in new policies
-	involvedCgroupIDs := make(map[CgroupID]bool)
-	for _, pol := range r.policies {
-		if !pol.podInfoMatches(state.getInfo()) {
-			continue
-		}
-		cgroupIDs := pol.getMatchingContainersCgroupIDs(state.getContainers())
-		if len(cgroupIDs) == 0 {
-			continue
-		}
-		for _, cgID := range cgroupIDs {
-			involvedCgroupIDs[cgID] = true
-		}
-		if err := r.cgroupToPolicyMapUpdateFunc(pol.id, cgroupIDs, bpf.AddPolicyToCgroups); err != nil {
-			// for now we log but this is not enough since the policy won't be applied
-			r.logger.Error("failed to associate cgroups with policy after label change",
-				"cgroup-ids", cgroupIDs,
-				"policy-id", pol.id,
-				"error", err,
-			)
-		}
-	}
-
-	// We should delete cgroup IDs that are not involved in any policy anymore, since they could still be bounded to old policies associated to old labels.
-	for cgID := range state.getCgroupIDsHash() {
-		if !involvedCgroupIDs[cgID] {
-			if err := r.cgroupToPolicyMapUpdateFunc(PolicyIDNone, []CgroupID{cgID}, bpf.RemoveCgroups); err != nil {
-				r.logger.Error("failed to remove no more involved cgroup from policy map",
-					"cgroup-id", cgID,
-					"error", err,
-				)
-			}
-		}
-	}
-}
-
-func (r *Resolver) GetPolicyIDForContainer(
-	pod *api.PodSandbox,
-	container *api.Container,
-) (PolicyID, bool) {
-	for _, pol := range r.policies {
-		if !pol.podInfoMatches(&podInfo{
-			namespace: pod.GetNamespace(),
-			labels:    pod.GetLabels(),
-		}) {
-			continue
-		}
-
-		if !pol.containerMatchesFields(&containerInfo{
-			name: container.GetName(),
-		}) {
-			continue
-		}
-		return pol.id, true
-	}
-	return 0, false
-}
-
-func (r *Resolver) applyPoliciesToPod(state *podState) {
-	for _, pol := range r.policies {
-		if !pol.podInfoMatches(state.getInfo()) {
-			continue
-		}
-		cgroupIDs := pol.getMatchingContainersCgroupIDs(state.getContainers())
-		if len(cgroupIDs) == 0 {
-			continue
-		}
-		if err := r.cgroupToPolicyMapUpdateFunc(pol.id, cgroupIDs, bpf.AddPolicyToCgroups); err != nil {
-			// for now we log but this is not enough since the policy won't be applied
-			r.logger.Error("failed to associate cgroups with policy",
-				"cgroup-ids", cgroupIDs,
-				"policy-id", pol.id,
-				"error", err,
-			)
-		}
-	}
-}
 
 func (r *Resolver) podContainersResolveCgroups(state *podState) {
 	for cID, cInfo := range state.containers {
@@ -221,7 +143,11 @@ func (r *Resolver) addPod(pod *corev1.Pod) {
 	r.podContainersResolveCgroups(state)
 
 	// Now ideally we should have all cgroup IDs resolved, so we can populate the policy map
-	r.applyPoliciesToPod(state)
+	if err := r.applyPolicyToPodIfPresent(state); err != nil {
+		r.logger.Error("failed to apply policy to pod",
+			"error", err,
+		)
+	}
 }
 
 func (r *Resolver) deletePod(pod *corev1.Pod) {
@@ -305,7 +231,11 @@ func (r *Resolver) updatePodContainers(state *podState, newContainers map[Contai
 		// We resolve cgroups for new containers
 		r.podContainersResolveCgroups(state)
 		// We apply policies to the pod again to consider new containers
-		r.applyPoliciesToPod(state)
+		if err := r.applyPolicyToPodIfPresent(state); err != nil {
+			r.logger.Error("failed to apply policy to pod",
+				"error", err,
+			)
+		}
 	}
 }
 
@@ -323,20 +253,6 @@ func (r *Resolver) updatePod(_ *corev1.Pod, newPod *corev1.Pod) {
 			"pod-uid",
 			newPod.UID)
 		return
-	}
-
-	//////////////////////////
-	// Label change (I'm not sure we should tolerate this case at all)
-	//////////////////////////
-
-	if state.info.labels.Cmp(newPod.Labels) {
-		r.logger.Debug(
-			"pod labels changed, recomputing policies",
-			"old labels", state.info.labels,
-			"new labels", newPod.Labels,
-		)
-		state.info.labels = newPod.Labels
-		r.recomputePodPolicies(state)
 	}
 
 	//////////////////////////
@@ -408,99 +324,6 @@ func (r *Resolver) EventHandlers() cache.ResourceEventHandler {
 // Policy handlers
 /////////////////////
 
-func (r *Resolver) findPolicy(id PolicyID) *policy {
-	for i := range r.policies {
-		if r.policies[i].id == id {
-			return &r.policies[i]
-		}
-	}
-	return nil
-}
-
-func (r *Resolver) deletePolicy(id PolicyID) *policy {
-	for i, pol := range r.policies {
-		if pol.getID() == id {
-			r.policies = append(r.policies[:i], r.policies[i+1:]...)
-			return &pol
-		}
-	}
-	return nil
-}
-
-func (r *Resolver) AddPolicy(polID PolicyID, namespace string, podLabelSelector *metav1.LabelSelector,
-	containerLabelSelector *metav1.LabelSelector) error {
-	r.logger.Info("start adding policy", "policy_id", polID)
-
-	podSelector, err := labels.SelectorFromLabelSelector(podLabelSelector)
-	if err != nil {
-		return err
-	}
-
-	containerSelector, err := labels.SelectorFromLabelSelector(containerLabelSelector)
-	if err != nil {
-		return err
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	pol := r.findPolicy(polID)
-	if pol != nil {
-		panic(fmt.Sprintf("policy with id %d already exists", polID))
-	}
-
-	newPol := policy{
-		id:                polID,
-		namespace:         namespace,
-		podSelector:       podSelector,
-		containerSelector: containerSelector,
-	}
-
-	// Need to find all cgroup IDs that match this policy now
-	cgroupIDs := make([]CgroupID, 0)
-	for _, podState := range r.podCache {
-		if !newPol.podInfoMatches(podState.getInfo()) {
-			continue
-		}
-		matchingCgroups := newPol.getMatchingContainersCgroupIDs(podState.getContainers())
-		r.logger.Debug(
-			"found matching cgroups",
-			"pod-name", podState.info.name,
-			"policy_id", polID,
-			"cgroup_ids", matchingCgroups,
-		)
-		cgroupIDs = append(cgroupIDs, matchingCgroups...)
-	}
-
-	if err = r.cgroupToPolicyMapUpdateFunc(polID, cgroupIDs, bpf.AddPolicyToCgroups); err != nil {
-		return fmt.Errorf("updating policy map with cgroups failed: %w", err)
-	}
-
-	r.policies = append(r.policies, newPol)
-	r.logger.Info("finished adding policy", "policy_id", polID)
-	return nil
-}
-
-func (r *Resolver) DeletePolicy(polID PolicyID) error {
-	r.logger.Info("start deleting policy", "policy_id", polID)
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	pol := r.deletePolicy(polID)
-	if pol == nil {
-		panic(fmt.Sprintf("policy with id %d does not exist", polID))
-	}
-
-	// iteration + deletion on the ebpf map
-	if err := r.cgroupToPolicyMapUpdateFunc(polID, []CgroupID{}, bpf.RemovePolicy); err != nil {
-		return fmt.Errorf("updating policy map with cgroups failed: %w", err)
-	}
-
-	r.logger.Info("finished deleting policy", "policy_id", polID)
-	return nil
-}
-
 func (r *Resolver) checkPolicyFromNRI(
 	ctx context.Context,
 	pod *api.PodSandbox,
@@ -508,17 +331,33 @@ func (r *Resolver) checkPolicyFromNRI(
 	cgID uint64,
 ) error {
 	var err error
-	polID, ok := r.GetPolicyIDForContainer(pod, container)
-	if !ok {
-		r.logger.DebugContext(
-			ctx,
-			"no policy for the container",
-			"podName",
-			pod.GetName(),
-			"namespace",
-			pod.GetNamespace(),
-		)
+
+	// todo!: in next iteration we should reuse method `applyPolicyToPodIfPresent`
+	policyName := pod.GetLabels()[v1alpha1.PolicyLabelKey]
+	if policyName == "" {
+		// pod has no policy
 		return nil
+	}
+	key := fmt.Sprintf("%s/%s", pod.GetNamespace(), policyName)
+
+	pol, ok := r.wpState[key]
+	if !ok {
+		// policy not found
+		return fmt.Errorf("pod '%s/%s' has policy '%s' but the policy does not exist",
+			pod.GetNamespace(),
+			pod.GetName(),
+			policyName,
+		)
+	}
+
+	polID, ok := pol[container.GetName()]
+	if !ok {
+		return fmt.Errorf("policy '%s' has no container '%s' but pod '%s/%s' has it",
+			policyName,
+			container.GetName(),
+			pod.GetNamespace(),
+			pod.GetName(),
+		)
 	}
 
 	r.logger.InfoContext(

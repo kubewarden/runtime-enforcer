@@ -1,4 +1,4 @@
-package resolver
+package criclient
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package resolver_test
+package criclient
 
 import (
 	"testing"

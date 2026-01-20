@@ -24,6 +24,11 @@ func PodEventHandlers(logger *slog.Logger, r *resolver.Resolver) cache.ResourceE
 				"pod-uid", string(pod.UID),
 			)
 
+			podData := getBasePodData(pod)
+			podData.ContainersData = podContainersInfoWithoutCgroups(pod)
+			populateCgroupID(podData)
+			r.AddPod2(podData)
+			////////////////////
 			r.AddPod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {

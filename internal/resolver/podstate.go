@@ -34,3 +34,7 @@ func (pod *podState) podName() string {
 func (pod *podState) podNamespace() string {
 	return pod.info.namespace
 }
+
+// func (pod *podState) podUID() PodID {
+// 	return PodID(pod.info.podID)
+// }

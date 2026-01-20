@@ -1,9 +1,11 @@
 //nolint:testpackage  // we are testing unexported functions
-package resolver
+package podinformer
 
 import (
 	"testing"
 
+	"github.com/neuvector/runtime-enforcer/api/v1alpha1"
+	"github.com/neuvector/runtime-enforcer/internal/resolver"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,13 +18,8 @@ func TestGetPodInfo(t *testing.T) {
 	tests := []struct {
 		name string
 		pod  *corev1.Pod
-		want *podInfo
+		want *resolver.PodData
 	}{
-		{
-			name: "nil pod returns nil",
-			pod:  nil,
-			want: nil,
-		},
 		{
 			name: "standalone pod without GenerateName",
 			pod: &corev1.Pod{
@@ -30,15 +27,18 @@ func TestGetPodInfo(t *testing.T) {
 					UID:       podUID,
 					Namespace: "ns1",
 					Name:      "mypod",
+					Labels: map[string]string{
+						v1alpha1.PolicyLabelKey: "policy-1",
+					},
 				},
 			},
-			want: &podInfo{
-				podID:        string(podUID),
-				namespace:    "ns1",
-				name:         "mypod",
-				workloadName: "mypod",
-				workloadType: workloadTypePod,
-				labels:       map[string]string(nil),
+			want: &resolver.PodData{
+				UID:              string(podUID),
+				Namespace:        "ns1",
+				Name:             "mypod",
+				WorkloadName:     "mypod",
+				WorkloadType:     workloadTypePod,
+				PolicyLabelValue: "policy-1",
 			},
 		},
 		{
@@ -52,13 +52,12 @@ func TestGetPodInfo(t *testing.T) {
 					GenerateName: "mypod-",
 				},
 			},
-			want: &podInfo{
-				podID:        string(podUID),
-				namespace:    "ns1",
-				name:         "mypod-abc123",
-				workloadName: "mypod-abc123",
-				workloadType: workloadTypePod,
-				labels:       map[string]string(nil),
+			want: &resolver.PodData{
+				UID:          string(podUID),
+				Namespace:    "ns1",
+				Name:         "mypod-abc123",
+				WorkloadName: "mypod-abc123",
+				WorkloadType: workloadTypePod,
 			},
 		},
 		{
@@ -77,13 +76,12 @@ func TestGetPodInfo(t *testing.T) {
 					}},
 				},
 			},
-			want: &podInfo{
-				podID:        string(podUID),
-				namespace:    "ns1",
-				name:         "runtime-enforcer-controller-manager-6f4b9855c6-5zwq7",
-				workloadName: "runtime-enforcer-controller-manager-6f4b9855c6",
-				workloadType: workloadTypeReplicaSet,
-				labels:       map[string]string{},
+			want: &resolver.PodData{
+				UID:          string(podUID),
+				Namespace:    "ns1",
+				Name:         "runtime-enforcer-controller-manager-6f4b9855c6-5zwq7",
+				WorkloadName: "runtime-enforcer-controller-manager-6f4b9855c6",
+				WorkloadType: workloadTypeReplicaSet,
 			},
 		},
 		{
@@ -104,15 +102,12 @@ func TestGetPodInfo(t *testing.T) {
 					}},
 				},
 			},
-			want: &podInfo{
-				podID:        string(podUID),
-				namespace:    "ns1",
-				name:         "runtime-enforcer-controller-manager-6f4b9855c6-5zwq7",
-				workloadName: "runtime-enforcer-controller-manager", // this is the name of the deployment
-				workloadType: workloadTypeDeployment,
-				labels: map[string]string{
-					podTemplateHashLabel: "6f4b9855c6",
-				},
+			want: &resolver.PodData{
+				UID:          string(podUID),
+				Namespace:    "ns1",
+				Name:         "runtime-enforcer-controller-manager-6f4b9855c6-5zwq7",
+				WorkloadName: "runtime-enforcer-controller-manager", // this is the name of the deployment
+				WorkloadType: workloadTypeDeployment,
 			},
 		},
 		{
@@ -133,15 +128,12 @@ func TestGetPodInfo(t *testing.T) {
 					}},
 				},
 			},
-			want: &podInfo{
-				podID:        string(podUID),
-				namespace:    "ns1",
-				name:         "dc-pod-1",
-				workloadName: "my-dc",
-				workloadType: workloadTypeDeploymentConfig,
-				labels: map[string]string{
-					deploymentConfigLabel: "my-dc",
-				},
+			want: &resolver.PodData{
+				UID:          string(podUID),
+				Namespace:    "ns1",
+				Name:         "dc-pod-1",
+				WorkloadName: "my-dc",
+				WorkloadType: workloadTypeDeploymentConfig,
 			},
 		},
 		{
@@ -159,13 +151,12 @@ func TestGetPodInfo(t *testing.T) {
 					}},
 				},
 			},
-			want: &podInfo{
-				podID:        string(podUID),
-				namespace:    "ns1",
-				name:         "myjob-pod-1",
-				workloadName: "myjob",
-				workloadType: workloadTypeCronJob,
-				labels:       map[string]string(nil),
+			want: &resolver.PodData{
+				UID:          string(podUID),
+				Namespace:    "ns1",
+				Name:         "myjob-pod-1",
+				WorkloadName: "myjob",
+				WorkloadType: workloadTypeCronJob,
 			},
 		},
 		{
@@ -183,20 +174,19 @@ func TestGetPodInfo(t *testing.T) {
 					}},
 				},
 			},
-			want: &podInfo{
-				podID:        string(podUID),
-				namespace:    "ns1",
-				name:         "ubuntu-job-pq2qc",
-				workloadName: "ubuntu-job",
-				workloadType: workloadTypeJob,
-				labels:       map[string]string(nil),
+			want: &resolver.PodData{
+				UID:          string(podUID),
+				Namespace:    "ns1",
+				Name:         "ubuntu-job-pq2qc",
+				WorkloadName: "ubuntu-job",
+				WorkloadType: workloadTypeJob,
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getPodInfo(tt.pod)
+			got := getBasePodData(tt.pod)
 			require.Equal(t, tt.want, got)
 		})
 	}

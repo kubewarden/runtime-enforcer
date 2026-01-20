@@ -49,6 +49,7 @@ func NewResolver(
 	cgroupToPolicyMapUpdateFunc func(polID PolicyID, cgroupIDs []CgroupID, op bpf.CgroupPolicyOperation) error,
 	policyValuesFunc func(policyID uint64, values []string, op bpf.PolicyValuesOperation) error,
 	policyModeUpdateFunc func(policyID uint64, mode policymode.Mode, op bpf.PolicyModeOperation) error,
+	enableNRI bool,
 	nriSocketPath string,
 	nriPluginIndex string,
 ) (*Resolver, error) {
@@ -72,9 +73,11 @@ func NewResolver(
 		return nil, err
 	}
 
-	err = r.StartNriPluginWithRetry(ctx, r.StartNriPlugin)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start nri plugin: %w", err)
+	if enableNRI {
+		err = r.StartNriPluginWithRetry(ctx, r.StartNriPlugin)
+		if err != nil {
+			return nil, fmt.Errorf("failed to start nri plugin: %w", err)
+		}
 	}
 
 	// We deliberately ignore the returned cache.ResourceEventHandlerRegistration and error here because

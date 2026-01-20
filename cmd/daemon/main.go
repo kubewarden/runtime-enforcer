@@ -135,6 +135,7 @@ func startDaemon(ctx context.Context, logger *slog.Logger, config Config) error 
 		bpfManager.GetCgroupPolicyUpdateFunc(),
 		bpfManager.GetPolicyValuesUpdateFunc(),
 		bpfManager.GetPolicyModeUpdateFunc(),
+		false,
 		config.nriSocketPath,
 		config.nriPluginIdx,
 	)

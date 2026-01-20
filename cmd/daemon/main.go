@@ -10,7 +10,6 @@ import (
 	"github.com/neuvector/runtime-enforcer/internal/bpf"
 	"github.com/neuvector/runtime-enforcer/internal/eventhandler"
 	"github.com/neuvector/runtime-enforcer/internal/eventscraper"
-	"github.com/neuvector/runtime-enforcer/internal/policygenerator"
 	"github.com/neuvector/runtime-enforcer/internal/resolver"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -134,6 +133,8 @@ func startDaemon(ctx context.Context, logger *slog.Logger, config Config) error 
 		podInformer,
 		bpfManager.GetCgroupTrackerUpdateFunc(),
 		bpfManager.GetCgroupPolicyUpdateFunc(),
+		bpfManager.GetPolicyValuesUpdateFunc(),
+		bpfManager.GetPolicyModeUpdateFunc(),
 		config.nriSocketPath,
 		config.nriPluginIdx,
 	)
@@ -162,13 +163,7 @@ func startDaemon(ctx context.Context, logger *slog.Logger, config Config) error 
 	if err != nil {
 		return fmt.Errorf("cannot get workload policy informer: %w", err)
 	}
-	policygenerator.SetupPolicyGenerator(
-		logger,
-		workloadPolicyInformer,
-		resolver,
-		bpfManager.GetPolicyValuesUpdateFunc(),
-		bpfManager.GetPolicyModeUpdateFunc(),
-	)
+	_, _ = workloadPolicyInformer.AddEventHandler(resolver.PolicyEventHandlers())
 
 	logger.InfoContext(ctx, "starting manager")
 	if err = ctrlMgr.Start(ctx); err != nil {

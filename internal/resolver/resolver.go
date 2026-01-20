@@ -11,6 +11,7 @@ import (
 	"github.com/neuvector/runtime-enforcer/internal/bpf"
 	"github.com/neuvector/runtime-enforcer/internal/cgroups"
 	"github.com/neuvector/runtime-enforcer/internal/labels"
+	"github.com/neuvector/runtime-enforcer/internal/types/policymode"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -32,6 +33,10 @@ type Resolver struct {
 	policies        []policy
 	criResolver     *criResolver
 
+	nextPolicyID                PolicyID
+	wpState                     map[string]map[string]PolicyID
+	policyValuesFunc            func(policyID PolicyID, values []string, op bpf.PolicyValuesOperation) error
+	policyModeUpdateFunc        func(policyID PolicyID, mode policymode.Mode, op bpf.PolicyModeOperation) error
 	cgTrackerUpdateFunc         func(cgID uint64, cgroupPath string) error
 	cgroupToPolicyMapUpdateFunc func(polID PolicyID, cgroupIDs []CgroupID, op bpf.CgroupPolicyOperation) error
 	nriSocketPath               string
@@ -44,6 +49,8 @@ func NewResolver(
 	informer cmCache.Informer,
 	cgTrackerUpdateFunc func(cgID uint64, cgroupPath string) error,
 	cgroupToPolicyMapUpdateFunc func(polID PolicyID, cgroupIDs []CgroupID, op bpf.CgroupPolicyOperation) error,
+	policyValuesFunc func(policyID uint64, values []string, op bpf.PolicyValuesOperation) error,
+	policyModeUpdateFunc func(policyID uint64, mode policymode.Mode, op bpf.PolicyModeOperation) error,
 	nriSocketPath string,
 	nriPluginIndex string,
 ) (*Resolver, error) {
@@ -54,6 +61,9 @@ func NewResolver(
 		cgroupIDToPodID:             make(map[CgroupID]PodID),
 		cgTrackerUpdateFunc:         cgTrackerUpdateFunc,
 		cgroupToPolicyMapUpdateFunc: cgroupToPolicyMapUpdateFunc,
+		policyValuesFunc:            policyValuesFunc,
+		policyModeUpdateFunc:        policyModeUpdateFunc,
+		nextPolicyID:                PolicyID(1),
 		nriSocketPath:               nriSocketPath,
 		nriPluginIndex:              nriPluginIndex,
 	}

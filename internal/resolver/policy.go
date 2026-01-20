@@ -6,7 +6,6 @@ import (
 
 	"github.com/neuvector/runtime-enforcer/api/v1alpha1"
 	"github.com/neuvector/runtime-enforcer/internal/bpf"
-	"github.com/neuvector/runtime-enforcer/internal/labels"
 	"github.com/neuvector/runtime-enforcer/internal/types/policymode"
 	"k8s.io/client-go/tools/cache"
 )
@@ -17,67 +16,6 @@ const (
 	// PolicyIDNone is used to indicate no policy associated with the cgroup.
 	PolicyIDNone PolicyID = 0
 )
-
-//nolint:unused // next step
-type policy struct {
-	id PolicyID
-
-	// if namespace is "", policy applies to all namespaces
-	namespace string
-
-	containerSelector labels.Selector
-
-	podSelector labels.Selector
-}
-
-//nolint:unused // next step
-func (pol *policy) getID() PolicyID {
-	return pol.id
-}
-
-//nolint:unused // next step
-func (pol *policy) podInfoMatches(pod *podInfo) bool {
-	return pol.podMatches(pod.namespace, pod.labels)
-}
-
-//nolint:unused // next step
-func (pol *policy) podMatches(podNs string, podLabels labels.Labels) bool {
-	if pol.namespace != "" && podNs != pol.namespace {
-		return false
-	}
-	var podLabels1 labels.Labels
-	if podLabels != nil {
-		podLabels1 = podLabels
-	} else {
-		podLabels1 = make(labels.Labels)
-	}
-
-	if _, ok := podLabels1[labels.K8sPodNamespace]; !ok {
-		podLabels1[labels.K8sPodNamespace] = podNs
-	}
-
-	return pol.podSelector.Match(podLabels1)
-}
-
-//nolint:unused // next step
-func (pol *policy) containerMatchesFields(container *containerInfo) bool {
-	containerFilterFields := labels.Labels{
-		"name": container.name,
-		"repo": container.repo,
-	}
-	return pol.containerSelector.Match(containerFilterFields)
-}
-
-//nolint:unused // next step
-func (pol *policy) getMatchingContainersCgroupIDs(containers map[ContainerID]*containerInfo) []CgroupID {
-	var cgroupIDs []CgroupID
-	for _, container := range containers {
-		if pol.containerMatchesFields(container) {
-			cgroupIDs = append(cgroupIDs, container.cgID)
-		}
-	}
-	return cgroupIDs
-}
 
 func (r *Resolver) allocPolicyID() PolicyID {
 	id := r.nextPolicyID

@@ -15,25 +15,6 @@ func (pod *podState) getCgroupIDs() []CgroupID {
 	return cgroupIDs
 }
 
-//nolint:unused // next step
-func (pod *podState) getCgroupIDsHash() map[CgroupID]bool {
-	cgroupIDs := make(map[CgroupID]bool)
-	for _, container := range pod.containers {
-		cgroupIDs[container.cgID] = true
-	}
-	return cgroupIDs
-}
-
-//nolint:unused // next step
-func (pod *podState) getInfo() *podInfo {
-	return pod.info
-}
-
-//nolint:unused // next step
-func (pod *podState) getContainers() map[ContainerID]*containerInfo {
-	return pod.containers
-}
-
 func (pod *podState) matchPolicy(policyName string) bool {
 	v, ok := pod.info.labels[v1alpha1.PolicyLabelKey]
 	if !ok || v != policyName {

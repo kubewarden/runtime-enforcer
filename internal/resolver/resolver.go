@@ -29,9 +29,7 @@ type Resolver struct {
 	// todo!: we should add a cache with deleted pods/containers so that we can resolve also recently deleted ones
 	podCache        map[PodID]*podState
 	cgroupIDToPodID map[CgroupID]PodID
-	//nolint:unused // next step
-	policies    []policy
-	criResolver *criResolver
+	criResolver     *criResolver
 
 	nextPolicyID                PolicyID
 	wpState                     map[string]map[string]PolicyID

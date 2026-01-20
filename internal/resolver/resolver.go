@@ -13,8 +13,6 @@ import (
 	"github.com/neuvector/runtime-enforcer/internal/cgroups"
 	"github.com/neuvector/runtime-enforcer/internal/types/policymode"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/cache"
-	cmCache "sigs.k8s.io/controller-runtime/pkg/cache"
 )
 
 type CgroupID = uint64
@@ -44,7 +42,6 @@ type Resolver struct {
 func NewResolver(
 	ctx context.Context,
 	logger *slog.Logger,
-	informer cmCache.Informer,
 	cgTrackerUpdateFunc func(cgID uint64, cgroupPath string) error,
 	cgroupToPolicyMapUpdateFunc func(polID PolicyID, cgroupIDs []CgroupID, op bpf.CgroupPolicyOperation) error,
 	policyValuesFunc func(policyID uint64, values []string, op bpf.PolicyValuesOperation) error,
@@ -77,11 +74,6 @@ func NewResolver(
 		return nil, fmt.Errorf("failed to start nri plugin: %w", err)
 	}
 
-	// We deliberately ignore the returned cache.ResourceEventHandlerRegistration and error here because
-	// we don't need to remove the handler for the lifetime of the daemon and informer construction
-	// already succeeded.
-	_, _ = informer.AddEventHandler(r.EventHandlers())
-	// todo!: add handlers for the rthook
 	// todo!: we can do a first scan of all existing containers to populate the cache initially
 	return r, nil
 }
@@ -113,7 +105,7 @@ func (r *Resolver) podContainersResolveCgroups(state *podState) {
 	}
 }
 
-func (r *Resolver) addPod(pod *corev1.Pod) {
+func (r *Resolver) AddPod(pod *corev1.Pod) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -148,7 +140,7 @@ func (r *Resolver) addPod(pod *corev1.Pod) {
 	}
 }
 
-func (r *Resolver) deletePod(pod *corev1.Pod) {
+func (r *Resolver) DeletePod(pod *corev1.Pod) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -237,7 +229,7 @@ func (r *Resolver) updatePodContainers(state *podState, newContainers map[Contai
 	}
 }
 
-func (r *Resolver) updatePod(_ *corev1.Pod, newPod *corev1.Pod) {
+func (r *Resolver) UpdatePod(_ *corev1.Pod, newPod *corev1.Pod) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -258,64 +250,6 @@ func (r *Resolver) updatePod(_ *corev1.Pod, newPod *corev1.Pod) {
 	//////////////////////////
 
 	r.updatePodContainers(state, podContainersInfoWithoutCgroups(newPod))
-}
-
-// EventHandlers returns the event handlers for pod events.
-//
-// todo!: Using an informer is ok for now, but it is difficult to manage critical failures, for now we log errors but we should really handle them.
-// One solution could be to use a gRPC channel instead of informers. An external controller will send to each agent pod/workload-policies updates
-// only when necessary and will handle retry or policy redeployment in case of failure.
-func (r *Resolver) EventHandlers() cache.ResourceEventHandler {
-	return cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			pod, ok := obj.(*corev1.Pod)
-			if !ok {
-				r.logger.Error("add-pod handler: unexpected object type", "object", obj)
-				return
-			}
-			r.logger.Debug(
-				"add-pod handler called",
-				"pod-name", pod.Name,
-				"pod-namespace", pod.Namespace,
-				"pod-uid", string(pod.UID),
-			)
-			r.addPod(pod)
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldPod, ok := oldObj.(*corev1.Pod)
-			if !ok {
-				r.logger.Error("update-pod handler: unexpected object type", "old object", oldObj)
-				return
-			}
-			newPod, ok := newObj.(*corev1.Pod)
-			if !ok {
-				r.logger.Error("update-pod handler: unexpected object type", "new object", newObj)
-				return
-			}
-			r.logger.Debug(
-				"update-pod handler called",
-				"pod-name", newPod.Name,
-				"pod-namespace", newPod.Namespace,
-				"pod-uid", string(newPod.UID),
-			)
-			r.updatePod(oldPod, newPod)
-		},
-		DeleteFunc: func(obj interface{}) {
-			// Remove all containers for this pod
-			pod, ok := obj.(*corev1.Pod)
-			if !ok {
-				r.logger.Error("delete-pod handler: unexpected object type", "object", obj)
-				return
-			}
-			r.logger.Debug(
-				"delete-pod handler called",
-				"pod-name", pod.Name,
-				"pod-namespace", pod.Namespace,
-				"pod-uid", string(pod.UID),
-			)
-			r.deletePod(pod)
-		},
-	}
 }
 
 /////////////////////

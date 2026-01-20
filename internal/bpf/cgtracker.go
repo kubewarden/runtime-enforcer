@@ -28,6 +28,7 @@ func (m *Manager) updateCgTrackerMap(cgID uint64, cgroupPath string) error {
 		return fmt.Errorf("failed to update cgroup tracker map for id %d: %w", cgID, err)
 	}
 
+	// TODO!: i believe we don't really need this when we use NRI.
 	// We now walk the cgroup path to find all the child cgroups and map them to the same tracker id. This is useful is the container is already running and has already created child cgroups
 	var walkErr error
 	err := filepath.WalkDir(cgroupPath, func(p string, d os.DirEntry, err error) error {

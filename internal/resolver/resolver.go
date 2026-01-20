@@ -13,8 +13,6 @@ import (
 	"github.com/neuvector/runtime-enforcer/internal/labels"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/cache"
-	cmCache "sigs.k8s.io/controller-runtime/pkg/cache"
 )
 
 type CgroupID = uint64
@@ -27,7 +25,7 @@ type Resolver struct {
 	mu     sync.Mutex
 	logger *slog.Logger
 	// todo!: we should add a cache with deleted pods/containers so that we can resolve also recently deleted ones
-	podCache        map[PodID]*podState
+	podCache        map[PodID]*PodState
 	cgroupIDToPodID map[CgroupID]PodID
 	policies        []policy
 	criResolver     *criResolver
@@ -41,7 +39,6 @@ type Resolver struct {
 func NewResolver(
 	ctx context.Context,
 	logger *slog.Logger,
-	informer cmCache.Informer,
 	cgTrackerUpdateFunc func(cgID uint64, cgroupPath string) error,
 	cgroupToPolicyMapUpdateFunc func(polID PolicyID, cgroupIDs []CgroupID, op bpf.CgroupPolicyOperation) error,
 	nriSocketPath string,
@@ -50,7 +47,7 @@ func NewResolver(
 	var err error
 	r := &Resolver{
 		logger:                      logger.With("component", "resolver"),
-		podCache:                    make(map[PodID]*podState),
+		podCache:                    make(map[PodID]*PodState),
 		cgroupIDToPodID:             make(map[CgroupID]PodID),
 		cgTrackerUpdateFunc:         cgTrackerUpdateFunc,
 		cgroupToPolicyMapUpdateFunc: cgroupToPolicyMapUpdateFunc,
@@ -68,11 +65,6 @@ func NewResolver(
 		return nil, fmt.Errorf("failed to start nri plugin: %w", err)
 	}
 
-	// We deliberately ignore the returned cache.ResourceEventHandlerRegistration and error here because
-	// we don't need to remove the handler for the lifetime of the daemon and informer construction
-	// already succeeded.
-	_, _ = informer.AddEventHandler(r.EventHandlers())
-	// todo!: add handlers for the rthook
 	// todo!: we can do a first scan of all existing containers to populate the cache initially
 	return r, nil
 }
@@ -81,7 +73,7 @@ func NewResolver(
 // Pod handlers
 /////////////////////
 
-func (r *Resolver) recomputePodPolicies(state *podState) {
+func (r *Resolver) recomputePodPolicies(state *PodState) {
 	// Cgroups that are involved in new policies
 	involvedCgroupIDs := make(map[CgroupID]bool)
 	for _, pol := range r.policies {
@@ -118,6 +110,28 @@ func (r *Resolver) recomputePodPolicies(state *podState) {
 	}
 }
 
+func (r *Resolver) TmpGetPolicyIDForContainer(
+	pod *api.PodSandbox,
+	containerName string,
+) (PolicyID, bool) {
+	for _, pol := range r.policies {
+		if !pol.podInfoMatches(&podInfo{
+			namespace: pod.GetNamespace(),
+			labels:    pod.GetLabels(),
+		}) {
+			continue
+		}
+
+		if !pol.containerMatchesFields(&containerInfo{
+			name: containerName,
+		}) {
+			continue
+		}
+		return pol.id, true
+	}
+	return 0, false
+}
+
 func (r *Resolver) GetPolicyIDForContainer(
 	pod *api.PodSandbox,
 	container *api.Container,
@@ -140,7 +154,7 @@ func (r *Resolver) GetPolicyIDForContainer(
 	return 0, false
 }
 
-func (r *Resolver) applyPoliciesToPod(state *podState) {
+func (r *Resolver) applyPoliciesToPod(state *PodState) {
 	for _, pol := range r.policies {
 		if !pol.podInfoMatches(state.getInfo()) {
 			continue
@@ -160,7 +174,7 @@ func (r *Resolver) applyPoliciesToPod(state *podState) {
 	}
 }
 
-func (r *Resolver) podContainersResolveCgroups(state *podState) {
+func (r *Resolver) podContainersResolveCgroups(state *PodState) {
 	for cID, cInfo := range state.containers {
 		if cInfo.cgID != 0 {
 			// we assume it is already resolved in a previous step
@@ -200,7 +214,7 @@ func (r *Resolver) addPod(pod *corev1.Pod) {
 		return
 	}
 
-	state = &podState{
+	state = &PodState{
 		// When a pod is created it should have all the labels necessary for the workload resolution (e.g. pod-template-hash). If we face some issues we can consider to update the workload type/name also with pod updates.
 		info: getPodInfo(pod),
 		// populate containers info, but we still miss the cgroup for each container since we receive the pod from k8s api server
@@ -261,7 +275,7 @@ func (r *Resolver) deletePod(pod *corev1.Pod) {
 	}
 }
 
-func (r *Resolver) updatePodContainers(state *podState, newContainers map[ContainerID]*containerInfo) {
+func (r *Resolver) updatePodContainers(state *PodState, newContainers map[ContainerID]*containerInfo) {
 	// We handle deleted containers first
 	for cid, info := range state.containers {
 		if _, exists := newContainers[cid]; exists {
@@ -336,64 +350,6 @@ func (r *Resolver) updatePod(_ *corev1.Pod, newPod *corev1.Pod) {
 	r.updatePodContainers(state, podContainersInfoWithoutCgroups(newPod))
 }
 
-// EventHandlers returns the event handlers for pod events.
-//
-// todo!: Using an informer is ok for now, but it is difficult to manage critical failures, for now we log errors but we should really handle them.
-// One solution could be to use a gRPC channel instead of informers. An external controller will send to each agent pod/workload-policies updates
-// only when necessary and will handle retry or policy redeployment in case of failure.
-func (r *Resolver) EventHandlers() cache.ResourceEventHandler {
-	return cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			pod, ok := obj.(*corev1.Pod)
-			if !ok {
-				r.logger.Error("add-pod handler: unexpected object type", "object", obj)
-				return
-			}
-			r.logger.Debug(
-				"add-pod handler called",
-				"pod-name", pod.Name,
-				"pod-namespace", pod.Namespace,
-				"pod-uid", string(pod.UID),
-			)
-			r.addPod(pod)
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldPod, ok := oldObj.(*corev1.Pod)
-			if !ok {
-				r.logger.Error("update-pod handler: unexpected object type", "old object", oldObj)
-				return
-			}
-			newPod, ok := newObj.(*corev1.Pod)
-			if !ok {
-				r.logger.Error("update-pod handler: unexpected object type", "new object", newObj)
-				return
-			}
-			r.logger.Debug(
-				"update-pod handler called",
-				"pod-name", newPod.Name,
-				"pod-namespace", newPod.Namespace,
-				"pod-uid", string(newPod.UID),
-			)
-			r.updatePod(oldPod, newPod)
-		},
-		DeleteFunc: func(obj interface{}) {
-			// Remove all containers for this pod
-			pod, ok := obj.(*corev1.Pod)
-			if !ok {
-				r.logger.Error("delete-pod handler: unexpected object type", "object", obj)
-				return
-			}
-			r.logger.Debug(
-				"delete-pod handler called",
-				"pod-name", pod.Name,
-				"pod-namespace", pod.Namespace,
-				"pod-uid", string(pod.UID),
-			)
-			r.deletePod(pod)
-		},
-	}
-}
-
 /////////////////////
 // Policy handlers
 /////////////////////
@@ -448,14 +404,14 @@ func (r *Resolver) AddPolicy(polID PolicyID, namespace string, podLabelSelector 
 
 	// Need to find all cgroup IDs that match this policy now
 	cgroupIDs := make([]CgroupID, 0)
-	for _, podState := range r.podCache {
-		if !newPol.podInfoMatches(podState.getInfo()) {
+	for _, PodState := range r.podCache {
+		if !newPol.podInfoMatches(PodState.getInfo()) {
 			continue
 		}
-		matchingCgroups := newPol.getMatchingContainersCgroupIDs(podState.getContainers())
+		matchingCgroups := newPol.getMatchingContainersCgroupIDs(PodState.getContainers())
 		r.logger.Debug(
 			"found matching cgroups",
-			"pod-name", podState.info.name,
+			"pod-name", PodState.info.name,
 			"policy_id", polID,
 			"cgroup_ids", matchingCgroups,
 		)
@@ -573,12 +529,7 @@ func (r *Resolver) AddPodFromNRI(
 		return fmt.Errorf("failed to parse cgroup path: %w", err)
 	}
 
-	cgRoot, err := cgroups.GetHostCgroupRoot()
-	if err != nil {
-		return fmt.Errorf("failed to get host cgroup root: %w", err)
-	}
-
-	cgPath := filepath.Join(cgRoot, cgroupPath)
+	cgPath := filepath.Join(cgroups.GetHostCgroupRoot(), cgroupPath)
 
 	cgID, err := cgroups.GetCgroupIDFromPath(cgPath)
 	if err != nil {

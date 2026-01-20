@@ -10,6 +10,7 @@ import (
 	"github.com/neuvector/runtime-enforcer/internal/bpf"
 	"github.com/neuvector/runtime-enforcer/internal/eventhandler"
 	"github.com/neuvector/runtime-enforcer/internal/eventscraper"
+	"github.com/neuvector/runtime-enforcer/internal/podinformer"
 	"github.com/neuvector/runtime-enforcer/internal/policygenerator"
 	"github.com/neuvector/runtime-enforcer/internal/resolver"
 	"k8s.io/apimachinery/pkg/fields"
@@ -109,29 +110,11 @@ func startDaemon(ctx context.Context, logger *slog.Logger, config Config) error 
 	}
 
 	//////////////////////
-	// Create an informer for pods
-	//////////////////////
-	podInformer, err := ctrlMgr.GetCache().GetInformer(ctx, &corev1.Pod{})
-	if err != nil {
-		return fmt.Errorf("cannot get pod informer: %w", err)
-	}
-	// Add some indexes to the pod informer
-	// todo!: understand when we use them
-	err = podInformer.AddIndexers(cache.Indexers{
-		resolver.ContainerIdx: resolver.ContainerIndexFunc,
-		resolver.PodIdx:       resolver.PodIndexFunc,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot add indexers to pod informer: %w", err)
-	}
-
-	//////////////////////
 	// Create the resolver
 	//////////////////////
-	resolver, err := resolver.NewResolver(
+	r, err := resolver.NewResolver(
 		ctx,
 		logger,
-		podInformer,
 		bpfManager.GetCgroupTrackerUpdateFunc(),
 		bpfManager.GetCgroupPolicyUpdateFunc(),
 		config.nriSocketPath,
@@ -140,6 +123,27 @@ func startDaemon(ctx context.Context, logger *slog.Logger, config Config) error 
 	if err != nil {
 		return fmt.Errorf("failed to create resolver: %w", err)
 	}
+
+	//////////////////////
+	// Create an informer for pods
+	//////////////////////
+	podInf, err := ctrlMgr.GetCache().GetInformer(ctx, &corev1.Pod{})
+	if err != nil {
+		return fmt.Errorf("cannot get pod informer: %w", err)
+	}
+	// Add some indexes to the pod informer
+	// todo!: understand when we use them
+	err = podInf.AddIndexers(cache.Indexers{
+		podinformer.ContainerIdx: podinformer.ContainerIndexFunc,
+		podinformer.PodIdx:       podinformer.PodIndexFunc,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot add indexers to pod informer: %w", err)
+	}
+	// We deliberately ignore the returned cache.ResourceEventHandlerRegistration and error here because
+	// we don't need to remove the handler for the lifetime of the daemon and informer construction
+	// already succeeded.
+	_, _ = podInf.AddEventHandler(podinformer.EventHandlers(logger, r))
 
 	//////////////////////
 	// Create the scraper

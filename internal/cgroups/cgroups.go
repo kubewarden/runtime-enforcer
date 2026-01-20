@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"syscall"
 
 	"go.uber.org/multierr"
@@ -36,6 +35,19 @@ const (
 	// todo!: make this configurable.
 	defaultProcFSPath = "/proc"
 )
+
+var (
+	cgroupRootPath string //nolint:gochecknoglobals // we want it global for a global function.
+)
+
+//nolint:gochecknoinits // we want to compute it at package initialization
+func init() {
+	var err error
+	cgroupRootPath, err = getHostCgroupRoot()
+	if err != nil {
+		panic(fmt.Errorf("failed to get host cgroup root: %w", err))
+	}
+}
 
 type FileHandle struct {
 	ID uint64
@@ -211,22 +223,13 @@ func detectCgroupFSMagic(cgroupRoot string) (uint64, error) {
 	}
 }
 
-var (
-	cgroupRootCheckOnce sync.Once //nolint:gochecknoglobals // we want it global for a global function.
-	cgroupRootPath      string    //nolint:gochecknoglobals // we want it global for a global function.
-	errCgroupRootPath   error
-)
-
 // GetHostCgroupRoot tries to retrieve the host cgroup root
 //
 // for now we are checking /sys/fs/cgroup under host /proc's init.
 // For systems where the cgroup is mounted in a non-standard location, we could
 // also check host's /proc/mounts.
-func GetHostCgroupRoot() (string, error) {
-	cgroupRootCheckOnce.Do(func() {
-		cgroupRootPath, errCgroupRootPath = getHostCgroupRoot()
-	})
-	return cgroupRootPath, errCgroupRootPath
+func GetHostCgroupRoot() string {
+	return cgroupRootPath
 }
 
 func getHostCgroupRoot() (string, error) {
@@ -261,10 +264,7 @@ func getHostCgroupRoot() (string, error) {
 // GetCgroupInfo retrieves cgroup information such as cgroup root, fs magic and subsys index.
 func GetCgroupInfo(logger *slog.Logger) (*CgroupInfo, error) {
 	// We first need to find the host cgroup root. We still don't know if it is v1 or v2.
-	cgroupRoot, err := GetHostCgroupRoot()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get host cgroup root: %w", err)
-	}
+	cgroupRoot := GetHostCgroupRoot()
 
 	// Understand cgroupfs magic
 	cgroupFsMagic, err := detectCgroupFSMagic(cgroupRoot)

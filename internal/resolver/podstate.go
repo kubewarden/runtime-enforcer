@@ -1,11 +1,23 @@
 package resolver
 
-type podState struct {
+type PodState struct {
 	info       *podInfo
 	containers map[ContainerID]*containerInfo
 }
 
-func (pod *podState) getCgroupIDs() []CgroupID {
+func (pod *PodState) podUid() PodID {
+	return pod.info.podID
+}
+
+func (pod *PodState) podName() PodID {
+	return pod.info.name
+}
+
+func (pod *PodState) podNameSpace() PodID {
+	return pod.info.namespace
+}
+
+func (pod *PodState) getCgroupIDs() []CgroupID {
 	var cgroupIDs []CgroupID
 	for _, container := range pod.containers {
 		cgroupIDs = append(cgroupIDs, container.cgID)
@@ -13,7 +25,7 @@ func (pod *podState) getCgroupIDs() []CgroupID {
 	return cgroupIDs
 }
 
-func (pod *podState) getCgroupIDsHash() map[CgroupID]bool {
+func (pod *PodState) getCgroupIDsHash() map[CgroupID]bool {
 	cgroupIDs := make(map[CgroupID]bool)
 	for _, container := range pod.containers {
 		cgroupIDs[container.cgID] = true
@@ -21,10 +33,10 @@ func (pod *podState) getCgroupIDsHash() map[CgroupID]bool {
 	return cgroupIDs
 }
 
-func (pod *podState) getInfo() *podInfo {
+func (pod *PodState) getInfo() *podInfo {
 	return pod.info
 }
 
-func (pod *podState) getContainers() map[ContainerID]*containerInfo {
+func (pod *PodState) getContainers() map[ContainerID]*containerInfo {
 	return pod.containers
 }

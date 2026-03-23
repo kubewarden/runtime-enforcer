@@ -1,0 +1,75 @@
+name: do-the-job
+on: pull_request
+jobs:
+  start-runner:
+    name: Start self-hosted EC2 runner
+    runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          ec2-image-id: ami-03caad32a158f72db
+          ec2-instance-type: t2.xlarge
+          subnet-id: subnet-09d3136bb89ccbcbd
+          security-group-id: sg-08bb9a3389445b63a
+  do-the-job:
+    name: Do the job on the runner
+    needs: start-runner # required to start the main job when the runner is ready
+    runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+      - name: Install dependency libraries
+        run: |
+          sudo yum install -y \
+          clang
+      - name: Install RKE2 Server
+        run: |
+          curl -sfL https://get.rke2.io | sudo sh -
+          sudo systemctl enable rke2-server.service
+          sudo systemctl start rke2-server.service
+      - name: Verify RKE2 Installation
+        run: |
+          export PATH=$PATH:/var/lib/rancher/rke2/bin
+          sudo ln -s /var/lib/rancher/rke2/bin/kubectl /usr/local/bin/kubectl
+          mkdir -p ~/.kube/
+          sudo ln -s /etc/rancher/rke2/rke2.yaml ~/.kube/config
+          sudo chmod 444 ~/.kube/config
+          kubectl get nodes -o wide
+      - name: Run e2e test
+        run: |
+          E2E_USE_EXISTING_CLUSTER=true go test -v -timeout 20m ./test/e2e/
+  stop-runner:
+    name: Stop self-hosted EC2 runner
+    needs:
+      - start-runner # required to get output from the start-runner job
+      - do-the-job # required to wait when the main job is done
+    runs-on: ubuntu-latest
+    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Stop EC2 runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: stop
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}

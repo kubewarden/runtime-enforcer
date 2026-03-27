@@ -1,0 +1,99 @@
+{{- /*
+  kernels defines per-series metadata:
+    - id: unique identifier used as YAML key (no dots)
+    - minor: "major.minor" used in regexes and artifact lookup
+    - artifact_arch: Ubuntu mainline architecture that must exist
+    - targets: list of files to update for that kernel series
+*/ -}}
+{{- $kernels := list
+  (dict "id" "5-10" "minor" "5.10" "artifact_arch" "amd64"
+    "targets" (list
+      "bpfvalidator-amd64-config.yaml"))
+  (dict "id" "5-15" "minor" "5.15" "artifact_arch" "amd64"
+    "targets" (list
+      "bpfvalidator-amd64-config.yaml"))
+  (dict "id" "6-1"  "minor" "6.1" "artifact_arch" "amd64"
+    "targets" (list
+      "bpfvalidator-amd64-config.yaml"))
+  (dict "id" "6-6"  "minor" "6.6" "artifact_arch" "arm64"
+    "targets" (list
+      "bpfvalidator-amd64-config.yaml"
+      "bpfvalidator-arm64-config.yaml"))
+  (dict "id" "6-12" "minor" "6.12" "artifact_arch" "arm64"
+    "targets" (list
+      "bpfvalidator-amd64-config.yaml"
+      "bpfvalidator-arm64-config.yaml"))
+  (dict "id" "6-17" "minor" "6.17" "artifact_arch" "amd64"
+    "targets" (list
+      "bpfvalidator-amd64-config.yaml"))
+  (dict "id" "6-18" "minor" "6.18" "artifact_arch" "amd64"
+    "targets" (list
+      "bpfvalidator-amd64-config.yaml"))
+  (dict "id" "6-19" "minor" "6.19" "artifact_arch" "amd64"
+    "targets" (list
+      "bpfvalidator-amd64-config.yaml"))
+-}}
+name: Update BPF validator kernel versions
+
+pipelineid: bpf/kernel-versions
+
+sources:
+{{ range $k := $kernels }}
+  kernel-{{ $k.id }}:
+    name: Get latest kernel {{ $k.minor }}.x with {{ $k.artifact_arch }} artifacts from Ubuntu mainline
+    kind: shell
+    spec:
+      command: ./updatecli/scripts/latest-ubuntu-mainline-kernel.sh {{ $k.minor }} {{ $k.artifact_arch }}
+{{ end }}
+
+targets:
+{{ range $k := $kernels }}
+{{ range $file := $k.targets }}
+  {{ $file | replace "bpfvalidator-" "" | replace "-config.yaml" "" }}-kernel-{{ $k.id }}:
+    name: 'deps(bpf): update {{ $file | replace "bpfvalidator-" "" | replace "-config.yaml" "" }} kernel {{ $k.minor }}.x to {{ "{{" }} source "kernel-{{ $k.id }}" {{ "}}" }}'
+    sourceid: kernel-{{ $k.id }}
+    kind: file
+    scmid: default
+    spec:
+      file: {{ $file }}
+      matchpattern: '(?m)^[[:space:]]*-[[:space:]]*v{{ $k.minor | replace "." "\\." }}\.\d+[[:space:]]*$'
+      content: '    - {{ "{{" }} source "kernel-{{ $k.id }}" {{ "}}" }}'
+{{ end }}
+{{ end }}
+
+actions:
+  default:
+    title: 'deps(bpf): update BPF validator kernel versions'
+    kind: github/pullrequest
+    scmid: default
+    spec:
+      automerge: false
+      mergemethod: squash
+      description: |
+        Automatic kernel version update for the BPF validator configs.
+        This PR has been created by the automation used to automatically update
+        the kernel versions tested in bpfvalidator-amd64-config.yaml and
+        bpfvalidator-arm64-config.yaml against the latest available builds on
+        https://kernel.ubuntu.com/mainline/.
+        REMEMBER IF YOU WANT TO MERGE IN A SINGLE COMMIT CHANGES AND VERSION BUMP,
+        YOU MUST SQUASH THE COMMIT BEFORE MERGING THIS PR!
+      draft: false
+      labels:
+        - "chore"
+        - "dependencies"
+
+scms:
+  default:
+    kind: github
+    spec:
+      user: "{{ .github.author }}"
+      email: "{{ .github.email }}"
+      owner: "{{ requiredEnv .github.owner }}"
+      repository: "runtime-enforcer"
+      token: "{{ requiredEnv .github.token }}"
+      username: "{{ requiredEnv .github.user }}"
+      branch: "{{ .github.branch }}"
+      commitusingapi: true
+      commitmessage:
+        type: "chore"
+        scope: deps

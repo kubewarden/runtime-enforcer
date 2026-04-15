@@ -377,6 +377,10 @@
                 "interval": {
                     "type": "string"
                 },
+                "nodeSelector": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
                 "resources": {
                     "type": "object",
                     "properties": {

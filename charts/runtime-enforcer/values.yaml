@@ -158,6 +158,9 @@ debugger:
     requests:
       cpu: 500m
       memory: 128Mi
+  # debugger.nodeSelector -- Node selector for the debugger pods.
+  # @schema additionalProperties:true
+  nodeSelector: {}
 
 # Learning mode configuration
 learning:

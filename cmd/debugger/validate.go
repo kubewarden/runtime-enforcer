@@ -22,30 +22,20 @@ const staticPodAnnotation = "kubernetes.io/config.mirror"
 
 type nodeName = string
 
-func printAgentCache(w io.Writer,
-	agentCachePerNode map[nodeName][]*agentv1.PodView) {
-	nodes := make([]string, 0, len(agentCachePerNode))
-	for n := range agentCachePerNode {
-		nodes = append(nodes, n)
-	}
-	sort.Strings(nodes)
-
-	fmt.Fprintln(w, "=== Agent Caches Dump ===")
-	// For each node
-	for _, node := range nodes {
-		cache := agentCachePerNode[node]
-		fmt.Fprintf(w, "\nNode: %s (%d pods)\n", node, len(cache))
-		for _, view := range cache {
-			fmt.Fprintf(
-				w,
-				"- pod: (%s/%s)-%s\n",
-				view.GetMeta().GetNamespace(),
-				view.GetMeta().GetName(),
-				view.GetMeta().GetId(),
-			)
-			for containerID, containerMeta := range view.GetContainers() {
-				fmt.Fprintf(w, "-- container: (id=%s) %s\n", containerID, containerMeta.GetName())
-			}
+func printNodeAgentCache(w io.Writer,
+	nodeName string,
+	nodeCache []*agentv1.PodView) {
+	fmt.Fprintf(w, "=== Node '%s' cache dump (%d pods) ===\n", nodeName, len(nodeCache))
+	for _, view := range nodeCache {
+		fmt.Fprintf(
+			w,
+			"- pod: (%s/%s)-%s\n",
+			view.GetMeta().GetNamespace(),
+			view.GetMeta().GetName(),
+			view.GetMeta().GetId(),
+		)
+		for containerID, containerMeta := range view.GetContainers() {
+			fmt.Fprintf(w, "-- container: (id=%s) %s\n", containerID, containerMeta.GetName())
 		}
 	}
 	fmt.Fprintln(w)
@@ -58,9 +48,13 @@ func validateAgentCache(w io.Writer,
 	hasDiff := false
 
 	if len(expectedCachePerNode) != len(agentCachePerNode) {
-		fmt.Fprintf(w, "- Mismatch on nodes number: expected %d nodes, got %d\n",
-			len(expectedCachePerNode), len(agentCachePerNode))
-		hasDiff = true
+		// This is possible for example when the runtime enforcer is not installed on some agents.
+		fmt.Fprintf(
+			w,
+			"- Some nodes in the cluster don't have an agent cache. Nodes in the cluster: %d, agent caches: %d.\n",
+			len(expectedCachePerNode),
+			len(agentCachePerNode),
+		)
 	}
 
 	// We are sure the number of nodes is the same
@@ -68,7 +62,7 @@ func validateAgentCache(w io.Writer,
 		// Skip nodes without an agent cache
 		actualPods, ok := agentCachePerNode[nodeName]
 		if !ok {
-			fmt.Fprintf(w, "- node %s: no agent cache available\n", nodeName)
+			fmt.Fprintf(w, "- node '%s': no agent cache available\n", nodeName)
 			continue
 		}
 
@@ -84,6 +78,8 @@ func validateAgentCache(w io.Writer,
 			fmt.Fprintf(w, "- cache on node '%s' is not aligned\n%s\n",
 				nodeName, diff)
 			hasDiff = true
+			// In case of diff, print the agent cache
+			printNodeAgentCache(w, nodeName, agentCachePerNode[nodeName])
 		}
 	}
 
@@ -91,8 +87,6 @@ func validateAgentCache(w io.Writer,
 		fmt.Fprintln(w, "caches are aligned")
 	} else {
 		fmt.Fprintln(w, "caches are not aligned")
-		// In case of diff, print the agent cache
-		printAgentCache(w, agentCachePerNode)
 	}
 }
 

@@ -9,6 +9,7 @@ spec:
     spec:
       template:
         spec:
+          terminationGracePeriodSeconds: 1
           containers:
           - name: ubuntu
             image: ubuntu

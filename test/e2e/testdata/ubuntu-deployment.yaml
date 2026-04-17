@@ -17,6 +17,7 @@ spec:
         app: ubuntu
         type: deployment
     spec:
+      terminationGracePeriodSeconds: 1
       containers:
       - name: ubuntu
         image: ubuntu

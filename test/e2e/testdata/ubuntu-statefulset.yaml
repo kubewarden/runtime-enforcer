@@ -17,6 +17,7 @@ spec:
         app: ubuntu
         type: statefulset
     spec:
+      terminationGracePeriodSeconds: 1
       containers:
       - name: ubuntu
         image: ubuntu

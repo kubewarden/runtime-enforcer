@@ -254,7 +254,7 @@ func TestValidateAgentCache(t *testing.T) {
 				nodeName1: {podA},
 				nodeName2: {podB},
 			},
-			expectedOutput: []string{"Mismatch on nodes number", "caches are not aligned"},
+			expectedOutput: []string{"Some nodes in the cluster don't have an agent cache", "caches are aligned"},
 		},
 		{
 			name: "pod mismatch",

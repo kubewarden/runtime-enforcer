@@ -25,10 +25,10 @@ controller:
   resources:
     limits:
       cpu: 500m
-      memory: 128Mi
+      memory: 256Mi
     requests:
       cpu: 500m
-      memory: 128Mi
+      memory: 256Mi
   wpStatusUpdateInterval: 30s
   # The podSecurityContext used by runtime-enforcer controller
   # @schema additionalProperties:true
@@ -154,10 +154,10 @@ debugger:
   resources:
     limits:
       cpu: 500m
-      memory: 128Mi
+      memory: 256Mi
     requests:
       cpu: 500m
-      memory: 128Mi
+      memory: 256Mi
   # debugger.nodeSelector -- Node selector for the debugger pods.
   # @schema additionalProperties:true
   nodeSelector: {}

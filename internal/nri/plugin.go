@@ -20,6 +20,8 @@ type plugin struct {
 	resolver        *resolver.Resolver
 	lastErr         error
 	failOpen        bool
+	ociHookSocket   string
+	ociHookBin      string
 	resolveCgroupID func(container *api.Container) (resolver.CgroupID, string, error)
 }
 
@@ -171,6 +173,30 @@ func (p *plugin) Synchronize(
 	p.resolver.NRISynchronized()
 	p.logger.InfoContext(ctx, "Pod sandboxes synchronized")
 	return nil, nil
+}
+
+// CreateContainer injects an OCI createRuntime hook so runc invokes oci-hook before container init.
+func (p *plugin) CreateContainer(
+	ctx context.Context,
+	pod *api.PodSandbox,
+	container *api.Container,
+) (*api.ContainerAdjustment, []*api.ContainerUpdate, error) {
+	if p.ociHookSocket == "" || p.ociHookBin == "" {
+		return nil, nil, nil
+	}
+
+	p.containerLogger(pod, container).DebugContext(ctx, "CreateContainer: injecting OCI createRuntime hook")
+
+	adjust := &api.ContainerAdjustment{}
+	adjust.AddHooks(&api.Hooks{
+		CreateRuntime: []*api.Hook{
+			{
+				Path: p.ociHookBin,
+				Args: []string{p.ociHookBin, "-socket", p.ociHookSocket, "createRuntime"},
+			},
+		},
+	})
+	return adjust, nil, nil
 }
 
 func (p *plugin) StartContainer(

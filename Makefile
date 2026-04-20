@@ -156,6 +156,10 @@ kubectl-plugin-cross: ## Build kubectl plugin for all target platforms.
 debugger: generate-ebpf fmt ## Build debugger binary.
 	CGO_ENABLED=0 GOOS=linux go build -o bin/debugger ./cmd/debugger
 
+.PHONY: oci-hook
+oci-hook: fmt ## Build OCI hook binary.
+	CGO_ENABLED=0 GOOS=linux go build -o bin/oci-hook ./cmd/oci-hook
+
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./cmd/controller/main.go

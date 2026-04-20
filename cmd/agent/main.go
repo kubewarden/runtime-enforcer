@@ -23,6 +23,7 @@ import (
 	"github.com/rancher-sandbox/runtime-enforcer/internal/eventscraper"
 	"github.com/rancher-sandbox/runtime-enforcer/internal/grpcexporter"
 	"github.com/rancher-sandbox/runtime-enforcer/internal/nri"
+	"github.com/rancher-sandbox/runtime-enforcer/internal/ocihook"
 	"github.com/rancher-sandbox/runtime-enforcer/internal/resolver"
 	"github.com/rancher-sandbox/runtime-enforcer/internal/types/loglevel"
 	"github.com/rancher-sandbox/runtime-enforcer/internal/workloadpolicyhandler"
@@ -43,6 +44,8 @@ type Config struct {
 	learningNamespaceSelector string
 	nriSocketPath             string
 	nriPluginIdx              string
+	ociHookSocket             string
+	ociHookBin                string
 	probeAddr                 string
 	grpcConf                  grpcexporter.Config
 	logLevel                  string
@@ -247,6 +250,8 @@ func startAgent(ctx context.Context, logger *slog.Logger, config Config) error {
 	nriHandler, err = nri.NewNRIHandler(
 		config.nriSocketPath,
 		config.nriPluginIdx,
+		config.ociHookSocket,
+		config.ociHookBin,
 		logger,
 		resolver,
 	)
@@ -287,6 +292,17 @@ func startAgent(ctx context.Context, logger *slog.Logger, config Config) error {
 	)
 	if err = ctrlMgr.Add(evtScraper); err != nil {
 		return fmt.Errorf("failed to add event scraper to controller manager: %w", err)
+	}
+
+	//////////////////////
+	// Add OCI hook handler
+	//////////////////////
+	ociHook := ocihook.NewHandler(
+		config.ociHookSocket,
+		bpfManager.GetCgroupTrackerUpdateFunc(),
+	)
+	if err = ctrlMgr.Add(ociHook); err != nil {
+		return fmt.Errorf("failed to add OCI hook handler to controller manager: %w", err)
 	}
 
 	//////////////////////
@@ -337,6 +353,8 @@ func parseFlags() Config {
 	)
 	flag.StringVar(&config.nriSocketPath, "nri-socket-path", "/var/run/nri/nri.sock", "NRI socket path")
 	flag.StringVar(&config.nriPluginIdx, "nri-plugin-index", "00", "NRI plugin index")
+	flag.StringVar(&config.ociHookSocket, "oci-hook-socket", "/var/run/oci/oci-hook.sock", "OCI hook socket path")
+	flag.StringVar(&config.ociHookBin, "oci-hook-bin", "/var/run/oci/oci-hook", "OCI hook binary path")
 	flag.StringVar(&config.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.IntVar(&config.grpcConf.Port, "grpc-port", 50051, "gRPC server port")
 	flag.BoolVar(&config.grpcConf.MTLSEnabled, "grpc-mtls-enabled", true,

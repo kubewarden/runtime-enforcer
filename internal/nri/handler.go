@@ -19,21 +19,26 @@ const (
 )
 
 type Handler struct {
-	socketPath  string
-	pluginIndex string
-	logger      *slog.Logger
-	resolver    *resolver.Resolver
+	socketPath    string
+	pluginIndex   string
+	ociHookSocket string
+	ociHookBin    string
+	logger        *slog.Logger
+	resolver      *resolver.Resolver
 }
 
 func newNRIPlugin(
 	logger *slog.Logger,
 	resolver *resolver.Resolver,
+	ociHookSocket, ociHookBin string,
 	opts ...stub.Option,
 ) (*plugin, error) {
 	var err error
 	p := &plugin{
 		logger:          logger.With("component", "nri-plugin"),
 		resolver:        resolver,
+		ociHookSocket:   ociHookSocket,
+		ociHookBin:      ociHookBin,
 		failOpen:        os.Getenv("NRI_FAILOPEN") == "true",
 		resolveCgroupID: cgroupFromContainer,
 	}
@@ -66,14 +71,17 @@ func (p *plugin) Run(ctx context.Context) error {
 
 func NewNRIHandler(
 	socketPath, pluginIndex string,
+	ociHookSocket, ociHookBin string,
 	logger *slog.Logger,
 	r *resolver.Resolver,
 ) (*Handler, error) {
 	h := &Handler{
-		socketPath:  socketPath,
-		pluginIndex: pluginIndex,
-		logger:      logger.With("component", "nri-handler"),
-		resolver:    r,
+		socketPath:    socketPath,
+		pluginIndex:   pluginIndex,
+		ociHookSocket: ociHookSocket,
+		ociHookBin:    ociHookBin,
+		logger:        logger.With("component", "nri-handler"),
+		resolver:      r,
 	}
 	if err := h.checkNRISupport(); err != nil {
 		return nil, fmt.Errorf("NRI support check failed: %w", err)
@@ -118,6 +126,8 @@ func (h *Handler) startNRIPlugin(ctx context.Context) error {
 	p, err := newNRIPlugin(
 		h.logger,
 		h.resolver,
+		h.ociHookSocket,
+		h.ociHookBin,
 		stub.WithLogger(newNRILogger(h.logger)),
 		stub.WithPluginName("runtime-enforcer-agent"),
 		stub.WithPluginIdx(h.pluginIndex),

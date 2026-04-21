@@ -1,0 +1,19 @@
+FROM docker.io/library/golang:1.26.2 AS builder
+
+WORKDIR /src
+COPY api/ /src/api
+COPY cmd/ /src/cmd
+COPY pkg/ /src/pkg
+COPY proto/ /src/proto
+COPY internal/ /src/internal
+COPY go.mod go.sum /src/
+COPY Makefile /src/
+
+RUN make oci-hook && chmod +x /src/bin/oci-hook
+
+FROM alpine
+WORKDIR /
+COPY --from=builder /src/bin/oci-hook /oci-hook
+RUN chmod +x /oci-hook
+
+ENTRYPOINT ["/bin/sh"]

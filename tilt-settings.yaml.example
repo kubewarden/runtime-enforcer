@@ -5,5 +5,7 @@ agent:
     enable-otel-tracing: true/false
 debugger:
     image: <your-repository>/debugger
+oci_hook_installer:
+    image: <your-repository>/oci-hook-installer
 clusters:
     - <your non-kind cluster>

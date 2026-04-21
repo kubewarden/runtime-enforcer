@@ -1,0 +1,6 @@
+FROM alpine
+WORKDIR /
+COPY ./bin/oci-hook /oci-hook
+RUN chmod +x /oci-hook
+
+ENTRYPOINT ["/bin/sh"]

@@ -41,6 +41,8 @@ spec:
         - --grpc-port={{ .Values.agent.grpcExporterPort }}
         - --grpc-mtls-cert-dir={{ include "runtime-enforcer.grpc.certDir" . }}
         - --log-level={{ .Values.agent.logLevel }}
+        - --oci-hook-socket={{ include "runtime-enforcer.ociHook.socket" . }}
+        - --oci-hook-bin={{ include "runtime-enforcer.ociHook.bin" . }}
         {{- toYaml .Values.agent.args | nindent 8 }}
         command:
         - /agent
@@ -99,6 +101,8 @@ spec:
         resources: {{- toYaml .Values.agent.resources | nindent 10 }}
         securityContext: {{- toYaml .Values.agent.containerSecurityContext | nindent 10 }}
         volumeMounts:
+        - name: oci-hook-path
+          mountPath: {{ include "runtime-enforcer.ociHook.dir" . }}
         - name: nri-socket
           mountPath: /var/run/nri/
           mountPropagation: HostToContainer
@@ -134,6 +138,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
+      - name: oci-hook-path
+        hostPath:
+          path: {{ include "runtime-enforcer.ociHook.dir" . }}
+          type: DirectoryOrCreate
       - name: nri-socket
         hostPath:
           path: {{ .Values.agent.nriSocketPath }}

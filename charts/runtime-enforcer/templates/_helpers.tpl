@@ -80,6 +80,12 @@ app.kubernetes.io/component: agent
 {{ include "runtime-enforcer.selectorLabels" . }}
 {{- end -}}
 
+{{/* oci-hook install DaemonSet pod labels / selector */}}
+{{- define "runtime-enforcer.ociHookInstall.labelSelector" -}}
+app.kubernetes.io/component: oci-hook-install
+{{ include "runtime-enforcer.selectorLabels" . }}
+{{- end -}}
+
 {{/*
 Convert labels rendered as YAML (e.g. "k: v\nk2: v2") into a comma-separated selector string "k=v,k2=v2".
 Usage:
@@ -99,4 +105,17 @@ Usage:
 {{/* Convenience: agent selector string */}}
 {{- define "runtime-enforcer.agent.labelSelectorString" -}}
 {{- include "runtime-enforcer.labelSelectorToString" (include "runtime-enforcer.agent.labelSelector" .) -}}
+{{- end -}}
+
+{{/* Host + container directory for OCI socket and oci-hook binary (see .Values.ociHook.path). */}}
+{{- define "runtime-enforcer.ociHook.dir" -}}
+{{- trimSuffix "/" .Values.ociHook.path -}}
+{{- end -}}
+
+{{- define "runtime-enforcer.ociHook.socket" -}}
+{{- printf "%s/oci-hook.sock" (include "runtime-enforcer.ociHook.dir" .) -}}
+{{- end -}}
+
+{{- define "runtime-enforcer.ociHook.bin" -}}
+{{- printf "%s/oci-hook" (include "runtime-enforcer.ociHook.dir" .) -}}
 {{- end -}}

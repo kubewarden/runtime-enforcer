@@ -117,7 +117,7 @@ func runCreateRuntime(logger *slog.Logger, cfg Config) error {
 
 func main() {
 	var cfg Config
-	flag.StringVar(&cfg.SocketPath, "socket", "/var/run/oci/oci-hook.sock", "OCI socket path")
+	flag.StringVar(&cfg.SocketPath, "socket", "/opt/oci/oci-hook.sock", "OCI socket path")
 	flag.DurationVar(
 		&cfg.Timeout,
 		"timeout",

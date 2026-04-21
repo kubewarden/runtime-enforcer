@@ -29,10 +29,12 @@ namespace_create("runtime-enforcer")
 controller_image = settings.get("controller").get("image")
 agent_image = settings.get("agent").get("image")
 debugger_image = settings.get("debugger").get("image")
+oci_hook_installer_image = settings.get("oci_hook_installer").get("image")
 
 helm_options = [
         "controller.image.repository=" + controller_image,
         "agent.image.repository=" + agent_image,
+        "ociHook.install.image.repository=" + oci_hook_installer_image,
         "controller.replicas=1",
         "controller.containerSecurityContext.runAsUser=null",
         "controller.podSecurityContext.runAsNonRoot=false",
@@ -124,6 +126,31 @@ docker_build_with_restart(
     ],
     live_update=[
         sync("./bin/agent", "/agent"),
+    ],
+)
+
+local_resource(
+    "oci_hook_installer_tilt",
+    "make oci-hook",
+    deps=[
+        "go.mod",
+        "go.sum",
+        "cmd/oci-hook",
+        "internal",
+        "pkg",
+    ],
+    ignore = exclusions,
+)
+
+docker_build(
+    oci_hook_installer_image,
+    ".",
+    dockerfile="./hack/Dockerfile.oci-hook-installer.tilt",
+    only=[
+        "./bin/oci-hook",
+    ],
+    live_update=[
+        sync("./bin/oci-hook", "/oci-hook"),
     ],
 )
 

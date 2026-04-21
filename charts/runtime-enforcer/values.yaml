@@ -131,6 +131,28 @@ agent:
   affinity: {}
   nriSocketPath: /var/run/nri/
   nriFailopen: false
+
+# OCI hook: host paths; separate DaemonSet copies /oci-hook from oci-hook-installer to the host (see templates/agent/oci-hook-install-daemonset.yaml).
+# Agent mounts ociHook.path and passes --oci-hook-* flags; built as make build-oci-hook-installer-image (CI matrix oci-hook-installer).
+ociHook:
+  path: /opt/oci/
+  install:
+    image:
+      repository: ghcr.io/rancher-sandbox/runtime-enforcer/oci-hook-installer
+      tag: v0.5.0
+      pullPolicy: IfNotPresent
+    # @schema additionalProperties:true
+    podAnnotations: {}
+    # @schema additionalProperties:true
+    podLabels: {}
+    resources:
+      limits:
+        cpu: 50m
+        memory: 32Mi
+      requests:
+        cpu: 10m
+        memory: 16Mi
+
 kubernetesClusterDomain: cluster.local
 
 ## Optional array of imagePullSecrets containing private registry credentials
@@ -215,7 +237,7 @@ telemetry:
 vap:
   enabled: true
 
-# PriorityClass shared by both controller and agent pods.
+# PriorityClass shared by controller, agent, oci-hook-install, and other runtime-enforcer pods.
 priorityClass:
   enabled: true
   name: runtime-enforcer-priorityclass

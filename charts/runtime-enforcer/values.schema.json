@@ -455,6 +455,74 @@
             },
             "additionalProperties": false
         },
+        "ociHook": {
+            "type": "object",
+            "properties": {
+                "install": {
+                    "type": "object",
+                    "properties": {
+                        "image": {
+                            "type": "object",
+                            "properties": {
+                                "pullPolicy": {
+                                    "type": "string"
+                                },
+                                "repository": {
+                                    "type": "string"
+                                },
+                                "tag": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "podAnnotations": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "podLabels": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "resources": {
+                            "type": "object",
+                            "properties": {
+                                "limits": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cpu": {
+                                            "type": "string"
+                                        },
+                                        "memory": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                },
+                                "requests": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cpu": {
+                                            "type": "string"
+                                        },
+                                        "memory": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            },
+                            "additionalProperties": false
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "path": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
         "priorityClass": {
             "type": "object",
             "properties": {

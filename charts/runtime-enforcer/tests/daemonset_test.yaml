@@ -253,3 +253,26 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: collectorStrategy
+
+  - it: "should mount OCI hook dir and pass oci-hook flags (install is oci-hook-install DaemonSet)"
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+      - contains:
+          path: "spec.template.spec.containers[0].args"
+          content: "--oci-hook-socket=/opt/oci/oci-hook.sock"
+      - contains:
+          path: "spec.template.spec.containers[0].args"
+          content: "--oci-hook-bin=/opt/oci/oci-hook"
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: oci-hook-path
+            mountPath: /opt/oci
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: oci-hook-path
+            hostPath:
+              path: /opt/oci
+              type: DirectoryOrCreate

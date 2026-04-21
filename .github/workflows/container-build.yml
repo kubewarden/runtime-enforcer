@@ -13,7 +13,7 @@ jobs:
   build:
     strategy:
       matrix:
-        component: [controller, agent, debugger]
+        component: [controller, agent, debugger, oci-hook-installer]
         arch: [amd64, arm64]
         include:
           - arch: amd64
@@ -47,7 +47,7 @@ jobs:
       id-token: write # Signing images with cosign
     strategy:
       matrix:
-        component: [controller, agent, debugger]
+        component: [controller, agent, debugger, oci-hook-installer]
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

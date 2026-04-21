@@ -12,7 +12,7 @@ import (
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-const testHandlerSocketPath = "/var/run/oci-handler-test.sock"
+const testHandlerSocketPath = "/opt/oci/oci-handler-test.sock"
 
 func testCtx(t *testing.T) context.Context {
 	t.Helper()

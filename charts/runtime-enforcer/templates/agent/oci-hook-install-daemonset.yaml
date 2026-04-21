@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "runtime-enforcer.fullname" . }}-oci-hook-install
+  labels:
+    {{- include "runtime-enforcer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oci-hook-install
+spec:
+  selector:
+    matchLabels:
+      {{- include "runtime-enforcer.ociHookInstall.labelSelector" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        {{- include "runtime-enforcer.ociHookInstall.labelSelector" . | nindent 8 }}
+        {{- with .Values.ociHook.install.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.ociHook.install.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if .Values.priorityClass.name }}
+      priorityClassName: {{ .Values.priorityClass.name }}
+      {{- end }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      containers:
+        - name: oci-hook-install
+          image: "{{ .Values.ociHook.install.image.repository }}:{{ .Values.ociHook.install.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.ociHook.install.image.pullPolicy | default .Values.agent.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              cp -f /oci-hook {{ include "runtime-enforcer.ociHook.bin" . }}
+              chmod +x {{ include "runtime-enforcer.ociHook.bin" . }}
+              tail -f /dev/null
+          resources:
+            {{- toYaml .Values.ociHook.install.resources | nindent 12 }}
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: oci-hook-path
+              mountPath: {{ include "runtime-enforcer.ociHook.dir" . }}
+      {{- with .Values.agent.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agent.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agent.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: oci-hook-path
+          hostPath:
+            path: {{ include "runtime-enforcer.ociHook.dir" . }}
+            type: DirectoryOrCreate

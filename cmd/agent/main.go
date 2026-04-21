@@ -353,8 +353,8 @@ func parseFlags() Config {
 	)
 	flag.StringVar(&config.nriSocketPath, "nri-socket-path", "/var/run/nri/nri.sock", "NRI socket path")
 	flag.StringVar(&config.nriPluginIdx, "nri-plugin-index", "00", "NRI plugin index")
-	flag.StringVar(&config.ociHookSocket, "oci-hook-socket", "/var/run/oci/oci-hook.sock", "OCI hook socket path")
-	flag.StringVar(&config.ociHookBin, "oci-hook-bin", "/var/run/oci/oci-hook", "OCI hook binary path")
+	flag.StringVar(&config.ociHookSocket, "oci-hook-socket", "/opt/oci/oci-hook.sock", "OCI hook socket path")
+	flag.StringVar(&config.ociHookBin, "oci-hook-bin", "/opt/oci/oci-hook", "OCI hook binary path")
 	flag.StringVar(&config.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.IntVar(&config.grpcConf.Port, "grpc-port", 50051, "gRPC server port")
 	flag.BoolVar(&config.grpcConf.MTLSEnabled, "grpc-mtls-enabled", true,

@@ -57,7 +57,7 @@ build-$(1)-image: generate-ebpf vet
 E2E_DEPS += build-$(1)-image
 endef
 
-TARGET=controller agent debugger
+TARGET := controller agent debugger oci-hook-installer
 $(foreach T,$(TARGET),$(eval $(call BUILD_template,$(T))))
 
 .PHONY: generate

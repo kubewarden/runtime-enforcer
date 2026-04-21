@@ -72,6 +72,7 @@ func getCharts() []helmChart {
 			helmOptions: []helm.Option{
 				helm.WithArgs("--set", "controller.image.tag=latest"),
 				helm.WithArgs("--set", "agent.image.tag=latest"),
+				helm.WithArgs("--set", "ociHook.install.image.tag=latest"),
 				helm.WithArgs("--set", "debugger.image.tag=latest"),
 				helm.WithArgs("--set", "debugger.enabled=true"),
 				// we need to reduce the timeout to see the wp status controller working properly in e2e tests
@@ -144,6 +145,11 @@ func TestMain(m *testing.M) {
 				"direct"),
 			envfuncs.LoadImageToCluster(kindClusterName,
 				"ghcr.io/rancher-sandbox/runtime-enforcer/agent:latest",
+				"--verbose",
+				"--mode",
+				"direct"),
+			envfuncs.LoadImageToCluster(kindClusterName,
+				"ghcr.io/rancher-sandbox/runtime-enforcer/oci-hook-installer:latest",
 				"--verbose",
 				"--mode",
 				"direct"),

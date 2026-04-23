@@ -21,10 +21,10 @@ require (
 	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
-	k8s.io/api v0.35.3
+	k8s.io/api v0.35.4
 	k8s.io/apimachinery v0.35.4
-	k8s.io/cli-runtime v0.35.3
-	k8s.io/client-go v0.35.3
+	k8s.io/cli-runtime v0.35.4
+	k8s.io/client-go v0.35.4
 	k8s.io/code-generator v0.35.3
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912

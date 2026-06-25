@@ -14,6 +14,28 @@ entries:
       catalog.cattle.io/type: cluster-tool
       catalog.cattle.io/ui-component: runtime-enforcer
     apiVersion: v2
+    appVersion: v0.7.0
+    created: "2026-06-25T15:18:37.986641987Z"
+    description: SUSE Security Runtime Enforcer helm chart
+    digest: dc7a956a9b8f6f72677daacee55d2ff3e0d7827ab89a3bf87258accd550fc686
+    name: runtime-enforcer
+    type: application
+    urls:
+    - https://github.com/rancher-sandbox/runtime-enforcer/releases/download/runtime-enforcer-chart-0.1.9/runtime-enforcer-0.1.9.tgz
+    version: 0.1.9
+  - annotations:
+      catalog.cattle.io/certified: rancher
+      catalog.cattle.io/display-name: RuntimeEnforcer
+      catalog.cattle.io/namespace: cattle-runtime-enforcer-system
+      catalog.cattle.io/os: linux
+      catalog.cattle.io/provides-gvr: security.rancher.io/v1
+      catalog.cattle.io/rancher-version: '>= 2.6.0-0 <= 2.12.100-0'
+      catalog.cattle.io/release-name: rancher-runtime-enforcer
+      catalog.cattle.io/requests-cpu: 500m
+      catalog.cattle.io/requests-memory: 128Mi
+      catalog.cattle.io/type: cluster-tool
+      catalog.cattle.io/ui-component: runtime-enforcer
+    apiVersion: v2
     appVersion: v0.6.0
     created: "2026-05-18T17:06:53.138958514Z"
     description: SUSE Security Runtime Enforcer helm chart
@@ -159,4 +181,4 @@ entries:
     urls:
     - https://github.com/neuvector/runtime-enforcer/releases/download/runtime-enforcer-chart-0.1.1/runtime-enforcer-0.1.1.tgz
     version: 0.1.1
-generated: "2026-05-18T17:06:53.138981205Z"
+generated: "2026-06-25T15:18:37.986665893Z"

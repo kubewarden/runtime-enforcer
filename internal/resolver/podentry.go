@@ -3,7 +3,7 @@ package resolver
 import (
 	"maps"
 
-	"github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
 )
 
 // podEntry is the internal representation of a pod inside our cache.

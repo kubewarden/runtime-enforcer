@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/tlsutil"
+	"github.com/kubewarden/runtime-enforcer/internal/tlsutil"
 )
 
 func generateTestKeyPair(t *testing.T, dir string) (string, string) {

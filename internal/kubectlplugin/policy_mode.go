@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/policymode"
-	securityclient "github.com/rancher-sandbox/runtime-enforcer/pkg/generated/clientset/versioned/typed/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/internal/types/policymode"
+	securityclient "github.com/kubewarden/runtime-enforcer/pkg/generated/clientset/versioned/typed/api/v1alpha1"
 	"github.com/spf13/cobra"
 	"k8s.io/kubectl/pkg/util/completion"
 )

@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/grpcexporter"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/loglevel"
+	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/internal/grpcexporter"
+	"github.com/kubewarden/runtime-enforcer/internal/types/loglevel"
 
 	"go.opentelemetry.io/otel/attribute"
 	otellog "go.opentelemetry.io/otel/log"

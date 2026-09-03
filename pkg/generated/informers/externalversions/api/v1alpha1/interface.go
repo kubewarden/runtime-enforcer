@@ -3,7 +3,7 @@
 package v1alpha1
 
 import (
-	internalinterfaces "github.com/rancher-sandbox/runtime-enforcer/pkg/generated/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/kubewarden/runtime-enforcer/pkg/generated/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

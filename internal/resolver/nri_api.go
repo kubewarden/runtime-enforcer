@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/bpf"
+	"github.com/kubewarden/runtime-enforcer/internal/bpf"
 )
 
 const nriSyncInProgressMsg = "waiting for NRI synchronization to complete"

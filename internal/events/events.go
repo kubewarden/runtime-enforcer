@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/tlsutil"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/otlp"
+	"github.com/kubewarden/runtime-enforcer/internal/tlsutil"
+	"github.com/kubewarden/runtime-enforcer/internal/types/otlp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	otellog "go.opentelemetry.io/otel/log"

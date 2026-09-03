@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cilium/ebpf"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/policymode"
+	"github.com/kubewarden/runtime-enforcer/internal/types/policymode"
 )
 
 type PolicyModeOperation uint8

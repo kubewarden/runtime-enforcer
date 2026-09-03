@@ -3,7 +3,7 @@ package debugger
 import (
 	"fmt"
 
-	agentv1 "github.com/rancher-sandbox/runtime-enforcer/proto/agent/v1"
+	agentv1 "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 )
 
 type agentPodView struct {

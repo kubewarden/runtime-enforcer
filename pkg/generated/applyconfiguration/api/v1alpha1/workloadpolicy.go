@@ -3,8 +3,8 @@
 package v1alpha1
 
 import (
-	apiv1alpha1 "github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
-	internal "github.com/rancher-sandbox/runtime-enforcer/pkg/generated/applyconfiguration/internal"
+	apiv1alpha1 "github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	internal "github.com/kubewarden/runtime-enforcer/pkg/generated/applyconfiguration/internal"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
@@ -42,7 +42,7 @@ func WorkloadPolicy(name, namespace string) *WorkloadPolicyApplyConfiguration {
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
 func ExtractWorkloadPolicyFrom(workloadPolicy *apiv1alpha1.WorkloadPolicy, fieldManager string, subresource string) (*WorkloadPolicyApplyConfiguration, error) {
 	b := &WorkloadPolicyApplyConfiguration{}
-	err := managedfields.ExtractInto(workloadPolicy, internal.Parser().Type("com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicy"), fieldManager, b, subresource)
+	err := managedfields.ExtractInto(workloadPolicy, internal.Parser().Type("com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicy"), fieldManager, b, subresource)
 	if err != nil {
 		return nil, err
 	}

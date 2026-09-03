@@ -3,9 +3,9 @@
 package applyconfiguration
 
 import (
-	v1alpha1 "github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
-	apiv1alpha1 "github.com/rancher-sandbox/runtime-enforcer/pkg/generated/applyconfiguration/api/v1alpha1"
-	internal "github.com/rancher-sandbox/runtime-enforcer/pkg/generated/applyconfiguration/internal"
+	v1alpha1 "github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	apiv1alpha1 "github.com/kubewarden/runtime-enforcer/pkg/generated/applyconfiguration/api/v1alpha1"
+	internal "github.com/kubewarden/runtime-enforcer/pkg/generated/applyconfiguration/internal"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	managedfields "k8s.io/apimachinery/pkg/util/managedfields"

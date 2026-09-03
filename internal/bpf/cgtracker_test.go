@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/cilium/ebpf"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/cgroups"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/testutil"
+	"github.com/kubewarden/runtime-enforcer/internal/cgroups"
+	"github.com/kubewarden/runtime-enforcer/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )

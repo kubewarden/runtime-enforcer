@@ -3,7 +3,7 @@
 package v1alpha1
 
 import (
-	apiv1alpha1 "github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
+	apiv1alpha1 "github.com/kubewarden/runtime-enforcer/api/v1alpha1"
 )
 
 // WorkloadPolicySpecApplyConfiguration represents a declarative configuration of the WorkloadPolicySpec type for use

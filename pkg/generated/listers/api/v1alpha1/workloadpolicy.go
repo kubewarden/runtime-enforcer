@@ -3,7 +3,7 @@
 package v1alpha1
 
 import (
-	apiv1alpha1 "github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
+	apiv1alpha1 "github.com/kubewarden/runtime-enforcer/api/v1alpha1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	listers "k8s.io/client-go/listers"
 	cache "k8s.io/client-go/tools/cache"

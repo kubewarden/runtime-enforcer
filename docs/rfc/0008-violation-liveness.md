@@ -1,10 +1,10 @@
-|              |                                                              |
-| :----------- | :----------------------------------------------------------- |
-| Feature Name | Violation Liveness and Resolution Tracking                   |
-| Start Date   | 2026-06-10                                                   |
-| Category     | Security / Observability                                     |
-| RFC PR       | https://github.com/rancher-sandbox/runtime-enforcer/pull/678 |
-| State        | **ACCEPTED**                                                 |
+|              |                                                         |
+| :----------- | :------------------------------------------------------ |
+| Feature Name | Violation Liveness and Resolution Tracking              |
+| Start Date   | 2026-06-10                                              |
+| Category     | Security / Observability                                |
+| RFC PR       | https://github.com/kubewarden/runtime-enforcer/pull/678 |
+| State        | **ACCEPTED**                                            |
 
 # Summary
 

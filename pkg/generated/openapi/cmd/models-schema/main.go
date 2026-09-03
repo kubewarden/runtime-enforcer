@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rancher-sandbox/runtime-enforcer/pkg/generated/openapi"
+	"github.com/kubewarden/runtime-enforcer/pkg/generated/openapi"
 	"k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 )

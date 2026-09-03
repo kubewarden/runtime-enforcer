@@ -23,7 +23,7 @@ func Parser() *typed.Parser {
 var parserOnce sync.Once
 var parser *typed.Parser
 var schemaYAML = typed.YAMLObject(`types:
-- name: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.AcknowledgedViolationRecord
+- name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.AcknowledgedViolationRecord
   map:
     fields:
     - name: acknowledgedAt
@@ -34,9 +34,9 @@ var schemaYAML = typed.YAMLObject(`types:
         scalar: string
     - name: violation
       type:
-        namedType: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.ViolationRecord
+        namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.ViolationRecord
       default: {}
-- name: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.PolicyNodeStatus
+- name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.PolicyNodeStatus
   map:
     fields:
     - name: code
@@ -51,7 +51,7 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: since
       type:
         namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
-- name: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.PolicyStatus
+- name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.PolicyStatus
   map:
     fields:
     - name: code
@@ -63,7 +63,7 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: since
       type:
         namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
-- name: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.ViolationRecord
+- name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.ViolationRecord
   map:
     fields:
     - name: action
@@ -105,7 +105,7 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: workloadName
       type:
         scalar: string
-- name: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicy
+- name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicy
   map:
     fields:
     - name: apiVersion
@@ -120,13 +120,13 @@ var schemaYAML = typed.YAMLObject(`types:
       default: {}
     - name: spec
       type:
-        namedType: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicySpec
+        namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicySpec
       default: {}
     - name: status
       type:
-        namedType: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicyStatus
+        namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyStatus
       default: {}
-- name: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicyExecutables
+- name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyExecutables
   map:
     fields:
     - name: allowed
@@ -135,7 +135,7 @@ var schemaYAML = typed.YAMLObject(`types:
           elementType:
             scalar: string
           elementRelationship: atomic
-- name: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicyProposal
+- name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyProposal
   map:
     fields:
     - name: apiVersion
@@ -150,24 +150,24 @@ var schemaYAML = typed.YAMLObject(`types:
       default: {}
     - name: spec
       type:
-        namedType: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicyProposalSpec
+        namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyProposalSpec
       default: {}
-- name: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicyProposalSpec
+- name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyProposalSpec
   map:
     fields:
     - name: rulesByContainer
       type:
         map:
           elementType:
-            namedType: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicyRules
-- name: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicyRules
+            namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyRules
+- name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyRules
   map:
     fields:
     - name: executables
       type:
-        namedType: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicyExecutables
+        namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyExecutables
       default: {}
-- name: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicySpec
+- name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicySpec
   map:
     fields:
     - name: mode
@@ -177,15 +177,15 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         map:
           elementType:
-            namedType: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicyRules
-- name: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.WorkloadPolicyStatus
+            namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyRules
+- name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyStatus
   map:
     fields:
     - name: acknowledgedViolations
       type:
         list:
           elementType:
-            namedType: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.AcknowledgedViolationRecord
+            namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.AcknowledgedViolationRecord
           elementRelationship: atomic
     - name: activeViolationCount
       type:
@@ -198,13 +198,13 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         list:
           elementType:
-            namedType: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.PolicyNodeStatus
+            namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.PolicyNodeStatus
           elementRelationship: atomic
     - name: nodesWithIssues
       type:
         map:
           elementType:
-            namedType: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.PolicyStatus
+            namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.PolicyStatus
     - name: observedGeneration
       type:
         scalar: numeric
@@ -228,7 +228,7 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         list:
           elementType:
-            namedType: com.github.rancher-sandbox.runtime-enforcer.api.v1alpha1.ViolationRecord
+            namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.ViolationRecord
           elementRelationship: atomic
 - name: io.k8s.apimachinery.pkg.apis.meta.v1.FieldsV1
   map:

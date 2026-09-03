@@ -6,7 +6,7 @@
 package openapi
 
 import (
-	v1alpha1 "github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
+	v1alpha1 "github.com/kubewarden/runtime-enforcer/api/v1alpha1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -17,19 +17,19 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		v1alpha1.AcknowledgedViolationRecord{}.OpenAPIModelName(): schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_AcknowledgedViolationRecord(ref),
-		v1alpha1.PolicyNodeStatus{}.OpenAPIModelName():            schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_PolicyNodeStatus(ref),
-		v1alpha1.PolicyStatus{}.OpenAPIModelName():                schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_PolicyStatus(ref),
-		v1alpha1.ViolationRecord{}.OpenAPIModelName():             schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_ViolationRecord(ref),
-		v1alpha1.WorkloadPolicy{}.OpenAPIModelName():              schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicy(ref),
-		v1alpha1.WorkloadPolicyExecutables{}.OpenAPIModelName():   schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyExecutables(ref),
-		v1alpha1.WorkloadPolicyList{}.OpenAPIModelName():          schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyList(ref),
-		v1alpha1.WorkloadPolicyProposal{}.OpenAPIModelName():      schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposal(ref),
-		v1alpha1.WorkloadPolicyProposalList{}.OpenAPIModelName():  schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposalList(ref),
-		v1alpha1.WorkloadPolicyProposalSpec{}.OpenAPIModelName():  schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposalSpec(ref),
-		v1alpha1.WorkloadPolicyRules{}.OpenAPIModelName():         schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyRules(ref),
-		v1alpha1.WorkloadPolicySpec{}.OpenAPIModelName():          schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicySpec(ref),
-		v1alpha1.WorkloadPolicyStatus{}.OpenAPIModelName():        schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyStatus(ref),
+		v1alpha1.AcknowledgedViolationRecord{}.OpenAPIModelName(): schema_kubewarden_runtime_enforcer_api_v1alpha1_AcknowledgedViolationRecord(ref),
+		v1alpha1.PolicyNodeStatus{}.OpenAPIModelName():            schema_kubewarden_runtime_enforcer_api_v1alpha1_PolicyNodeStatus(ref),
+		v1alpha1.PolicyStatus{}.OpenAPIModelName():                schema_kubewarden_runtime_enforcer_api_v1alpha1_PolicyStatus(ref),
+		v1alpha1.ViolationRecord{}.OpenAPIModelName():             schema_kubewarden_runtime_enforcer_api_v1alpha1_ViolationRecord(ref),
+		v1alpha1.WorkloadPolicy{}.OpenAPIModelName():              schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicy(ref),
+		v1alpha1.WorkloadPolicyExecutables{}.OpenAPIModelName():   schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyExecutables(ref),
+		v1alpha1.WorkloadPolicyList{}.OpenAPIModelName():          schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyList(ref),
+		v1alpha1.WorkloadPolicyProposal{}.OpenAPIModelName():      schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposal(ref),
+		v1alpha1.WorkloadPolicyProposalList{}.OpenAPIModelName():  schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposalList(ref),
+		v1alpha1.WorkloadPolicyProposalSpec{}.OpenAPIModelName():  schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposalSpec(ref),
+		v1alpha1.WorkloadPolicyRules{}.OpenAPIModelName():         schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyRules(ref),
+		v1alpha1.WorkloadPolicySpec{}.OpenAPIModelName():          schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicySpec(ref),
+		v1alpha1.WorkloadPolicyStatus{}.OpenAPIModelName():        schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyStatus(ref),
 		resource.Quantity{}.OpenAPIModelName():                    schema_apimachinery_pkg_api_resource_Quantity(ref),
 		v1.APIGroup{}.OpenAPIModelName():                          schema_pkg_apis_meta_v1_APIGroup(ref),
 		v1.APIGroupList{}.OpenAPIModelName():                      schema_pkg_apis_meta_v1_APIGroupList(ref),
@@ -88,7 +88,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_AcknowledgedViolationRecord(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_AcknowledgedViolationRecord(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -122,7 +122,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_AcknowledgedViolationR
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_PolicyNodeStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_PolicyNodeStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -162,7 +162,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_PolicyNodeStatus(ref c
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_PolicyStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_PolicyStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -197,7 +197,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_PolicyStatus(ref commo
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_ViolationRecord(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_ViolationRecord(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -294,7 +294,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_ViolationRecord(ref co
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -341,7 +341,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicy(ref com
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyExecutables(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyExecutables(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -367,7 +367,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyExecutab
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -415,7 +415,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyList(ref
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposal(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposal(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -456,7 +456,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposal
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposalList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposalList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -504,7 +504,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposal
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposalSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposalSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -533,7 +533,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyProposal
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyRules(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyRules(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -554,7 +554,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyRules(re
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicySpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicySpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -589,7 +589,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicySpec(ref
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -713,7 +713,7 @@ func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_WorkloadPolicyStatus(r
 	}
 }
 
-func schema_rancher_sandbox_runtime_enforcer_api_v1alpha1_violationRecordKey(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubewarden_runtime_enforcer_api_v1alpha1_violationRecordKey(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{

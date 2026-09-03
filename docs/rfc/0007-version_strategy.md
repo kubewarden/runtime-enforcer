@@ -1,9 +1,9 @@
-| Feature Name | Runtime Enforcer versioning                                     |
-| :----------- | :---------------------------------------------------------------|
-| Start Date   | Apr 1st, 2026                                                   |
-| Category     | Versioning                                                      |
-| RFC PR       | https://github.com/rancher-sandbox/runtime-enforcer/pull/516    |
-| State        | **ACCEPTED**                                                    |
+| Feature Name | Runtime Enforcer versioning                             |
+| :----------- | :------------------------------------------------------ |
+| Start Date   | Apr 1st, 2026                                           |
+| Category     | Versioning                                              |
+| RFC PR       | https://github.com/kubewarden/runtime-enforcer/pull/516 |
+| State        | **ACCEPTED**                                            |
 
 # Summary
 

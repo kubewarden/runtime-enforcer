@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	securityv1alpha1 "github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/policymode"
+	securityv1alpha1 "github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/internal/types/policymode"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

@@ -3,8 +3,8 @@ package resolver
 import (
 	"testing"
 
-	"github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
-	agentv1 "github.com/rancher-sandbox/runtime-enforcer/proto/agent/v1"
+	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	agentv1 "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 	"github.com/stretchr/testify/require"
 )
 

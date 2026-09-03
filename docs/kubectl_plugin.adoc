@@ -7,13 +7,13 @@ The `kubectl runtime-enforcer` plugin wraps common operations for `WorkloadPolic
 
 === Download a pre-built binary
 
-Pre-built binaries for `linux/amd64`, `linux/arm64`, `darwin/amd64`, and `darwin/arm64` are published on each https://github.com/rancher-sandbox/runtime-enforcer/releases[GitHub Release].
+Pre-built binaries for `linux/amd64`, `linux/arm64`, `darwin/amd64`, and `darwin/arm64` are published on each https://github.com/kubewarden/runtime-enforcer/releases[GitHub Release].
 
 ```bash
 # Example: linux/amd64
 VERSION=latest
 curl -Lo kubectl-runtime_enforcer \
-  "https://github.com/rancher-sandbox/runtime-enforcer/releases/download/${VERSION}/kubectl-runtime_enforcer-linux-amd64"
+  "https://github.com/kubewarden/runtime-enforcer/releases/download/${VERSION}/kubectl-runtime_enforcer-linux-amd64"
 chmod +x kubectl-runtime_enforcer
 sudo mv kubectl-runtime_enforcer /usr/local/bin/
 ```

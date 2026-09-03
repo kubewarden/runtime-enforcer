@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/resolver"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/tlsutil"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/violationbuf"
-	pb "github.com/rancher-sandbox/runtime-enforcer/proto/agent/v1"
+	"github.com/kubewarden/runtime-enforcer/internal/resolver"
+	"github.com/kubewarden/runtime-enforcer/internal/tlsutil"
+	"github.com/kubewarden/runtime-enforcer/internal/violationbuf"
+	pb "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )

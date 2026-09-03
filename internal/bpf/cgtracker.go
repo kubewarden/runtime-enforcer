@@ -11,7 +11,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/cgroups"
+	"github.com/kubewarden/runtime-enforcer/internal/cgroups"
 )
 
 func (m *Manager) GetCgroupTrackerUpdateFunc() func(cgID uint64, cgroupPath string) error {

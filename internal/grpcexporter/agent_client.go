@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	pb "github.com/rancher-sandbox/runtime-enforcer/proto/agent/v1"
+	pb "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 	"google.golang.org/grpc"
 )
 

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/workloadkind"
+	"github.com/kubewarden/runtime-enforcer/internal/types/workloadkind"
 )
 
 // final 8-10 digits.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/cgroups"
+	"github.com/kubewarden/runtime-enforcer/internal/cgroups"
 )
 
 func getLoadTimeConfig(logger *slog.Logger, enableLearning bool) (*bpfLoadConf, error) {

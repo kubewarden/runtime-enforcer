@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"maps"
 
-	"github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/bpf"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/policymode"
-	agentv1 "github.com/rancher-sandbox/runtime-enforcer/proto/agent/v1"
+	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/internal/bpf"
+	"github.com/kubewarden/runtime-enforcer/internal/types/policymode"
+	agentv1 "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 )
 
 type (

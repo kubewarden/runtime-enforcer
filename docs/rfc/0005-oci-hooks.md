@@ -20,7 +20,7 @@ This RFC covers options that we inject into container's lifecycle to make sure a
 
 [motivation]: #motivation
 
-In the current design, the policy engine depends on [a pod informer](https://github.com/rancher-sandbox/runtime-enforcer/blob/b592270bf92956c18b35c2ef5843ecb177014b8d/internal/resolver/resolver.go#L325) to assign a policy to pods.  When runtime enforcer daemon receives an event from API server, it checks its label and container name, finds the policy ID that it belongs to, and updates the related ebpf map.
+In the current design, the policy engine depends on [a pod informer](https://github.com/kubewarden/runtime-enforcer/blob/b592270bf92956c18b35c2ef5843ecb177014b8d/internal/resolver/resolver.go#L325) to assign a policy to pods.  When runtime enforcer daemon receives an event from API server, it checks its label and container name, finds the policy ID that it belongs to, and updates the related ebpf map.
 
 However, the container creation flow and the pod informer are asynchronous.  Without a special handling, it's possible that we could not determine the policy of the container in a timely fashion before the pod performs unallowed actions.
 
@@ -74,7 +74,7 @@ The biggest advantage of this approach is that, it provides the flexibility for 
 Besides, there is other drawback:
 
 - Not all platforms allow host files to be changed.  For example, [Google's container-optimized OS always mounts its host volume as readonly](https://docs.cloud.google.com/container-optimized-os/docs/concepts/security#immutable_root_filesystem_and_verified_boot).
-- It needs extra care in order to upgrade the OCI hook executable.  This would also conflict with https://github.com/rancher-sandbox/runtime-enforcer/issues/96 due to potential two versions of OCI hooks running.
+- It needs extra care in order to upgrade the OCI hook executable.  This would also conflict with https://github.com/kubewarden/runtime-enforcer/issues/96 due to potential two versions of OCI hooks running.
 
 Based on these, this is not considered as the approach that we'd like proceed with first.
 

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/cgroups"
+	"github.com/kubewarden/runtime-enforcer/internal/cgroups"
 )
 
 type cgroupInfo struct {

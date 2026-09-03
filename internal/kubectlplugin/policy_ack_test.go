@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
-	fakeclient "github.com/rancher-sandbox/runtime-enforcer/pkg/generated/clientset/versioned/fake"
+	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	fakeclient "github.com/kubewarden/runtime-enforcer/pkg/generated/clientset/versioned/fake"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

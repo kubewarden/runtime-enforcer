@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
-	securityclient "github.com/rancher-sandbox/runtime-enforcer/pkg/generated/clientset/versioned/typed/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	securityclient "github.com/kubewarden/runtime-enforcer/pkg/generated/clientset/versioned/typed/api/v1alpha1"
 	"github.com/spf13/cobra"
 	"k8s.io/kubectl/pkg/util/completion"
 )

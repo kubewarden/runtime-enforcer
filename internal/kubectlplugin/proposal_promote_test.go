@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"testing"
 
-	securityv1alpha1 "github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/policymode"
-	fakeclient "github.com/rancher-sandbox/runtime-enforcer/pkg/generated/clientset/versioned/fake"
+	securityv1alpha1 "github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/internal/types/policymode"
+	fakeclient "github.com/kubewarden/runtime-enforcer/pkg/generated/clientset/versioned/fake"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

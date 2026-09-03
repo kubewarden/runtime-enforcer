@@ -5,7 +5,7 @@ package externalversions
 import (
 	fmt "fmt"
 
-	v1alpha1 "github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
+	v1alpha1 "github.com/kubewarden/runtime-enforcer/api/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )

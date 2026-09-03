@@ -1,11 +1,11 @@
 # nameOverride replaces the chart name used when generating resource names,
 # while still keeping the release name as a prefix (e.g. `<release-name>-<nameOverride>`).
 # Leave empty to use the chart name.
-nameOverride: ""
+nameOverride: ''
 # fullnameOverride fully replaces the generated resource name prefix
 # (`<release-name>-<chart-name>`) for all resources created by this chart.
 # Leave empty to use the default generated name.
-fullnameOverride: ""
+fullnameOverride: ''
 
 controller:
   args:
@@ -25,7 +25,7 @@ controller:
   image:
     # The image path used by controller
     # @schema required
-    repository: ghcr.io/rancher-sandbox/runtime-enforcer/controller
+    repository: ghcr.io/kubewarden/runtime-enforcer/controller
     # The image tag used by controller
     # @schema required
     tag: v0.9.0
@@ -75,7 +75,7 @@ controller:
   affinity: {}
 agent:
   args:
-    - ""
+    - ''
   # agent.env -- Additional environment variables
   env: []
   # The containerSecurityContext used by agent
@@ -101,12 +101,12 @@ agent:
   image:
     # The image path used by agent
     # @schema required
-    repository: ghcr.io/rancher-sandbox/runtime-enforcer/agent
+    repository: ghcr.io/kubewarden/runtime-enforcer/agent
     # The image tag used by agent
     # @schema required
     tag: v0.9.0
     pullPolicy: IfNotPresent
-  grpcExporterPort: "50051"
+  grpcExporterPort: '50051'
   logLevel: info # @schema enum: [debug, info, warn, error]
   # To make the Pods "Guaranteed" (evicted last under node pressure), kubelet requires
   # requests and limits are specified for all the containers and they are equal.
@@ -173,7 +173,7 @@ debugger:
   image:
     # The image path used by debugger
     # @schema required
-    repository: ghcr.io/rancher-sandbox/runtime-enforcer/debugger
+    repository: ghcr.io/kubewarden/runtime-enforcer/debugger
     # The image tag used by debugger
     # @schema required
     tag: v0.9.0
@@ -215,7 +215,7 @@ learning:
         operator: Exists
 
 telemetry:
-  collectorStrategy: "default" # @schema enum: [none, default, external]
+  collectorStrategy: 'default' # @schema enum: [none, default, external]
   defaultCollector:
     image:
       repository: otel/opentelemetry-collector-contrib
@@ -232,9 +232,9 @@ telemetry:
     # telemetry.externalCollector.endpoint is the Otel collector endpoint to send signals to.
     # For gRPC, it should be in the format <hostname>:<port>.
     # For HTTP, it should be in the format http(s)://<hostname>:<port>.
-    endpoint: ""
+    endpoint: ''
     # telemetry.externalCollector.protocol is the protocol to use for the Otel collector.
-    protocol: "grpc" # @schema enum: [grpc, http/protobuf]
+    protocol: 'grpc' # @schema enum: [grpc, http/protobuf]
     # The following settings are required to configure the OpenTelemetry exporter
     # to send signals and to a remote collector using TLS.
     # Both secrets must be created in the same namespace where the controller is deployed.
@@ -245,11 +245,11 @@ telemetry:
     #
     # telemetry.externalCollector.otelCollectorCertificateSecret should contain a key ca.crt
     # storing the certificate to validate the remote collector certificate.
-    otelCollectorCertificateSecret: ""
+    otelCollectorCertificateSecret: ''
     # telemetry.externalCollector.otelCollectorClientCertificateSecret is optional.
     # Only required when the remote collector requires client authentication (mTLS).
     # The secret should contain the keys `tls.crt` and `tls.key`.
-    otelCollectorClientCertificateSecret: ""
+    otelCollectorClientCertificateSecret: ''
 
 # PriorityClass shared by both controller and agent pods.
 priorityClass:

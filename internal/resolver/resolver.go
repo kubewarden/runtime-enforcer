@@ -5,8 +5,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/bpf"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/policymode"
+	"github.com/kubewarden/runtime-enforcer/internal/bpf"
+	"github.com/kubewarden/runtime-enforcer/internal/types/policymode"
 )
 
 type Resolver struct {

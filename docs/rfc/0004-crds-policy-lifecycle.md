@@ -1,10 +1,10 @@
-|              |                                                             |
-| :----------- | :---------------------------------------------------------- |
-| Feature Name | CRD revisit and user workflow                               |
-| Start Date   | 20 Nov 2025                                                 |
-| Category     | CRDs                                                        |
-| RFC PR       | https://github.com/rancher-sandbox/runtime-enforcer/pull/45 |
-| State        | **ACCEPTED**                                                |
+|              |                                                        |
+| :----------- | :----------------------------------------------------- |
+| Feature Name | CRD revisit and user workflow                          |
+| Start Date   | 20 Nov 2025                                            |
+| Category     | CRDs                                                   |
+| RFC PR       | https://github.com/kubewarden/runtime-enforcer/pull/45 |
+| State        | **ACCEPTED**                                           |
 
 # Summary
 
@@ -12,7 +12,7 @@
 
 This RFC tries to summarize the disccusion happened to far about the policy lifecycle, and tries to also stabilize CRDs in terms of lifecycle, names, and possible interactions.
 
-This RFC supersedes [RFC-001](https://github.com/rancher-sandbox/runtime-enforcer/blob/main/docs/rfc/0001-workloadgroup.md).
+This RFC supersedes [RFC-001](https://github.com/kubewarden/runtime-enforcer/blob/main/docs/rfc/0001-workloadgroup.md).
 
 # Motivation
 

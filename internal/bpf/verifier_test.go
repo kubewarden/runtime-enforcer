@@ -3,7 +3,7 @@ package bpf
 import (
 	"testing"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/testutil"
+	"github.com/kubewarden/runtime-enforcer/internal/testutil"
 )
 
 // run it with: go test -v -run TestNoVerifierFailures ./internal/bpf -count=1 -exec "sudo -E".

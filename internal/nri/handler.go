@@ -11,7 +11,7 @@ import (
 
 	retry "github.com/avast/retry-go/v4"
 	"github.com/containerd/nri/pkg/stub"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/resolver"
+	"github.com/kubewarden/runtime-enforcer/internal/resolver"
 )
 
 const (

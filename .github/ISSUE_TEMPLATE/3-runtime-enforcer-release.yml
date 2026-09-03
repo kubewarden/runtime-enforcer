@@ -1,13 +1,13 @@
 name: Runtime Enforcer Release
-title: "Runtime Enforcer <VERSION> release"
+title: 'Runtime Enforcer <VERSION> release'
 description: Issue with all the items needed to release a new version of Runtime Enforcer Release
-projects: ["rancher-sandbox/8"]
+projects: ['kubewarden/8']
 
 body:
   - type: markdown
     attributes:
       value: |
-        This issue tracks the release of a new version of Runtime Enforcer. 
+        This issue tracks the release of a new version of Runtime Enforcer.
 
   - type: textarea
     attributes:

@@ -11,10 +11,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/resolver"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/policymode"
-	agentv1 "github.com/rancher-sandbox/runtime-enforcer/proto/agent/v1"
+	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/internal/resolver"
+	"github.com/kubewarden/runtime-enforcer/internal/types/policymode"
+	agentv1 "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 )
 
 // WorkloadPolicyHandler reconciles a WorkloadPolicy object.

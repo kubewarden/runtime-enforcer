@@ -3,8 +3,8 @@
 package api
 
 import (
-	v1alpha1 "github.com/rancher-sandbox/runtime-enforcer/pkg/generated/informers/externalversions/api/v1alpha1"
-	internalinterfaces "github.com/rancher-sandbox/runtime-enforcer/pkg/generated/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/kubewarden/runtime-enforcer/pkg/generated/informers/externalversions/api/v1alpha1"
+	internalinterfaces "github.com/kubewarden/runtime-enforcer/pkg/generated/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

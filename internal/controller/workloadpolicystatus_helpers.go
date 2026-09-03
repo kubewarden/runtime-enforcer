@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rancher-sandbox/runtime-enforcer/api/v1alpha1"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/grpcexporter"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/loglevel"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/policymode"
-	pb "github.com/rancher-sandbox/runtime-enforcer/proto/agent/v1"
+	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/internal/grpcexporter"
+	"github.com/kubewarden/runtime-enforcer/internal/types/loglevel"
+	"github.com/kubewarden/runtime-enforcer/internal/types/policymode"
+	pb "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

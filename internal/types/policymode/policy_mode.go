@@ -1,6 +1,6 @@
 package policymode
 
-import agentv1 "github.com/rancher-sandbox/runtime-enforcer/proto/agent/v1"
+import agentv1 "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 
 const (
 	MonitorString = "monitor"

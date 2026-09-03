@@ -3,9 +3,9 @@ package resolver
 import (
 	"testing"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/bpf"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/testutil"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/policymode"
+	"github.com/kubewarden/runtime-enforcer/internal/bpf"
+	"github.com/kubewarden/runtime-enforcer/internal/testutil"
+	"github.com/kubewarden/runtime-enforcer/internal/types/policymode"
 	"github.com/stretchr/testify/require"
 )
 

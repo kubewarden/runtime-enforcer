@@ -41,7 +41,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	sed -i 's/agent-role/{{ include "runtime-enforcer.fullname" . }}-agent/' charts/runtime-enforcer/templates/agent/role.yaml
 	sed -i 's/debugger-role/{{ include "runtime-enforcer.fullname" . }}-debugger/' charts/runtime-enforcer/templates/debugger/role.yaml
 
-REPO ?= ghcr.io/rancher-sandbox/runtime-enforcer
+REPO ?= ghcr.io/kubewarden/runtime-enforcer
 TAG ?= latest
 
 define BUILD_template =
@@ -124,7 +124,7 @@ PLUGIN_PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
 
 .PHONY: kubectl-plugin
 kubectl-plugin: ## Build kubectl plugin for the current platform.
-	go build -ldflags "-X github.com/rancher-sandbox/runtime-enforcer/internal/kubectlplugin.version=$(KUBECTL_PLUGIN_VERSION)" -o ./bin/kubectl-runtime_enforcer ./cmd/kubectl-plugin
+	go build -ldflags "-X github.com/kubewarden/runtime-enforcer/internal/kubectlplugin.version=$(KUBECTL_PLUGIN_VERSION)" -o ./bin/kubectl-runtime_enforcer ./cmd/kubectl-plugin
 
 .PHONY: kubectl-plugin-cross
 kubectl-plugin-cross: ## Build kubectl plugin for all target platforms.
@@ -135,7 +135,7 @@ kubectl-plugin-cross: ## Build kubectl plugin for all target platforms.
 		out=bin/kubectl-plugin/kubectl-runtime_enforcer-$$os-$$arch; \
 		echo "Building $$out ..."; \
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build \
-			-ldflags "-X github.com/rancher-sandbox/runtime-enforcer/internal/kubectlplugin.version=$(KUBECTL_PLUGIN_VERSION)" \
+			-ldflags "-X github.com/kubewarden/runtime-enforcer/internal/kubectlplugin.version=$(KUBECTL_PLUGIN_VERSION)" \
 			-o $$out \
 			./cmd/kubectl-plugin; \
 	done

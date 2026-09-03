@@ -9,8 +9,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/grpcexporter"
-	agentv1 "github.com/rancher-sandbox/runtime-enforcer/proto/agent/v1"
+	"github.com/kubewarden/runtime-enforcer/internal/grpcexporter"
+	agentv1 "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 )

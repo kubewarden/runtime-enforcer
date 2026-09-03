@@ -5,9 +5,9 @@ import (
 
 	"log/slog"
 
-	"github.com/rancher-sandbox/runtime-enforcer/internal/resolver"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/violationbuf"
-	pb "github.com/rancher-sandbox/runtime-enforcer/proto/agent/v1"
+	"github.com/kubewarden/runtime-enforcer/internal/resolver"
+	"github.com/kubewarden/runtime-enforcer/internal/violationbuf"
+	pb "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

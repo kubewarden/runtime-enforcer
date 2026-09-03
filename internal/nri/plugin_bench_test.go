@@ -10,10 +10,10 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/containerd/nri/pkg/api"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/bpf"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/cgroups"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/resolver"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/types/policymode"
+	"github.com/kubewarden/runtime-enforcer/internal/bpf"
+	"github.com/kubewarden/runtime-enforcer/internal/cgroups"
+	"github.com/kubewarden/runtime-enforcer/internal/resolver"
+	"github.com/kubewarden/runtime-enforcer/internal/types/policymode"
 	"github.com/stretchr/testify/require"
 )
 

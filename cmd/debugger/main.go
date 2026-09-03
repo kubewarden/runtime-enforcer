@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/debugger"
-	"github.com/rancher-sandbox/runtime-enforcer/internal/grpcexporter"
+	"github.com/kubewarden/runtime-enforcer/internal/debugger"
+	"github.com/kubewarden/runtime-enforcer/internal/grpcexporter"
 	"golang.org/x/sync/errgroup"
 	ctrl "sigs.k8s.io/controller-runtime"
 

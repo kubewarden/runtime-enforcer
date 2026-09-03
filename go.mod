@@ -1,4 +1,4 @@
-module github.com/rancher-sandbox/runtime-enforcer
+module github.com/kubewarden/runtime-enforcer
 
 go 1.27.1
 

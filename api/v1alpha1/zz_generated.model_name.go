@@ -7,65 +7,65 @@ package v1alpha1
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in AcknowledgedViolationRecord) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.AcknowledgedViolationRecord"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.AcknowledgedViolationRecord"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in PolicyNodeStatus) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.PolicyNodeStatus"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.PolicyNodeStatus"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in PolicyStatus) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.PolicyStatus"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.PolicyStatus"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in ViolationRecord) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.ViolationRecord"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.ViolationRecord"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in WorkloadPolicy) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicy"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.WorkloadPolicy"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in WorkloadPolicyExecutables) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyExecutables"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.WorkloadPolicyExecutables"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in WorkloadPolicyList) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyList"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.WorkloadPolicyList"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in WorkloadPolicyProposal) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyProposal"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.WorkloadPolicyProposal"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in WorkloadPolicyProposalList) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyProposalList"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.WorkloadPolicyProposalList"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in WorkloadPolicyProposalSpec) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyProposalSpec"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.WorkloadPolicyProposalSpec"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in WorkloadPolicyRules) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyRules"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.WorkloadPolicyRules"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in WorkloadPolicySpec) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicySpec"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.WorkloadPolicySpec"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in WorkloadPolicyStatus) OpenAPIModelName() string {
-	return "com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyStatus"
+	return "com.github.kubewarden.runtimeenforcer.api.v1alpha1.WorkloadPolicyStatus"
 }

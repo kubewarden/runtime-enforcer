@@ -9,8 +9,6 @@ metadata:
 spec:
   group: runtimeenforcer.kubewarden.io
   names:
-    categories:
-    - rancher-security
     kind: WorkloadPolicyProposal
     listKind: WorkloadPolicyProposalList
     plural: workloadpolicyproposals

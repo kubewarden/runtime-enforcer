@@ -99,7 +99,7 @@ type WorkloadPolicyStatus struct {
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Active Violations",type=string,JSONPath=`.status.activeViolationCount`
 // +kubebuilder:printcolumn:name="Total Violations",type=string,JSONPath=`.status.violationCount`
-// +kubebuilder:resource:categories={rancher-security},singular="workloadpolicy",path="workloadpolicies",scope="Namespaced",shortName={wp}
+// +kubebuilder:resource:singular="workloadpolicy",path="workloadpolicies",scope="Namespaced",shortName={wp}
 // +kubebuilder:metadata:annotations="helm.sh/resource-policy=keep"
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

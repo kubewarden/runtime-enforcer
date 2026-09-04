@@ -23,7 +23,7 @@ type WorkloadPolicyProposalSpec struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:categories={rancher-security},singular="workloadpolicyproposal",path="workloadpolicyproposals",scope="Namespaced",shortName={wpp}
+// +kubebuilder:resource:singular="workloadpolicyproposal",path="workloadpolicyproposals",scope="Namespaced",shortName={wpp}
 // +kubebuilder:metadata:annotations="helm.sh/resource-policy=keep"
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

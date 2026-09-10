@@ -1,0 +1,42 @@
+{
+  "extends": [
+    "github>kubewarden/github-actions//renovate-config/default"
+  ],
+  "packageRules": [
+    {
+      "groupName": "kubernetes",
+      "matchPackageNames": [
+        "/^k8s\\.io/api/",
+        "/^k8s\\.io/apimachinery/",
+        "/^k8s\\.io/client-go/",
+        "/^sigs\\.k8s\\.io/controller-runtime/"
+      ]
+    },
+    {
+      "description": "Chart enforcer images (controller, agent, debugger) are set by the release process",
+      "enabled": false,
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "kubewarden/runtime-enforcer/**"
+      ],
+      "matchPaths": [
+        "charts/runtime-enforcer/values.yaml"
+      ]
+    },
+    {
+      "description": "OpenTelemetry collector image is updated by updatecli",
+      "enabled": false,
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "otel/opentelemetry-collector-contrib"
+      ],
+      "matchPaths": [
+        "charts/runtime-enforcer/values.yaml"
+      ]
+    }
+  ]
+}

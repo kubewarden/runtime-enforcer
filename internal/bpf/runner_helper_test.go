@@ -123,10 +123,18 @@ type runCommandArgs struct {
 	shouldFindEvent bool
 	// use it when command is != from the path we want to find in the buffer.
 	expectedPath string
+	// hostMntNs runs the command in the test process's own (host) mount
+	// namespace instead of a fresh one, to exercise the runtime-bootstrap
+	// exclusion which suppresses host-mount-namespace execs.
+	hostMntNs bool
 }
 
 func (r *cgroupRunner) runAndFindCommand(args *runCommandArgs) error {
-	err := r.cgInfo.RunInCgroup(args.command, []string{})
+	run := r.cgInfo.RunInCgroup
+	if args.hostMntNs {
+		run = r.cgInfo.runInCgroupHostMntNs
+	}
+	err := run(args.command, []string{})
 	if args.shouldEPERM {
 		if err == nil || !errors.Is(err, syscall.EPERM) {
 			return fmt.Errorf("expected EPERM error, got: %w", err)

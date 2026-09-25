@@ -118,6 +118,13 @@ agent:
     requests:
       cpu: 250m
       memory: 256Mi
+  # hostPID must remain true: the agent reads /proc/1/ns/mnt to learn the host
+  # init mount namespace, which lets the eBPF program recognize (and silently
+  # skip) OCI runtime bootstrap execs such as `runc init` that run in the host
+  # mount namespace before entering the container. Assumes the container runtime
+  # (containerd/shim/runc) runs in the host init mount namespace, as on typical
+  # nodes; on nodes that isolate the runtime in a private mount namespace this
+  # detection is disabled (fail-open) and runtime execs may still be reported.
   hostPID: true
   # The podSecurityContext used by agent
   # @schema additionalProperties:true

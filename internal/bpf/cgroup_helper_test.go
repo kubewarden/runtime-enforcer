@@ -27,10 +27,31 @@ func (c cgroupInfo) Close() {
 }
 
 func (c cgroupInfo) RunInCgroup(command string, args []string) error {
+	return c.runInCgroup(command, args, true)
+}
+
+// runInCgroupHostMntNs runs the command in the cgroup WITHOUT unsharing the mount
+// namespace, so it executes in the test process's own (host) mount namespace. It
+// is used to exercise the runtime-bootstrap exclusion, which suppresses execs
+// that run in the host mount namespace.
+func (c cgroupInfo) runInCgroupHostMntNs(command string, args []string) error {
+	return c.runInCgroup(command, args, false)
+}
+
+func (c cgroupInfo) runInCgroup(command string, args []string, freshMntNs bool) error {
 	cmd := exec.Command(command, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		UseCgroupFD: true,
 		CgroupFD:    c.fd,
+	}
+	if freshMntNs {
+		// Run the workload in its own mount namespace so it resembles a real
+		// container workload. Without this it would execute in the test process's
+		// mount namespace (the host mount namespace), and the runtime-bootstrap
+		// exclusion in enforce_cgroup_policy would suppress its exec event.
+		// The new namespace is initialized with a copy of the current mount list,
+		// so the binary, /tmp scripts and /proc/self/fd all remain resolvable.
+		cmd.SysProcAttr.Unshareflags = syscall.CLONE_NEWNS
 	}
 	return cmd.Run()
 }

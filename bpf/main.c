@@ -243,6 +243,22 @@ static __always_inline __u64 get_tracker_id_from_curr_task() {
 	return trackerid;
 }
 
+// exec_in_host_mnt_ns reports whether the current task is executing while still
+// in the host init mount namespace. The OCI runtime bootstrap (e.g. `runc init`)
+// execs before joining the container mount namespace, so it runs in the host
+// mount namespace; workload execs always run in the container's own mount
+// namespace. Returns false (disabled) when the reference inode is unknown (0),
+// keeping the previous fail-open behavior.
+static __always_inline bool exec_in_host_mnt_ns(void) {
+	__u64 ref = load_time_config.host_mnt_ns_inum;
+	if(ref == 0) {
+		return false;
+	}
+	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+	__u32 inum = BPF_CORE_READ(task, nsproxy, mnt_ns, ns.inum);
+	return (__u64)inum == ref;
+}
+
 /////////////////////////
 // Log helpers
 /////////////////////////
@@ -501,6 +517,17 @@ int BPF_PROG(enforce_cgroup_policy, struct linux_binprm *bprm) {
 		// we return if we cannot get cgroup id, since our logic is based on cgroup ids.
 		// This is not an error, the userspace will populate the cgtracker_map only for the cgroups
 		// associated with containers, so all non-container cgroups will be ignored.
+		return 0;
+	}
+
+	if(exec_in_host_mnt_ns()) {
+		// The OCI runtime bootstrap (e.g. `runc init` / setns) execs while still
+		// in the host init mount namespace; it only enters the container mount
+		// namespace (setns/pivot_root) AFTER this execve. Every real workload exec
+		// runs in the container's own mount namespace. So an exec that is charged
+		// to a tracked container cgroup but still runs in the host mount namespace
+		// is a runtime bootstrap, not a workload binary: suppress reporting, never
+		// deny, and never learn it.
 		return 0;
 	}
 

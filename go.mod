@@ -4,6 +4,7 @@ go 1.27.1
 
 require (
 	github.com/avast/retry-go/v4 v4.7.0
+	github.com/avast/retry-go/v5 v5.0.0
 	github.com/cilium/ebpf v0.22.0
 	github.com/containerd/nri v0.12.3
 	github.com/go-logr/logr v1.4.4
@@ -36,6 +37,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.25.1
 	sigs.k8s.io/e2e-framework v0.7.0
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2
+	sigs.k8s.io/structured-merge-diff/v7 v7.0.0
 )
 
 require (

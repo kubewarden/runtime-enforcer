@@ -12,7 +12,7 @@ repos:
         language_version: 1.27.1
         stages: [pre-commit]
   - repo: https://github.com/cpp-linter/cpp-linter-hooks
-    rev: fb847eab8df8d27d51b015a1a4346d7035d7d5b8 # v1.6.0
+    rev: 85389ec4903aa23ebe6e650730e6f7c558a38648 # v1.6.1
     hooks:
       - id: clang-format
         args:
@@ -23,6 +23,6 @@ repos:
           - --checks=.clang-tidy
         files: ^bpf/.*\.c$
   - repo: https://github.com/yoheimuta/protolint
-    rev: 6da490255111eef7091aa9220ee02de8597b02d3 # v0.57.0
+    rev: c5433e2d6826441fc6150e7eb0ff5ad568100ad5 # v0.58.0
     hooks:
       - id: protolint

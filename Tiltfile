@@ -34,14 +34,14 @@ helm_options = [
         "controller.image.repository=" + controller_image,
         "agent.image.repository=" + agent_image,
         "controller.replicas=1",
-        "controller.containerSecurityContext.runAsUser=null",
+        "controller.containerSecurityContext.runAsUser=0",
         "controller.podSecurityContext.runAsNonRoot=false",
-        "agent.containerSecurityContext.runAsUser=null",
+        "agent.containerSecurityContext.runAsUser=0",
         "agent.podSecurityContext.runAsNonRoot=false",
         "debugger.enabled=true",
         "debugger.image.repository=" + debugger_image,
 		# this is necessary to copy the debugger binary under `/debugger`
-        "debugger.containerSecurityContext.runAsUser=null",
+        "debugger.containerSecurityContext.runAsUser=0",
 ]
 
 yaml = helm(

@@ -165,7 +165,7 @@ HELM_VALUES_SCHEMA_JSON ?= $(LOCALBIN)/helm-values-schema-json
 
 ## Tool Versions
 # renovate: datasource=go depName=sigs.k8s.io/controller-tools
-CONTROLLER_TOOLS_VERSION ?= v0.17.1
+CONTROLLER_TOOLS_VERSION ?= v0.22.0
 #ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
@@ -173,9 +173,9 @@ ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -
 # renovate: datasource=go depName=github.com/losisin/helm-values-schema-json/v2
 HELM_VALUES_SCHEMA_JSON_VERSION ?= v2.6.0
 # renovate: datasource=go depName=google.golang.org/protobuf
-PROTOC_GEN_GO_VERSION ?= v1.36.11
+PROTOC_GEN_GO_VERSION ?= v1.36.12
 # renovate: datasource=go depName=google.golang.org/grpc/cmd/protoc-gen-go-grpc
-PROTOC_GEN_GO_GRPC_VERSION ?= v1.6.1
+PROTOC_GEN_GO_GRPC_VERSION ?= v1.6.2
 
 .PHONY: tools
 tools: controller-gen envtest protoc-gen-go protoc-gen-go-grpc helm-values-schema-json

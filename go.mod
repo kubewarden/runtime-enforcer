@@ -1,6 +1,6 @@
 module github.com/kubewarden/runtime-enforcer
 
-go 1.27.1
+go 1.27.2
 
 require (
 	github.com/avast/retry-go/v4 v4.7.0

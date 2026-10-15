@@ -294,6 +294,63 @@ static __always_inline bool exec_is_runtime_bootstrap(__u64 cg_tracker_id) {
 	return get_tracker_id_from_task(parent) != cg_tracker_id;
 }
 
+// exec_is_foreign_root returns true when the exec file is in a mount namespace
+// that is not the mount namespace of the current task. This means the task
+// reaches the file across a namespace boundary. Examples are the host root file
+// system through /proc/<pid>/root, or the root file system of a
+// shareProcessNamespace sibling through /proc/<sibling_pid>/root. In these cases
+// the resolved path string refers to a foreign root file system. The code must
+// not trust this string against the container allow-list.
+//
+// The kernel creates kernel-internal mounts (memfd/shmem, pipefs, anon inodes)
+// with kern_mount(). The kernel sets the MNT_INTERNAL flag on these mounts. A
+// memfd exec is the in-memory file of the container. It is not a foreign root
+// file system. Therefore an internal mount is never foreign. The code also
+// treats an unattached mount (mnt_ns == NULL) as not foreign.
+//
+// Note: this function does not detect a task that enters another mount namespace
+// with setns(2) and then does an exec. In that case the task and the file share
+// one mount namespace. setns(2) needs CAP_SYS_ADMIN. The seccomp layer handles
+// this case, in the same way as mount and pivot_root.
+//
+// MNT_INTERNAL is the mount flag that kern_mount() sets on kernel-internal
+// mounts. The kernel value is stable at 0x4000.
+#define MNT_INTERNAL 0x4000
+static __always_inline bool exec_is_foreign_root(struct linux_binprm *bprm) {
+	struct file *file = bprm->file;
+	if(file == NULL) {
+		return false;
+	}
+
+	struct vfsmount *vfsmnt = NULL;
+	bpf_core_read(&vfsmnt, sizeof(vfsmnt), &file->f_path.mnt);
+	if(!vfsmnt) {
+		return false;
+	}
+
+	int mnt_flags = 0;
+	bpf_core_read(&mnt_flags, sizeof(mnt_flags), &vfsmnt->mnt_flags);
+	if(mnt_flags & MNT_INTERNAL) {
+		// Kernel-internal mount, for example memfd/shmem. This is not a foreign
+		// root file system.
+		return false;
+	}
+
+	struct mount *mnt = container_of(vfsmnt, struct mount, mnt);
+	struct mnt_namespace *file_ns = NULL;
+	bpf_core_read(&file_ns, sizeof(file_ns), &mnt->mnt_ns);
+	if(file_ns == NULL) {
+		// Unattached mount. This is not a foreign root file system.
+		return false;
+	}
+	__u32 file_inum = BPF_CORE_READ(file_ns, ns.inum);
+
+	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+	__u32 task_inum = BPF_CORE_READ(task, nsproxy, mnt_ns, ns.inum);
+
+	return file_inum != task_inum;
+}
+
 /////////////////////////
 // Log helpers
 /////////////////////////
@@ -419,6 +476,9 @@ struct process_evt {
 	u16 path_len;
 	u8 mode;  // enforce or protect, todo!: this information is not needed by the learning event so
 	          // we can also decide to split the event structures
+	// The exec resolves to a file on a foreign root file system. The value is 1 for
+	// a foreign-root exec and 0 for a normal exec.
+	u8 foreign;
 	// MAX_PATH_LEN for the final path +
 	// MAX_PATH_LEN for storing the progressive path +
 	// MAX_PATH_LEN of empty space for padding when we do the string map lookups
@@ -445,6 +505,7 @@ static __always_inline u32 populate_evt_with_path(struct process_evt *evt,
 		return 0;
 	}
 	struct path *path_arg = &file->f_path;
+
 	u32 current_offset = bpf_d_path_approx(path_arg, evt->path);
 	if(current_offset == 0) {
 		emit_log_event(LOG_FAIL_TO_RESOLVE_PATH);
@@ -484,13 +545,22 @@ struct {
 } cg_to_policy_map SEC(".maps");
 
 #define POLICY_MAP_MAX_ENTRIES 65536
+
+// policy_settings holds the settings of one policy. The key is the policy id. It
+// replaces the earlier maps for mode only and allow_foreign_root only. Now one
+// lookup returns all the data that the code needs to act on an exec.
+struct policy_settings {
+	__u8 mode;               /* mode of the policy, for example enforce or monitor */
+	__u8 allow_foreign_root; /* a non-zero value allows foreign-root execs for this policy */
+};
+
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, POLICY_MAP_MAX_ENTRIES);
 	__uint(map_flags, BPF_F_NO_PREALLOC);
-	__type(key, __u64);  /* Key is the policy id */
-	__type(value, __u8); /* mode of the policy (e.g. enforce, monitor) */
-} policy_mode_map SEC(".maps");
+	__type(key, __u64); /* Key is the policy id */
+	__type(value, struct policy_settings);
+} policy_settings_map SEC(".maps");
 
 #define POLICY_MODE_MONITOR 1
 #define POLICY_MODE_PROTECT 2
@@ -566,6 +636,12 @@ int BPF_PROG(enforce_cgroup_policy, struct linux_binprm *bprm) {
 		return 0;
 	}
 
+	// Check if this exec resolves to a file on a foreign root file system (for
+	// example the host root file system through /proc/<pid>/root). The code
+	// decides this from the mount namespace of the file and the mount namespace of
+	// the current task. The decision does not depend on path resolution.
+	bool foreign = exec_is_foreign_root(bprm);
+
 	__u64 *policy_id = bpf_map_lookup_elem(&cg_to_policy_map, &cg_tracker_id);
 	if(!policy_id) {
 		// if learning is disabled, nothing to do, we can return
@@ -586,6 +662,25 @@ int BPF_PROG(enforce_cgroup_policy, struct linux_binprm *bprm) {
 		}
 		levt->cg_tracker_id = cg_tracker_id;
 		levt->mode = 0;
+
+		if(foreign) {
+			// The exec resolves to a file on a foreign root file system. The binary
+			// does not live on the root file system of the container. The code must
+			// not learn its path. A learned path would be container-relative and
+			// would make the proposal wrong.
+			//
+			// Report the exec with the foreign flag and an empty path. The userspace
+			// sets the per-container allowForeignRootExec flag on the proposal. It
+			// does not add any path to the allow-list.
+			levt->foreign = 1;
+			levt->path_len = 0;
+			long ferr = bpf_ringbuf_output(&ringbuf_execve, levt, 19, 0);
+			if(ferr != 0) {
+				emit_log_event(LOG_DROP_EXEC_EVENT);
+			}
+			return 0;
+		}
+		levt->foreign = 0;
 
 		u32 loffset = populate_evt_with_path(levt, bprm);
 		if(loffset == 0) {
@@ -618,10 +713,51 @@ int BPF_PROG(enforce_cgroup_policy, struct linux_binprm *bprm) {
 	}
 
 	evt->cg_tracker_id = cg_tracker_id;
+	evt->foreign = foreign ? 1 : 0;
 
 	u32 current_offset = populate_evt_with_path(evt, bprm);
 	if(current_offset == 0) {
 		return 0;
+	}
+
+	if(foreign) {
+		// The exec resolved to a file on a foreign root file system. Examples are
+		// the host root file system through /proc/<pid>/root, or a mount that this
+		// container does not own. The resolved string is a container-relative path.
+		// The code must not trust this string against the allow-list.
+		//
+		// By default this is a violation. A container can opt out with the
+		// per-container allowForeignRootExec policy flag. When the flag is set, the
+		// code permits the exec and does not use the allow-list.
+		struct policy_settings *settings = bpf_map_lookup_elem(&policy_settings_map, policy_id);
+		if(!settings) {
+			emit_log_event_1(LOG_POLICY_MODE_MISSING, *policy_id);
+			return 0;
+		}
+		if(settings->allow_foreign_root) {
+			bpf_printk("foreign-root exec allowed by policy id %d", *policy_id);
+			return 0;
+		}
+
+		long ferr = bpf_probe_read_kernel(evt->path,
+		                                  SAFE_PATH_LEN(evt->path_len + 1),
+		                                  &evt->path[SAFE_PATH_ACCESS(current_offset)]);
+		if(ferr != 0) {
+			emit_log_event(LOG_FAIL_TO_COPY_EXEC_PATH);
+			return 0;
+		}
+		evt->mode = settings->mode;
+
+		ferr = bpf_ringbuf_output(&ringbuf_monitoring, evt, 19 + SAFE_PATH_LEN(evt->path_len), 0);
+		if(ferr != 0) {
+			emit_log_event_2(LOG_DROP_VIOLATION, *policy_id, evt->mode);
+		}
+
+		if(settings->mode == POLICY_MODE_MONITOR) {
+			return 0;
+		}
+		// The policy is in enforcing mode. Deny the foreign-root exec.
+		return -EPERM;
 	}
 
 	///////////////////////////////
@@ -682,14 +818,14 @@ int BPF_PROG(enforce_cgroup_policy, struct linux_binprm *bprm) {
 	}
 
 	// We check if we are in monitoring or enforcing mode for this policy
-	__u8 *mode = bpf_map_lookup_elem(&policy_mode_map, policy_id);
-	if(!mode) {
+	struct policy_settings *settings = bpf_map_lookup_elem(&policy_settings_map, policy_id);
+	if(!settings) {
 		// With our current code this is an error.
 		emit_log_event_1(LOG_POLICY_MODE_MISSING, *policy_id);
 		return 0;
 	}
-	bpf_printk("Mode %d for policy id %d", *mode, *policy_id);
-	evt->mode = *mode;
+	bpf_printk("Mode %d for policy id %d", settings->mode, *policy_id);
+	evt->mode = settings->mode;
 
 	err = bpf_ringbuf_output(&ringbuf_monitoring, evt, 19 + SAFE_PATH_LEN(evt->path_len), 0);
 	if(err != 0) {
@@ -699,7 +835,7 @@ int BPF_PROG(enforce_cgroup_policy, struct linux_binprm *bprm) {
 	bpf_printk("sent enforce event, path: %s, cg_tracker_id: %d", evt->path, evt->cg_tracker_id);
 	bpf_printk("mode: %d", evt->mode);
 
-	if(*mode == POLICY_MODE_MONITOR) {
+	if(settings->mode == POLICY_MODE_MONITOR) {
 		return 0;
 	}
 	// We are in enforcing mode

@@ -248,7 +248,7 @@ func startAgent(ctx context.Context, logger *slog.Logger, config Config) error {
 		bpfManager.GetCgroupTrackerUpdateFunc(),
 		bpfManager.GetCgroupPolicyUpdateFunc(),
 		bpfManager.GetPolicyUpdateBinariesFunc(),
-		bpfManager.GetPolicyModeUpdateFunc(),
+		bpfManager.GetPolicySettingsUpdateFunc(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create resolver: %w", err)

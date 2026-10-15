@@ -63,7 +63,7 @@ func newBenchPlugin(b *testing.B, maps *benchMaps) *plugin {
 	unusedBinaries := func(resolver.PolicyID, []string, bpf.PolicyValuesOperation) error {
 		return errors.New("this function should be unused")
 	}
-	unusedMode := func(resolver.PolicyID, policymode.Mode, bpf.PolicyModeOperation) error {
+	unusedSettings := func(resolver.PolicyID, policymode.Mode, bool, bpf.PolicySettingsOperation) error {
 		return errors.New("this function should be unused")
 	}
 
@@ -76,7 +76,7 @@ func newBenchPlugin(b *testing.B, maps *benchMaps) *plugin {
 			return bpf.UpdateCgroupPolicy(maps.cgToPol, polID, cgroupIDs, op)
 		},
 		unusedBinaries,
-		unusedMode,
+		unusedSettings,
 	)
 	require.NoError(b, err)
 

@@ -66,6 +66,10 @@ type KubeProcessInfo struct {
 	PodName        string `json:"podName"`
 	ContainerID    string `json:"containerID"`
 	PolicyName     string `json:"policyName,omitempty"`
+	// ForeignRoot is true when the exec resolves to a file on a foreign root file
+	// system. The userspace sets the per-container allowForeignRootExec flag on the
+	// proposal and does not add the path to the allow-list.
+	ForeignRoot bool `json:"foreignRoot,omitempty"`
 }
 
 type Option func(*EventScraper)
@@ -139,6 +143,7 @@ func (es *EventScraper) getKubeProcessInfo(event *bpf.ProcessEvent) *KubeProcess
 		PodName:        podMeta.Name,
 		ContainerID:    containerMeta.ID,
 		PolicyName:     policyName,
+		ForeignRoot:    event.ForeignRoot,
 	}
 }
 

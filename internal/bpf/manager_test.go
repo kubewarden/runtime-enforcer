@@ -128,7 +128,7 @@ func TestMonitorProtectMode(t *testing.T) {
 	// Switch to enforcing mode
 	//////////////////////
 	t.Log("Switching to enforcing mode")
-	err = runner.manager.GetPolicyModeUpdateFunc()(mockPolicyID, policymode.Protect, UpdateMode)
+	err = runner.manager.GetPolicySettingsUpdateFunc()(mockPolicyID, policymode.Protect, false, UpdateSettings)
 	require.NoError(t, err, "Failed to set policy to protect")
 
 	//////////////////////

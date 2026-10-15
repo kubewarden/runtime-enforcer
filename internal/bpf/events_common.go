@@ -116,6 +116,7 @@ func (m *Manager) processRingbufEvents(ctx context.Context, rd *ringbuf.Reader, 
 			CgTrackerID: header.CgTrackerID,
 			Mode:        modeString,
 			ExePath:     string(pathBytes),
+			ForeignRoot: header.Foreign != 0,
 		}
 	}
 }

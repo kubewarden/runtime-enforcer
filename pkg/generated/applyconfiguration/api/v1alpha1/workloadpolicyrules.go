@@ -7,6 +7,14 @@ package v1alpha1
 type WorkloadPolicyRulesApplyConfiguration struct {
 	// executables defines a security policy for executables.
 	Executables *WorkloadPolicyExecutablesApplyConfiguration `json:"executables,omitempty"`
+	// options is a free-form map of behavior flags for this container. Each key
+	// selects one behavior. The value is a string, like an environment variable.
+	// A value of "1" or "true" turns the behavior on. Any other value, or an
+	// absent key, leaves the behavior off. The enforcer ignores keys that it does
+	// not recognize. It logs a warning for each one. The set of recognized keys
+	// depends on the enforcer version. See the runtime-enforcer documentation for
+	// the keys that your version supports.
+	Options map[string]string `json:"options,omitempty"`
 }
 
 // WorkloadPolicyRulesApplyConfiguration constructs a declarative configuration of the WorkloadPolicyRules type for use with
@@ -20,5 +28,19 @@ func WorkloadPolicyRules() *WorkloadPolicyRulesApplyConfiguration {
 // If called multiple times, the Executables field is set to the value of the last call.
 func (b *WorkloadPolicyRulesApplyConfiguration) WithExecutables(value *WorkloadPolicyExecutablesApplyConfiguration) *WorkloadPolicyRulesApplyConfiguration {
 	b.Executables = value
+	return b
+}
+
+// WithOptions puts the entries into the Options field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the Options field,
+// overwriting an existing map entries in Options field with the same key.
+func (b *WorkloadPolicyRulesApplyConfiguration) WithOptions(entries map[string]string) *WorkloadPolicyRulesApplyConfiguration {
+	if b.Options == nil && len(entries) > 0 {
+		b.Options = make(map[string]string, len(entries))
+	}
+	for k, v := range entries {
+		b.Options[k] = v
+	}
 	return b
 }

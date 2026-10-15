@@ -285,14 +285,21 @@ func (r *LearningReconciler) reconcile(
 			return nil
 		}
 
-		if policyProposal.IsFull() {
+		switch {
+		case req.ForeignRoot:
+			// A foreign-root exec happened for this container. Do not add the path.
+			// The binary does not live on the container root file system. Set the
+			// per-container flag so the proposed policy permits foreign-root execs.
+			policyProposal.SetAllowForeignRootExec(req.ContainerName)
+		case policyProposal.IsFull():
 			logger.Info("proposal is full, cannot add new executables",
 				"proposal", policyProposal.NamespacedName(),
 				"exe", req.ExecutablePath,
 			)
 			return nil
+		default:
+			policyProposal.AddProcess(req.ContainerName, req.ExecutablePath)
 		}
-		policyProposal.AddProcess(req.ContainerName, req.ExecutablePath)
 
 		// If the owner reference is already there we do nothing.
 		// We should always have the owner reference populated unless we are creating the resource for the first time.

@@ -14,7 +14,7 @@ func mockPolicyUpdateBinariesFunc(_ PolicyID, _ []string, _ bpf.PolicyValuesOper
 	return nil
 }
 
-func mockPolicyModeUpdateFunc(_ PolicyID, _ policymode.Mode, _ bpf.PolicyModeOperation) error {
+func mockPolicySettingsUpdateFunc(_ PolicyID, _ policymode.Mode, _ bool, _ bpf.PolicySettingsOperation) error {
 	return nil
 }
 
@@ -33,7 +33,7 @@ func NewTestResolver(t testing.TB) *Resolver {
 		mockCgTrackerUpdateFunc,
 		mockCgroupToPolicyMapUpdateFunc,
 		mockPolicyUpdateBinariesFunc,
-		mockPolicyModeUpdateFunc,
+		mockPolicySettingsUpdateFunc,
 	)
 	require.NoError(t, err)
 	return r

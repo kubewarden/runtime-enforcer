@@ -40,12 +40,16 @@ type ProcessEvent struct {
 	CgTrackerID uint64
 	ExePath     string
 	Mode        string
+	// ForeignRoot is true when the exec resolves to a file on a foreign root file
+	// system, for example the host root file system through /proc/<pid>/root.
+	ForeignRoot bool
 }
 
 type bpfEventHeader struct {
 	CgTrackerID uint64
 	PathLen     uint16
 	Mode        uint8
+	Foreign     uint8
 }
 
 type Manager struct {

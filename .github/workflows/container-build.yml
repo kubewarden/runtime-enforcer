@@ -1,63 +1,28 @@
-name: Build, Sign, and Generate SBOM, Attestation & Provenance
+name: Build and sign container images (main)
+
+# Builds and signs the images of the `main` branch under the `latest` tag.
+# Tagged releases go through release.yml, which calls the same reusable
+# workflow with a `version`.
+
+# No default token permissions. Each job declares exactly what it needs.
+permissions: {}
 
 on:
-  workflow_call:
-    inputs:
-      version:
-        type: string
-
   push:
     branches:
       - "main"
+
 jobs:
   build:
-    strategy:
-      matrix:
-        component: [controller, agent, debugger]
-        arch: [amd64, arm64]
-        include:
-          - arch: amd64
-            runner: ubuntu-latest
-          - arch: arm64
-            runner: ubuntu-24.04-arm
     permissions:
-      contents: read
+      contents: read # Checkout the source
       packages: write # Pushing images to ghcr.io
-      id-token: write # Signing images with cosign
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Build image
-        uses: $/.github/actions/container-build
-        with:
-          arch: ${{ matrix.arch }}
-          dockerfile: package/Dockerfile.${{ matrix.component }}
-          image: ${{ matrix.component }}
-          repo: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  merge:
-    runs-on: ubuntu-latest
-    needs: [build]
-    permissions:
-      contents: read # Access private repos
-      packages: write # Pushing multi-arch manifest to ghcr.io
-      id-token: write # Signing images with cosign
-    strategy:
-      matrix:
-        component: [controller, agent, debugger]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Merge images
-        uses: $/.github/actions/merge-multiarch
-        with:
-          arch: amd64,arm64
-          image: ${{ matrix.component }}
-          repo: ${{ github.repository }}
-          tag: latest
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      id-token: write # Signing images with cosign and actions/attest
+      attestations: write # actions/attest (SLSA L3 provenance)
+    # TODO: bump to the v8.0.0 SHA once kubewarden/github-actions tags the final release.
+    uses: kubewarden/github-actions/.github/workflows/container-release.yml@6e593b91207b28d6815843d72b1d3ad4dcf77268 # v8.0.0-rc.1
+    with:
+      components: '["controller","agent","debugger"]'
+      image-namespace: runtime-enforcer
+      dockerfile-dir: package
+      artifact-prefix: RuntimeEnforcer-

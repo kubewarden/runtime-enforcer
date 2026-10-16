@@ -24,25 +24,7 @@ updates:
     cooldown:
       default-days: 7
   - package-ecosystem: "github-actions"
-    directory: "/.github/actions/attestation/"
-    schedule:
-      interval: "daily"
-    cooldown:
-      default-days: 7
-  - package-ecosystem: "github-actions"
     directory: "/.github/actions/bpfvalidator/"
-    schedule:
-      interval: "daily"
-    cooldown:
-      default-days: 7
-  - package-ecosystem: "github-actions"
-    directory: "/.github/actions/container-build/"
-    schedule:
-      interval: "daily"
-    cooldown:
-      default-days: 7
-  - package-ecosystem: "github-actions"
-    directory: "/.github/actions/merge-multiarch/"
     schedule:
       interval: "daily"
     cooldown:

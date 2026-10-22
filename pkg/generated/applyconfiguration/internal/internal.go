@@ -167,6 +167,11 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyExecutables
       default: {}
+    - name: options
+      type:
+        map:
+          elementType:
+            scalar: string
 - name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicySpec
   map:
     fields:

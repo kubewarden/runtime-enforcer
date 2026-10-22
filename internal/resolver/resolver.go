@@ -21,7 +21,7 @@ type Resolver struct {
 	nextPolicyID                PolicyID
 	wpState                     map[NamespacedPolicyName]*wpInfo
 	policyUpdateBinariesFunc    func(policyID PolicyID, values []string, op bpf.PolicyValuesOperation) error
-	policyModeUpdateFunc        func(policyID PolicyID, mode policymode.Mode, op bpf.PolicyModeOperation) error
+	policySettingsUpdateFunc    func(policyID PolicyID, mode policymode.Mode, allowForeignRoot bool, op bpf.PolicySettingsOperation) error
 	cgTrackerUpdateFunc         func(cgID uint64, cgroupPath string) error
 	cgroupToPolicyMapUpdateFunc func(polID PolicyID, cgroupIDs []CgroupID, op bpf.CgroupPolicyOperation) error
 }
@@ -31,7 +31,7 @@ func NewResolver(
 	cgTrackerUpdateFunc func(cgID uint64, cgroupPath string) error,
 	cgroupToPolicyMapUpdateFunc func(polID PolicyID, cgroupIDs []CgroupID, op bpf.CgroupPolicyOperation) error,
 	policyUpdateBinariesFunc func(policyID uint64, values []string, op bpf.PolicyValuesOperation) error,
-	policyModeUpdateFunc func(policyID uint64, mode policymode.Mode, op bpf.PolicyModeOperation) error,
+	policySettingsUpdateFunc func(policyID uint64, mode policymode.Mode, allowForeignRoot bool, op bpf.PolicySettingsOperation) error,
 ) (*Resolver, error) {
 	r := &Resolver{
 		logger:                      logger.With("component", "resolver"),
@@ -40,7 +40,7 @@ func NewResolver(
 		cgTrackerUpdateFunc:         cgTrackerUpdateFunc,
 		cgroupToPolicyMapUpdateFunc: cgroupToPolicyMapUpdateFunc,
 		policyUpdateBinariesFunc:    policyUpdateBinariesFunc,
-		policyModeUpdateFunc:        policyModeUpdateFunc,
+		policySettingsUpdateFunc:    policySettingsUpdateFunc,
 		wpState:                     make(map[NamespacedPolicyName]*wpInfo),
 		nextPolicyID:                PolicyID(1),
 	}

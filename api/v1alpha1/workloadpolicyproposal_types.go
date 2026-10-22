@@ -124,6 +124,29 @@ func (p *WorkloadPolicyProposal) AddProcess(containerName string, executable str
 	rules.Executables.Allowed = append(rules.Executables.Allowed, executable)
 }
 
+// SetAllowForeignRootExec sets the AllowForeignRootExec flag for the container.
+// The code calls this when a foreign-root exec happens for the container during
+// learning. The flag opts the container out of foreign-root denial. The code does
+// not add any path to the allow-list.
+func (p *WorkloadPolicyProposal) SetAllowForeignRootExec(containerName string) {
+	if p.Spec.RulesByContainer == nil {
+		p.Spec.RulesByContainer = make(map[string]*WorkloadPolicyRules)
+	}
+
+	rules, ok := p.Spec.RulesByContainer[containerName]
+	if !ok {
+		p.Spec.RulesByContainer[containerName] = &WorkloadPolicyRules{
+			Options: map[string]string{OptionAllowForeignRootExec: "1"},
+		}
+		return
+	}
+
+	if rules.Options == nil {
+		rules.Options = make(map[string]string)
+	}
+	rules.Options[OptionAllowForeignRootExec] = "1"
+}
+
 func (p *WorkloadPolicyProposal) AddPartialOwnerReferenceDetails(workloadKind string, workload string) {
 	p.OwnerReferences = []metav1.OwnerReference{
 		{

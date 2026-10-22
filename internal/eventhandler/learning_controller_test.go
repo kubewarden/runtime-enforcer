@@ -401,6 +401,59 @@ var _ = Describe("Learning", func() {
 			Expect(k8sClient.Delete(ctx, workloadPolicy)).To(Succeed())
 		})
 
+		It("should set allowForeignRootExec and not add a path for a foreign-root event", func() {
+			const testNamespace = "default"
+			const testResourceName = "opensuse-deployment-foreign"
+			const testProposalName = "deploy-opensuse-deployment-foreign"
+
+			processEvents := []eventscraper.KubeProcessInfo{
+				{
+					Namespace:      testNamespace,
+					Workload:       testResourceName,
+					WorkloadKind:   "Deployment",
+					ContainerName:  "opensuse",
+					ExecutablePath: "/usr/bin/sleep",
+				},
+				{
+					Namespace:     testNamespace,
+					Workload:      testResourceName,
+					WorkloadKind:  "Deployment",
+					ContainerName: "opensuse",
+					ForeignRoot:   true,
+				},
+			}
+
+			reconciler := newTestLearningReconciler(k8sClient, defaultNamespaceSelector)
+
+			testProposal := proposal.DeepCopy()
+			testProposal.Namespace = testNamespace
+			testProposal.Name = testProposalName
+			Expect(k8sClient.Create(ctx, testProposal)).To(Succeed())
+
+			for _, learningEvent := range processEvents {
+				result, reconcileErr := reconciler.Reconcile(ctx, learningEvent)
+				Expect(reconcileErr).NotTo(HaveOccurred())
+				Expect(result).To(Equal(ctrl.Result{}))
+			}
+
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Namespace: testNamespace,
+				Name:      testProposalName,
+			}, testProposal)
+			Expect(err).NotTo(HaveOccurred())
+
+			rules := testProposal.Spec.RulesByContainer["opensuse"]
+			Expect(rules).NotTo(BeNil())
+			Expect(rules.AllowForeignRootExec()).To(BeTrue())
+			Expect(rules.Executables.Allowed).To(ContainElement("/usr/bin/sleep"))
+			Expect(rules.Executables.Allowed).NotTo(ContainElement(""))
+
+			Expect(k8sClient.Delete(ctx, &securityv1alpha1.WorkloadPolicyProposal{
+				Name:      testProposal.Name,
+				Namespace: testProposal.Namespace,
+			})).To(Succeed())
+		})
+
 		When("namespace does not match selector", func() {
 			It("should skip reconciliation and not create resources", func(ctx context.Context) {
 				By("Creating a reconciler with a namespace selector")

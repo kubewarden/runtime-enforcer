@@ -192,3 +192,41 @@ func TestWorkloadPolicyProposalAddProcess(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkloadPolicyProposalSetAllowForeignRootExec(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(p *WorkloadPolicyProposal)
+	}{
+		{
+			name:  "sets the flag on a new container",
+			setup: func(_ *WorkloadPolicyProposal) {},
+		},
+		{
+			name: "sets the flag on a container that already has executables",
+			setup: func(p *WorkloadPolicyProposal) {
+				p.AddProcess("container1", "/bin/sh")
+			},
+		},
+		{
+			name: "is idempotent",
+			setup: func(p *WorkloadPolicyProposal) {
+				p.SetAllowForeignRootExec("container1")
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &WorkloadPolicyProposal{}
+			tc.setup(p)
+
+			p.SetAllowForeignRootExec("container1")
+
+			require.Contains(t, p.Spec.RulesByContainer, "container1")
+			require.True(t, p.Spec.RulesByContainer["container1"].AllowForeignRootExec())
+			require.Equal(t, "1",
+				p.Spec.RulesByContainer["container1"].Options[OptionAllowForeignRootExec])
+		})
+	}
+}

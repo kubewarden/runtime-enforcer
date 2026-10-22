@@ -116,6 +116,36 @@ func (m *Manager) findEventInChannel(ty ChannelType, cgID uint64, expectedPath s
 	}
 }
 
+// findForeignEventInChannel reads the given channel until it sees an event for
+// the cgroup cgID with the ForeignRoot flag set. It returns that event. The
+// learning foreign-root event carries an empty path, so a match on ExePath does
+// not work. This helper matches on the foreign flag instead. It times out after
+// 1 second of silence, like findEventInChannel.
+func (m *Manager) findForeignEventInChannel(ty ChannelType, cgID uint64) (ProcessEvent, error) {
+	var channel <-chan ProcessEvent
+	switch ty {
+	case learningChannel:
+		channel = m.GetLearningChannel()
+	case monitoringChannel:
+		channel = m.GetMonitoringChannel()
+	default:
+		panic("unhandled channel type")
+	}
+
+	for {
+		select {
+		case event := <-channel:
+			m.logger.Info("Received event", "event", event)
+			if event.CgTrackerID == cgID && event.ForeignRoot {
+				m.logger.Info("Found foreign-root event", "event", event)
+				return event, nil
+			}
+		case <-time.After(1 * time.Second):
+			return ProcessEvent{}, errors.New("timeout waiting for foreign-root event")
+		}
+	}
+}
+
 type runCommandArgs struct {
 	command         string
 	channel         ChannelType
@@ -170,6 +200,18 @@ func (r *cgroupRunner) runAndFindCommand(args *runCommandArgs) error {
 }
 
 func (r *cgroupRunner) populatePolicyForRunnerCgroup(policyID uint64, mode policymode.Mode, binaries []string) error {
+	return r.populatePolicyWithForeign(policyID, mode, false, binaries)
+}
+
+// populatePolicyWithForeign installs a policy for the runner cgroup and lets the
+// caller choose the allow_foreign_root setting. It mirrors
+// populatePolicyForRunnerCgroup, which always disables the foreign-root allowance.
+func (r *cgroupRunner) populatePolicyWithForeign(
+	policyID uint64,
+	mode policymode.Mode,
+	allowForeignRoot bool,
+	binaries []string,
+) error {
 	err := r.manager.GetPolicyUpdateBinariesFunc()(
 		policyID,
 		binaries,
@@ -179,9 +221,9 @@ func (r *cgroupRunner) populatePolicyForRunnerCgroup(policyID uint64, mode polic
 		return fmt.Errorf("Failed to add policy values: %w", err)
 	}
 
-	err = r.manager.GetPolicyModeUpdateFunc()(policyID, mode, UpdateMode)
+	err = r.manager.GetPolicySettingsUpdateFunc()(policyID, mode, allowForeignRoot, UpdateSettings)
 	if err != nil {
-		return fmt.Errorf("Failed to set policy mode: %w", err)
+		return fmt.Errorf("Failed to set policy settings: %w", err)
 	}
 
 	err = r.manager.GetCgroupPolicyUpdateFunc()(

@@ -147,7 +147,8 @@ func (r *WorkloadPolicyStatusSync) getNodeStatusByPolicy(
 					"policy",
 					policyNamespacedName,
 				)
-				continue
+				nodeStatus.Code = v1alpha1.PolicyFailed
+				nodeStatus.Message = err.Error()
 			}
 
 			nodeStatusByPolicy[policyNamespacedName] = append(
@@ -165,7 +166,7 @@ func policyNodeStatus(
 	policyStatus *pb.PolicyStatus,
 ) (v1alpha1.PolicyCode, string, error) {
 	if policyStatus == nil {
-		return v1alpha1.PolicyUnknown, "", errors.New("policy status is nil")
+		return v1alpha1.PolicyMissing, "policy not found on the node", nil
 	}
 
 	policyModeMatchesExpected := func(mode pb.PolicyMode, expectedMode string) bool {

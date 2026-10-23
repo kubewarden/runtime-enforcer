@@ -8,10 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
 	"github.com/kubewarden/runtime-enforcer/internal/grpcexporter"
@@ -19,45 +16,53 @@ import (
 	pb "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 )
 
-func createTestWPStatusSync(t *testing.T) *WorkloadPolicyStatusSync {
-	scheme := runtime.NewScheme()
-	corev1.AddToScheme(scheme)
-	v1alpha1.AddToScheme(scheme)
-	cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects().Build()
-	config := &WorkloadPolicyStatusSyncConfig{
+func testWPStatusSyncConfig(t *testing.T) *WorkloadPolicyStatusSyncConfig {
+	t.Helper()
+	return &WorkloadPolicyStatusSyncConfig{
 		AgentPoolConf: grpcexporter.AgentClientPoolConfig{
 			AgentFactoryConfig: grpcexporter.AgentFactoryConfig{
 				Port:        50051,
 				MTLSEnabled: false,
 			},
 			LabelSelectorString: "app=agent",
-			// We explicitly provide a namespace so that this is not computed at runtime.
-			Namespace: "test-namespace",
-			Logger:    testutil.NewTestLogger(t),
+			Namespace:           "test-namespace",
+			Logger:              testutil.NewTestLogger(t),
 		},
 		UpdateInterval: 1 * time.Second,
 	}
+}
 
-	r, err := NewWorkloadPolicyStatusSync(cl, config)
+func createTestWPStatusSync(t *testing.T) *WorkloadPolicyStatusSync {
+	t.Helper()
+	r, err := NewWorkloadPolicyStatusSync(newStatusSyncClient(t), testWPStatusSyncConfig(t))
 	require.NoError(t, err)
 	return r
 }
 
 type testAgentClient struct {
-	policies   map[string]*pb.PolicyStatus
-	violations []*pb.ViolationRecord
-	scrapeErr  error
+	policies         map[string]*pb.PolicyStatus
+	violations       []*pb.ViolationRecord
+	policiesErr      error
+	scrapeErr        error
+	listPoliciesFunc func(context.Context) (map[string]*pb.PolicyStatus, error)
+	scrapeFunc       func(context.Context) ([]*pb.ViolationRecord, error)
 }
 
-func (c *testAgentClient) ListPoliciesStatus(_ context.Context) (map[string]*pb.PolicyStatus, error) {
-	return c.policies, nil
+func (c *testAgentClient) ListPoliciesStatus(ctx context.Context) (map[string]*pb.PolicyStatus, error) {
+	if c.listPoliciesFunc != nil {
+		return c.listPoliciesFunc(ctx)
+	}
+	return c.policies, c.policiesErr
 }
 
 func (c *testAgentClient) ListPodCache(_ context.Context) ([]*pb.PodView, error) {
 	return nil, nil
 }
 
-func (c *testAgentClient) ScrapeViolations(_ context.Context) ([]*pb.ViolationRecord, error) {
+func (c *testAgentClient) ScrapeViolations(ctx context.Context) ([]*pb.ViolationRecord, error) {
+	if c.scrapeFunc != nil {
+		return c.scrapeFunc(ctx)
+	}
 	return c.violations, c.scrapeErr
 }
 
@@ -135,6 +140,8 @@ func TestGetViolationsByPolicy(t *testing.T) {
 
 	t.Run("skips node on scrape error", func(t *testing.T) {
 		r := createTestWPStatusSync(t)
+		pool := &testAgentClientPool{}
+		r.agentClientPool = pool
 
 		clients := map[string]grpcexporter.AgentClientAPI{
 			"node1": &testAgentClient{scrapeErr: errors.New("connection refused")},
@@ -142,6 +149,7 @@ func TestGetViolationsByPolicy(t *testing.T) {
 
 		got := r.getViolationsByPolicy(context.Background(), clients)
 		require.Empty(t, got)
+		require.Equal(t, []string{"node1"}, pool.staleNodes)
 	})
 
 	t.Run("empty nodes returns empty map", func(t *testing.T) {

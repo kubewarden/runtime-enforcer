@@ -23,11 +23,16 @@ import (
 // +kubebuilder:rbac:groups=runtimeenforcer.kubewarden.io,resources=workloadpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=runtimeenforcer.kubewarden.io,resources=workloadpolicies/status,verbs=get;update;patch
 
+type agentClientPool interface {
+	UpdatePool(context.Context, client.Reader) (map[string]grpcexporter.AgentClientAPI, error)
+	MarkStaleAgentClient(string)
+}
+
 // WorkloadPolicyStatusSync reconciles a WorkloadPolicy status.
 type WorkloadPolicyStatusSync struct {
 	client.Client
 
-	agentClientPool       *grpcexporter.AgentClientPool
+	agentClientPool       agentClientPool
 	updateInterval        time.Duration
 	logger                logr.Logger
 	eventLogger           otellog.Logger

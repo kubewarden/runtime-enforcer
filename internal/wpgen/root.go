@@ -29,6 +29,7 @@ foreign root.`,
 	}
 
 	cmd.AddCommand(newImageCmd())
+	cmd.AddCommand(newWorkloadCmd())
 
 	return cmd
 }

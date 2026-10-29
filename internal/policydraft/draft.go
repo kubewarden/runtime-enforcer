@@ -45,7 +45,7 @@ func New(
 
 	return &v1alpha1.WorkloadPolicy{
 		APIVersion: v1alpha1.GroupVersion.String(),
-		Kind:       "WorkloadPolicy",
+		Kind:       policyKind,
 		Name:       name,
 		Namespace:  namespace,
 		Spec: v1alpha1.WorkloadPolicySpec{

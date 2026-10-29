@@ -3,7 +3,6 @@
 package workloadparse
 
 import (
-	"errors"
 	"fmt"
 	"io"
 
@@ -13,12 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/kubewarden/runtime-enforcer/internal/manifest"
 	"github.com/kubewarden/runtime-enforcer/internal/types/workloadkind"
 )
-
-const decoderBufferSize = 4096
 
 // Container is a container of a pod template.
 type Container struct {
@@ -57,55 +54,22 @@ func Parse(r io.Reader) ([]Workload, []Skipped, error) {
 		skipped   []Skipped
 	)
 
-	decoder := yaml.NewYAMLOrJSONDecoder(r, decoderBufferSize)
-	for doc := 1; ; doc++ {
-		obj := &unstructured.Unstructured{}
-		err := decoder.Decode(&obj.Object)
-		if errors.Is(err, io.EOF) {
-			break
-		}
+	err := manifest.ForEachObject(r, func(obj *unstructured.Unstructured) error {
+		w, s, err := parseObject(obj)
 		if err != nil {
-			return nil, nil, fmt.Errorf("document %d: %w", doc, err)
+			return err
 		}
-		if len(obj.Object) == 0 {
-			continue
+		if s != nil {
+			skipped = append(skipped, *s)
+			return nil
 		}
-
-		objects := []*unstructured.Unstructured{obj}
-		if obj.IsList() {
-			objects, err = listItems(obj)
-			if err != nil {
-				return nil, nil, fmt.Errorf("document %d: %w", doc, err)
-			}
-		}
-
-		for _, o := range objects {
-			w, s, parseErr := parseObject(o)
-			if parseErr != nil {
-				return nil, nil, fmt.Errorf("document %d: %w", doc, parseErr)
-			}
-			if s != nil {
-				skipped = append(skipped, *s)
-				continue
-			}
-			workloads = append(workloads, *w)
-		}
-	}
-
-	return workloads, skipped, nil
-}
-
-func listItems(list *unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
-	var items []*unstructured.Unstructured
-	err := list.EachListItem(func(o runtime.Object) error {
-		u, ok := o.(*unstructured.Unstructured)
-		if !ok {
-			return fmt.Errorf("unexpected list item type %T", o)
-		}
-		items = append(items, u)
+		workloads = append(workloads, *w)
 		return nil
 	})
-	return items, err
+	if err != nil {
+		return nil, nil, err
+	}
+	return workloads, skipped, nil
 }
 
 type templateExtractor func(*unstructured.Unstructured) (*corev1.PodTemplateSpec, error)

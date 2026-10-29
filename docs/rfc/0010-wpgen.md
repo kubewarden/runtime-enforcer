@@ -151,10 +151,13 @@ wants to know if the policy still matches the new image. The CI job runs
 
 ```console
 $ wpgen check ./policy.yaml --workload ./deploy/nginx.yaml
-container "nginx": 2 allowed paths do not exist in the image
-  /usr/sbin/nginx-debug
-  /usr/local/bin/wait-for-it.sh
-container "nginx": 310 executables in the image are not allowed (expected)
+Policy "deploy-nginx" (namespace web):
+  container "nginx" (image docker.io/library/nginx:1.27):
+    2 allowed paths are not executables in the image:
+      /usr/local/bin/wait-for-it.sh
+      /usr/sbin/nginx-debug
+    310 executables of the image are not allowed
+Error: 2 allowed paths are not executables in the images
 $ echo $?
 1
 ```
@@ -176,10 +179,21 @@ The same check works for a single image:
 
 ```console
 $ wpgen check ./policy.yaml --image ghcr.io/example/api:2.3.0 --container-name api
-container "api": all 14 allowed paths exist in the image
-container "api": 0 executables in the image are not allowed
+Policy "api" (namespace prod):
+  container "api" (image ghcr.io/example/api:2.3.0):
+    all 14 allowed paths are executables in the image
+    0 executables of the image are not allowed
 $ echo $?
 0
+```
+
+A policy written by hand often allows the name of a symbolic link, for
+example `/bin/sh` in a BusyBox image. The enforcer never reports this path.
+The check shows the real path that the policy must allow:
+
+```text
+    1 allowed paths are not executables in the image:
+      /bin/sh (symbolic link to /bin/busybox, the enforcer reports /bin/busybox)
 ```
 
 # Detailed design
@@ -204,18 +218,23 @@ The tool has three subcommands:
 ```text
 wpgen image IMAGE [--container-name NAME] [--name NAME] [--namespace NS] [flags]
 wpgen workload FILE|- [flags]
-wpgen check POLICY_FILE (--workload FILE | --image IMAGE [--container-name NAME])
+wpgen check POLICY_FILE|- (--workload FILE|- | --image IMAGE [--container-name NAME]) [flags]
 ```
 
 Common flags:
 
-| Flag               | Default                       | Description                                                          |
-| ------------------ | ----------------------------- | -------------------------------------------------------------------- |
-| `--mode`           | `monitor`                     | Value of `spec.mode`. Accepts `monitor` or `protect`.                |
-| `--platform`       | `linux/<host>`                | Platform to select from a multi-platform image.                      |
-| `--output`, `-o`   | `yaml`                        | Output format. Accepts `yaml` or `json`.                             |
-| `--image-src`      | `file,docker,podman,registry` | Image sources to try, in order. See [Image sources](#image-sources). |
-| `--warn-threshold` | `50`                          | Print a warning when a container allows more executables than this.  |
+| Flag          | Default                       | Description                                                          |
+| ------------- | ----------------------------- | -------------------------------------------------------------------- |
+| `--platform`  | `linux/<host>`                | Platform to select from a multi-platform image.                      |
+| `--image-src` | `file,docker,podman,registry` | Image sources to try, in order. See [Image sources](#image-sources). |
+
+Flags of `wpgen image` and `wpgen workload`:
+
+| Flag               | Default   | Description                                                         |
+| ------------------ | --------- | ------------------------------------------------------------------- |
+| `--mode`           | `monitor` | Value of `spec.mode`. Accepts `monitor` or `protect`.               |
+| `--output`, `-o`   | `yaml`    | Output format. Accepts `yaml` or `json`.                            |
+| `--warn-threshold` | `50`      | Print a warning when a container allows more executables than this. |
 
 Flags of `wpgen image`:
 
@@ -386,23 +405,43 @@ The output is a draft. The tool makes this clear in three ways:
 
 ## The `check` subcommand
 
-`wpgen check` reads a `WorkloadPolicy` or a `WorkloadPolicyProposal` from a
-file. It reads the images from a workload file or from `--image`. For each
-container in `spec.rulesByContainer`, the tool compares the allowed paths with
-the executables of the image. The report has two parts:
+`wpgen check` reads one `WorkloadPolicy` or one `WorkloadPolicyProposal` from
+a file. If the file name is `-`, the tool reads from standard input. Other
+kinds in the file are skipped with a notice. A file with no policy, or with
+more than one, is an error.
 
-- Allowed paths that do not exist in the image. These paths are stale after an
-  image update, or they come from a volume or a foreign root. The tool lists
-  each path.
+The tool reads the images from one of two sources:
+
+- `--workload FILE`: the file must contain exactly one supported workload,
+  with the same kinds and rules as `wpgen workload`. A file with more than
+  one workload is an error. The tool does not compare the name of the policy
+  with the name of the workload.
+- `--image IMAGE`: the image of one container of the policy. The container is
+  the one given with `--container-name`. Without this flag, the policy must
+  have exactly one container.
+
+With `--workload`, the tool matches the containers of the policy and of the
+workload by name. If a container is only in one of them, the tool prints a
+notice and continues. If they have no container in common, the tool stops
+with an error.
+
+For each container, the tool compares the allowed paths with the executables
+of the image. The report has two parts:
+
+- Allowed paths that are not executables in the image. These paths are stale
+  after an image update, or they come from a volume or a foreign root. The
+  tool lists each path.
 - Executables of the image that the policy does not allow. This is the normal
   case for a learned policy. The tool prints only the count.
 
-The exit code is `1` when at least one allowed path does not exist in the
-image. The exit code is `0` in all other cases. A CI job can use this to
-detect a stale policy after an image bump.
+When a path of the first part is a symbolic link in the image, or goes
+through a symbolic link to a directory, the tool shows the real path. The
+enforcer reports only real paths, so this policy entry never matches.
 
-If a container of the policy is not in the workload, or the reverse, the tool
-prints a notice and continues.
+The report goes to standard output. The exit code is `1` when at least one
+allowed path is not an executable in the image. The exit code is `0` in all
+other cases. A CI job can use this to detect a stale policy after an image
+bump.
 
 ## Build and release
 

@@ -50,9 +50,9 @@ in the cluster. The
 [Quick Start](https://docs.kubewarden.io/runtime-enforcer/latest/en/installation/quickstart.html)
 shows how to install them.
 
-Runtime Enforcer ships with a standalone OTEL collector Deployment that handles
-violation metrics and events forwarding. No external OpenTelemetry Collector is
-needed for a basic setup.
+The chart does not deploy an OpenTelemetry collector. The controller and the
+agent export metrics and violation events to a collector that you deploy. To
+turn on the export, set `global.otel.endpoint`.
 
 ```sh
 helm repo add kubewarden https://charts.kubewarden.io
@@ -73,15 +73,16 @@ kubectl get pods -n runtime-enforcer
 
 The top-level keys of [`values.yaml`](https://github.com/kubewarden/runtime-enforcer/blob/main/charts/runtime-enforcer/values.yaml):
 
-| Key                | Description                                                                                          |
-| ------------------ | ---------------------------------------------------------------------------------------------------- |
-| `controller`       | The controller Deployment: image, resources, security context, scheduling, PodDisruptionBudget.      |
-| `agent`            | The agent DaemonSet that loads the eBPF programs on each node: image, capabilities, NRI socket path. |
-| `debugger`         | An optional debugger Deployment. Disabled by default.                                                |
-| `learning`         | The `namespaceSelector` that limits the namespaces where learning mode is active.                    |
-| `telemetry`        | The OTEL collector strategy: `none`, `default` (bundled collector), or `external`.                   |
-| `priorityClass`    | The PriorityClass shared by the controller and agent pods.                                           |
-| `imagePullSecrets` | Secrets with private registry credentials.                                                           |
+| Key                 | Description                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `namespaceOverride` | The namespace of the chart resources. If it is empty, the chart uses the release namespace.                  |
+| `global`            | The values for all workloads: registry, pull secrets, log level, labels, scheduling, extra env, `otel`.      |
+| `otel`              | The telemetry export of this chart. A key that is set here wins over the workload `otel` and `global.otel`.  |
+| `controller`        | The controller Deployment: image, replicas, resources, security context, PodDisruptionBudget.                |
+| `agent`             | The agent DaemonSet that loads the eBPF programs on each node: image, capabilities, NRI socket path.         |
+| `debugger`          | An optional debugger Deployment. Disabled by default.                                                        |
+| `learning`          | The `namespaceSelector` that limits the namespaces where learning mode is active.                            |
+| `priorityClass`     | The PriorityClass shared by the controller and agent pods. A `priorityClassName` overrides it.               |
 
 See the comments in `values.yaml` for the full list of options.
 

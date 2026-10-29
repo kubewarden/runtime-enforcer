@@ -1,0 +1,119 @@
+// Package imagescan loads container images and lists the executable files
+// they contain.
+package imagescan
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/anchore/go-collections"
+	"github.com/anchore/stereoscope"
+	"github.com/anchore/stereoscope/pkg/image"
+)
+
+// DefaultSources is the order used to look for an image when the user does
+// not provide one. Local archives come first, then the local daemons, and
+// finally the remote registry.
+//
+//nolint:gochecknoglobals // read-only default exposed to the CLI.
+var DefaultSources = []string{
+	stereoscope.FileTag,
+	image.DockerDaemonSource,
+	image.PodmanDaemonSource,
+	stereoscope.RegistryTag,
+}
+
+// LoadOptions tunes how an image is loaded.
+type LoadOptions struct {
+	// Sources are the stereoscope provider names or tags to try, in order.
+	// The first source that returns the image wins.
+	Sources []string
+	// Platform selects one image of a multi-platform index, for example
+	// "linux/arm64". Empty means the stereoscope default.
+	Platform string
+}
+
+// Image is a loaded container image. Call Cleanup when done with it.
+type Image struct {
+	*image.Image
+
+	// Source is the entry of LoadOptions.Sources that provided the image.
+	Source string
+}
+
+// Cleanup removes the temporary files created while loading the image.
+func (i *Image) Cleanup() error {
+	if i == nil || i.Image == nil {
+		return nil
+	}
+	return i.Image.Cleanup()
+}
+
+// KnownSources returns every provider name and tag that stereoscope accepts.
+func KnownSources() []string {
+	tags := collections.TaggedValueSet[image.Provider]{}.
+		Join(stereoscope.ImageProviders(stereoscope.ImageProviderConfig{})...).
+		Tags()
+	slices.Sort(tags)
+	return tags
+}
+
+// ValidateSources returns an error when one of the sources is unknown.
+func ValidateSources(sources []string) error {
+	if len(sources) == 0 {
+		return errors.New("at least one image source is required")
+	}
+	known := KnownSources()
+	for _, s := range sources {
+		if !slices.Contains(known, s) {
+			return fmt.Errorf("unknown image source %q, valid values: %s", s, strings.Join(known, ", "))
+		}
+	}
+	return nil
+}
+
+// Load resolves the user input to an image. It tries each source in order
+// and returns the first image found. When every source fails, the returned
+// error contains the error of each source.
+func Load(ctx context.Context, input string, opts LoadOptions) (*Image, error) {
+	sources := opts.Sources
+	if len(sources) == 0 {
+		sources = DefaultSources
+	}
+	if err := ValidateSources(sources); err != nil {
+		return nil, err
+	}
+
+	var stereoOpts []stereoscope.Option
+	if opts.Platform != "" {
+		stereoOpts = append(stereoOpts, stereoscope.WithPlatform(opts.Platform))
+	}
+
+	var errs []error
+	for _, source := range sources {
+		img, err := stereoscope.GetImageFromSource(ctx, input, source, stereoOpts...)
+		if err == nil {
+			return &Image{Image: img, Source: source}, nil
+		}
+		errs = append(errs, fmt.Errorf("%s: %w", source, err))
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+	}
+
+	return nil, fmt.Errorf("cannot load image %q: %w", input, errors.Join(errs...))
+}
+
+// CleanupAll removes the root temporary directory of stereoscope. Call it
+// once, after all the images are cleaned up, before the program exits.
+//
+// Image.Cleanup only removes the files of a loaded image. When a source
+// fails, stereoscope can leave an empty directory behind, and no Image
+// exists to remove it.
+func CleanupAll() {
+	//nolint:staticcheck // Image.Cleanup does not cover the failed loads, see above.
+	stereoscope.Cleanup()
+}

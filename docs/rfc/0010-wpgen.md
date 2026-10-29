@@ -246,6 +246,13 @@ Flags of `wpgen image`:
 | `--name`           | Last path element of the image | Value of `metadata.name`.            |
 | `--namespace`      | `default`                      | Value of `metadata.namespace`.       |
 
+Flags of `wpgen check`:
+
+| Flag                 | Default | Description                                                                 |
+| -------------------- | ------- | --------------------------------------------------------------------------- |
+| `--output`, `-o`     | `text`  | Report format. Accepts `text` or `json`.                                    |
+| `--list-not-allowed` | `false` | List the executables that the policy does not allow, not only their number. |
+
 ## Image sources
 
 The tool looks for an image in a list of sources, in order, and uses the
@@ -509,10 +516,21 @@ When a path of the first part is a symbolic link in the image, or goes
 through a symbolic link to a directory, the tool shows the real path. The
 enforcer reports only real paths, so this policy entry never matches.
 
-The report goes to standard output. The exit code is `1` when at least one
-allowed path is not an executable in the image. The exit code is `0` in all
-other cases. A CI job can use this to detect a stale policy after an image
-bump.
+The report always shows how many executables of the image the policy does
+not allow. With `--list-not-allowed`, it also lists them. For a learned
+policy, this list can have hundreds of paths.
+
+The report goes to standard output, as text or, with `-o json`, as one JSON
+document. The JSON document has the same content as the text report. It also
+contains the containers that are only in the policy or only in the workload,
+which the text mode prints as notices on standard error. In the JSON
+document, the number of executables that the policy does not allow is always
+present. Their list is present only with `--list-not-allowed`.
+
+The exit code is `1` when at least one allowed path is not an executable in
+the image. The exit code is `0` in all other cases. The format of the report
+does not change the exit code. A CI job can use this to detect a stale policy
+after an image bump.
 
 ## Build and release
 

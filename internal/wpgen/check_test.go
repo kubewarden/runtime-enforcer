@@ -2,6 +2,7 @@ package wpgen
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/internal/imagescan"
 	ist "github.com/kubewarden/runtime-enforcer/internal/imagescan/imagescantest"
 	"github.com/kubewarden/runtime-enforcer/internal/policydraft"
 	wpt "github.com/kubewarden/runtime-enforcer/internal/workloadparse/workloadparsetest"
@@ -170,6 +172,126 @@ func TestCheckCmdSkippedKinds(t *testing.T) {
 `, img), stdout)
 }
 
+func TestCheckCmdListNotAllowed(t *testing.T) {
+	t.Parallel()
+
+	img := busyboxImage(t)
+	policy := writePolicies(t, newPolicy(t, map[string][]string{"main": {"/usr/bin/busybox"}}))
+
+	stdout, _, err := runWpgen(t, "check", policy, "--image", img, "--image-src", "oci-dir")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "    1 executables of the image are not allowed\n")
+	assert.NotContains(t, stdout, "/usr/bin/extra")
+
+	stdout, _, err = runWpgen(t, "check", policy, "--image", img, "--image-src", "oci-dir", "--list-not-allowed")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "    1 executables of the image are not allowed:\n      /usr/bin/extra\n")
+}
+
+func TestCheckCmdJSON(t *testing.T) {
+	t.Parallel()
+
+	busybox, mixed := busyboxImage(t), mixedImage(t)
+	workload := deploymentWith(
+		corev1.Container{Name: "shell", Image: busybox},
+		corev1.Container{Name: "app", Image: mixed},
+		corev1.Container{Name: "unknown", Image: busybox},
+	)
+	policy := writePolicies(t, newPolicy(t, map[string][]string{
+		"shell":   {"/usr/bin/busybox", "/bin/sh", "/usr/local/bin/gone"},
+		"app":     {"/usr/bin/app", "/usr/lib/libz.so.1", "/etc/ca.crt"},
+		"removed": {"/usr/bin/removed"},
+	}))
+
+	stdout, _, err := runWpgen(t, "check", policy, "--workload", wpt.WriteFile(t, workload),
+		"--image-src", "oci-dir", "-o", "json", "--list-not-allowed")
+	require.EqualError(t, err, "2 allowed paths are not executables in the images")
+
+	var got jsonCheckResult
+	require.NoError(t, json.Unmarshal([]byte(stdout), &got), "standard output is one JSON document")
+	assert.Equal(t, jsonCheckResult{
+		Policy: jsonPolicy{Name: "deploy-web", Namespace: "prod"},
+		Containers: []jsonContainer{
+			{
+				Name:        "shell",
+				Image:       busybox,
+				Allowed:     []string{"/bin/sh", "/usr/bin/busybox", "/usr/local/bin/gone"},
+				Executables: []string{"/usr/bin/busybox"},
+				Stale: []jsonStalePath{
+					{Path: "/bin/sh", LinkTarget: "/usr/bin/busybox"},
+					{Path: "/usr/local/bin/gone"},
+				},
+				Skipped:         []jsonSkippedPath{},
+				NotAllowedCount: 1,
+				NotAllowed:      []string{"/usr/bin/extra"},
+			},
+			{
+				Name:        "app",
+				Image:       mixed,
+				Allowed:     []string{"/etc/ca.crt", "/usr/bin/app", "/usr/lib/libz.so.1"},
+				Executables: []string{"/usr/bin/app"},
+				Stale:       []jsonStalePath{},
+				Skipped: []jsonSkippedPath{
+					{Path: "/etc/ca.crt", Kind: imagescan.KindUnknown},
+					{Path: "/usr/lib/libz.so.1", Kind: imagescan.KindLibrary},
+				},
+				NotAllowedCount: 1,
+				NotAllowed:      []string{"/usr/bin/entrypoint.sh"},
+			},
+		},
+		ContainersOnlyInPolicy:   []string{"removed"},
+		ContainersOnlyInWorkload: []string{"unknown"},
+	}, got)
+}
+
+func TestCheckCmdJSONNotAllowedField(t *testing.T) {
+	t.Parallel()
+
+	img := busyboxImage(t)
+	tests := []struct {
+		name     string
+		allowed  []string
+		flags    []string
+		contains string
+		absent   string
+	}{
+		{
+			name:     "absent without the flag",
+			allowed:  []string{"/usr/bin/busybox"},
+			contains: `"notAllowedCount": 1`,
+			absent:   `"notAllowed":`,
+		},
+		{
+			name:     "empty list with the flag",
+			allowed:  []string{"/usr/bin/busybox", "/usr/bin/extra"},
+			flags:    []string{"--list-not-allowed"},
+			contains: `"notAllowed": []`,
+		},
+		{
+			name:     "empty lists are not null",
+			allowed:  []string{"/usr/bin/busybox"},
+			contains: `"containersOnlyInPolicy": []`,
+			absent:   "null",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			policy := writePolicies(t, newPolicy(t, map[string][]string{"main": tt.allowed}))
+			args := append([]string{"check", policy, "--image", img, "--image-src", "oci-dir", "-o", "json"},
+				tt.flags...)
+			stdout, _, err := runWpgen(t, args...)
+			require.NoError(t, err)
+			assert.Contains(t, stdout, tt.contains)
+			if tt.absent != "" {
+				assert.NotContains(t, stdout, tt.absent)
+			}
+		})
+	}
+}
+
 func TestCheckCmdImage(t *testing.T) {
 	t.Parallel()
 
@@ -262,6 +384,13 @@ func TestCheckCmdErrors(t *testing.T) {
 				return []string{"-", "--workload", "-"}
 			},
 			err: "the policy and the workload cannot both come from standard input",
+		},
+		{
+			name: "invalid output format",
+			args: func(t *testing.T) []string {
+				return []string{writePolicies(t, policy), "--image", "web:1", "-o", "yaml"}
+			},
+			err: `invalid output format "yaml": must be "text" or "json"`,
 		},
 		{
 			name: "no policy in the file",

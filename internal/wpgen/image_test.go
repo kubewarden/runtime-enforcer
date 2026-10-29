@@ -1,11 +1,10 @@
 package wpgen
 
 import (
-	"bytes"
 	"os"
+	"strings"
 	"testing"
 
-	"github.com/anchore/stereoscope/pkg/image"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,13 +23,7 @@ func TestMain(m *testing.M) {
 func runWpgen(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
 
-	var stdout, stderr bytes.Buffer
-	cmd := NewRootCmd()
-	cmd.SetArgs(args)
-	cmd.SetOut(&stdout)
-	cmd.SetErr(&stderr)
-	err := cmd.ExecuteContext(t.Context())
-	return stdout.String(), stderr.String(), err
+	return runWpgenWithStdin(t, strings.NewReader(""), args...)
 }
 
 func testImage(t *testing.T) string {
@@ -142,8 +135,6 @@ func TestImageCmdValidatesFlagsBeforeLoading(t *testing.T) {
 func TestPolicyNameFromImage(t *testing.T) {
 	t.Parallel()
 
-	emptyImage := &imagescan.Image{Image: &image.Image{}}
-
 	tests := []struct {
 		input    string
 		expected string
@@ -160,7 +151,7 @@ func TestPolicyNameFromImage(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := policyNameFromImage(tt.input, emptyImage)
+			got, err := policyNameFromImage(tt.input, nil)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 				return
@@ -169,6 +160,18 @@ func TestPolicyNameFromImage(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestPolicyNameFromImageTags(t *testing.T) {
+	t.Parallel()
+
+	// A local path never parses as a reference: the name comes from the tags.
+	got, err := policyNameFromImage(t.TempDir(), []string{"library/alpine_linux"})
+	require.NoError(t, err)
+	assert.Equal(t, "alpine-linux", got)
+
+	_, err = policyNameFromImage(t.TempDir(), nil)
+	require.ErrorContains(t, err, "use --name")
 }
 
 const sha256Zero = "0000000000000000000000000000000000000000000000000000000000000000"

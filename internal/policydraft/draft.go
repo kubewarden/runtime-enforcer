@@ -84,3 +84,19 @@ func Encode(w io.Writer, policy *v1alpha1.WorkloadPolicy, format string) error {
 	_, err = w.Write(data)
 	return err
 }
+
+// EncodeAll writes the policies to w in the given format. YAML documents are
+// divided by "---". JSON objects follow each other, as kubectl accepts.
+func EncodeAll(w io.Writer, policies []*v1alpha1.WorkloadPolicy, format string) error {
+	for i, policy := range policies {
+		if i > 0 && format == FormatYAML {
+			if _, err := io.WriteString(w, "---\n"); err != nil {
+				return err
+			}
+		}
+		if err := Encode(w, policy, format); err != nil {
+			return err
+		}
+	}
+	return nil
+}

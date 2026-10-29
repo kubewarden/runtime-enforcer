@@ -98,6 +98,9 @@
         "containerregistry",
         "syft",
         "INTERP",
+        "anchore",
+        "pflag",
+        "tmpl",
     ],
     "ignoreWords": [
         "clientgoscheme",

@@ -71,7 +71,7 @@ $ wpgen workload ./deploy/nginx.yaml
 apiVersion: runtimeenforcer.kubewarden.io/v1alpha1
 kind: WorkloadPolicy
 metadata:
-  name: deployment-nginx
+  name: deploy-nginx
   namespace: web
 spec:
   mode: monitor
@@ -88,11 +88,19 @@ spec:
 On standard error the tool prints a summary:
 
 ```text
-container "nginx" (image docker.io/library/nginx:1.27): 312 executables
-WARNING: container "nginx" allows 312 executables. A learned policy is usually
-much smaller. Review the list before you switch the policy to protect mode.
-Add this label to the pod template of Deployment "nginx":
-  runtimeenforcer.kubewarden.io/policy: deployment-nginx
+Deployment "nginx" (namespace web), policy "deploy-nginx":
+  container "nginx" (image docker.io/library/nginx:1.27): 312 executables
+  WARNING: container "nginx" allows 312 executables. A learned policy is usually
+  much smaller. Review the list before you switch the policy to protect mode.
+  Add this label to the pod template of Deployment "nginx":
+    runtimeenforcer.kubewarden.io/policy: deploy-nginx
+```
+
+The tool also reads from standard input. This is useful with the output of
+Helm:
+
+```console
+$ helm template my-release ./chart | wpgen workload -
 ```
 
 ### Draft a policy from a single image
@@ -195,18 +203,19 @@ The tool has three subcommands:
 
 ```text
 wpgen image IMAGE [--container-name NAME] [--name NAME] [--namespace NS] [flags]
-wpgen workload FILE [flags]
+wpgen workload FILE|- [flags]
 wpgen check POLICY_FILE (--workload FILE | --image IMAGE [--container-name NAME])
 ```
 
 Common flags:
 
-| Flag               | Default        | Description                                                         |
-| ------------------ | -------------- | ------------------------------------------------------------------- |
-| `--mode`           | `monitor`      | Value of `spec.mode`. Accepts `monitor` or `protect`.               |
-| `--platform`       | `linux/<host>` | Platform to select from a multi-platform image.                     |
-| `--output`, `-o`   | `yaml`         | Output format. Accepts `yaml` or `json`.                            |
-| `--warn-threshold` | `50`           | Print a warning when a container allows more executables than this. |
+| Flag               | Default                       | Description                                                          |
+| ------------------ | ----------------------------- | -------------------------------------------------------------------- |
+| `--mode`           | `monitor`                     | Value of `spec.mode`. Accepts `monitor` or `protect`.                |
+| `--platform`       | `linux/<host>`                | Platform to select from a multi-platform image.                      |
+| `--output`, `-o`   | `yaml`                        | Output format. Accepts `yaml` or `json`.                             |
+| `--image-src`      | `file,docker,podman,registry` | Image sources to try, in order. See [Image sources](#image-sources). |
+| `--warn-threshold` | `50`                          | Print a warning when a container allows more executables than this.  |
 
 Flags of `wpgen image`:
 
@@ -218,22 +227,33 @@ Flags of `wpgen image`:
 
 ## Image sources
 
-The tool accepts three kinds of image sources:
+The tool looks for an image in a list of sources, in order, and uses the
+first source that has the image. This is the same approach as Trivy and
+Syft. The `--image-src` flag sets the list. The default list is:
 
-- A registry reference, for example `docker.io/library/nginx:1.27` or a
-  reference with a digest.
-- A path to a tar archive that `docker save` or `podman save` produced.
-- A path to a directory in OCI image layout format.
+1. `file`: a path to a tar archive that `docker save` or `podman save`
+   produced, a path to an OCI archive, or a path to a directory in OCI image
+   layout format.
+2. `docker`: the local Docker daemon.
+3. `podman`: the local Podman daemon.
+4. `registry`: the remote registry of the image reference.
 
-The tool uses `github.com/google/go-containerregistry` to read all three
-sources. This library is widely used, has no CGO dependency, and already
-handles the layer format details that follow.
+A daemon source pulls the image into the daemon when the daemon does not
+have it. To read the image directly from the registry, the user passes
+`--image-src registry`. The flag also accepts the other sources of the
+library, for example `containerd`.
+
+When every source fails, the error contains the reason of each source.
+
+The tool uses the stereoscope library (`github.com/anchore/stereoscope`) to
+read the images. Syft and Grype use the same library. It finds the image in
+all the sources above, merges the layers, and handles the details of hard
+links between layers. It has no CGO dependency.
 
 A multi-platform image is an index that points to one image per platform.
 The tool selects the image that matches `--platform`. The default is `linux`
-with the architecture of the host. If the index has more than one platform,
-the tool prints a notice with the selected platform. The set of executables
-can differ between platforms.
+with the architecture of the host. The tool prints the platform of the image
+that it loaded. The set of executables can differ between platforms.
 
 ## How the tool finds executables
 
@@ -248,9 +268,8 @@ The tool does the following steps for each image:
 1. Flatten the layers into one file tree. Each layer is a tar stream. A later
    layer can add, replace, or delete files of an earlier layer. A deletion is
    a whiteout entry (a file named `.wh.<name>`). The tool applies all layers
-   in order and honors the whiteouts. `mutate.Extract` from
-   go-containerregistry does this step.
-2. Walk the flattened tree.
+   in order and honors the whiteouts. Stereoscope does this step.
+2. Go through all the files of the flattened tree.
 3. Keep each regular file that has at least one execute permission bit set
    (owner, group, or other).
 4. Keep each hard link whose target is kept. A hard link is a second directory
@@ -283,34 +302,52 @@ enforcer reports these paths as violations, and the user adds them by hand.
 
 ## Workload files
 
-`wpgen workload FILE` reads a YAML file with one or more documents. The tool
-accepts the same kinds that RFC 0001 lists, plus `Pod`:
+`wpgen workload FILE` reads a file with one or more YAML or JSON documents.
+If `FILE` is `-`, the tool reads from standard input. A document of kind
+`List`, as `kubectl get -o yaml` writes it, counts as one document per item.
 
-- `Pod`
-- `Deployment`
-- `ReplicaSet`
-- `DaemonSet`
-- `StatefulSet`
-- `Job`
-- `CronJob`
+The tool accepts the kinds that the learn phase supports:
 
-The tool skips documents of other kinds and prints a notice for each one. The
-tool reads the `PodSpec` of each accepted document. It collects the
+- `Deployment` (`apps/v1`)
+- `ReplicaSet` (`apps/v1`)
+- `DaemonSet` (`apps/v1`)
+- `StatefulSet` (`apps/v1`)
+- `Job` (`batch/v1`)
+- `CronJob` (`batch/v1`)
+
+The tool skips all the other documents and prints a notice for each one. A
+bare `Pod` is also skipped, because runtime-enforcer does not learn policies
+for bare pods. If the file has no accepted workload, the tool stops with an
+error.
+
+The tool reads the pod template of each accepted document. It collects the
 `containers` and the `initContainers`. Ephemeral containers are not part of a
-workload file, so the tool ignores them.
+workload file, so the tool ignores them. A container without an image is an
+error.
 
 For each container the tool records the name and the image. If two containers
-use the same image, the tool scans the image once.
+use the same image, the tool scans the image once. The tool removes the
+temporary files of each image before it loads the next one.
 
 The tool writes one `WorkloadPolicy` per workload. The fields are:
 
-- `metadata.name` is `<kind>-<name>` in lowercase. This matches the name that
-  the controller gives to a `WorkloadPolicyProposal`.
+- `metadata.name` is the value of the `runtimeenforcer.kubewarden.io/policy`
+  label of the pod template, when the label is there. The user already chose
+  a name, and the tool keeps it.
+- When the label is not there, `metadata.name` is `<short kind>-<name>`, for
+  example `deploy-nginx`. The short kinds are `deploy`, `rs`, `ds`, `sts`,
+  `job`, and `cronjob`. This is the name that the controller gives to a
+  `WorkloadPolicyProposal`, and both use the same code.
 - `metadata.namespace` is the namespace of the workload. If the workload has
-  no namespace, the tool uses `default`.
+  no namespace, the policy has no namespace either. As a result,
+  `kubectl apply -n <namespace>` puts the workload and its policy in the same
+  namespace. This is the usual case for the output of `helm template`.
 - `spec.mode` is the value of `--mode`.
-- `spec.rulesByContainer` has one entry per container. The key is the
-  container name. The value lists the executables of the image.
+- `spec.rulesByContainer` has one entry per container and init container. The
+  key is the container name. The value lists the executables of the image.
+
+If two workloads of the same namespace get the same policy name, the tool
+stops with an error. When applied, the second policy replaces the first one.
 
 The tool does not change the workload file. On standard error it prints the
 label that the pod template needs:
@@ -327,7 +364,8 @@ image repository, for example `nginx` for `docker.io/library/nginx:1.27`.
 
 The tool writes the policy to standard output as YAML. With `-o json` it
 writes JSON. When the input has more than one workload, the YAML output has
-one document per policy, divided by `---`.
+one document per policy, divided by `---`. The JSON output has one object
+after the other. `kubectl apply -f` accepts both.
 
 The tool builds the policy with the Go types of `api/v1alpha1`. The output
 stays in sync with the CRD schema without extra work.
@@ -366,19 +404,6 @@ detect a stale policy after an image bump.
 If a container of the policy is not in the workload, or the reverse, the tool
 prints a notice and continues.
 
-## Code layout
-
-```text
-cmd/wpgen/main.go           # cobra root command
-internal/imagescan/         # image source -> sorted list of executable paths
-internal/workloadparse/     # YAML file -> list of (workload, containers)
-internal/policydraft/       # containers + executables -> v1alpha1.WorkloadPolicy
-```
-
-The three internal packages have no dependency on the kubectl plugin or on
-the controller. The kubectl plugin can import `internal/imagescan` later, for
-example to compare a live `WorkloadPolicy` with the images of a running pod.
-
 ## Build and release
 
 The Makefile gets a `wpgen` target and a `wpgen-cross` target. They follow
@@ -395,9 +420,9 @@ The tool is not part of the kubectl plugin for three reasons:
 
 - The tool needs no cluster. The kubectl plugin assumes a kubeconfig and a
   cluster. The users of `wpgen` are developers and CI pipelines.
-- The tool pulls images and flattens layers. This adds go-containerregistry
-  and its transitive dependencies to the binary. The kubectl plugin does small
-  API calls and does not need this weight.
+- The tool pulls images and flattens layers. This adds stereoscope and its
+  transitive dependencies to the binary. The kubectl plugin does small API
+  calls and does not need this weight.
 - The tool does not need to track the controller version as closely as the
   kubectl plugin does.
 
@@ -420,8 +445,10 @@ that resource exists, `wpgen image` can emit an `ImagePolicy` instead of a
 - The tool only sees the image file system. Volumes, runtime-installed files,
   and foreign roots are missing. A draft policy for such a workload produces
   violations in monitor mode until the user adds the paths.
-- `go.mod` gains go-containerregistry. Only `wpgen` links it, but the
-  dependency list of the module grows.
+- `go.mod` gains stereoscope, which brings the client libraries of
+  containerd and Podman. Only `wpgen` links them, but the dependency list of
+  the module grows. Tools that scan `go.sum` instead of the binaries report
+  these modules for the whole repository.
 - The project gets one more binary to build, test, release, and document.
 
 # Alternatives
@@ -460,4 +487,5 @@ that resource exists, `wpgen image` can emit an `ImagePolicy` instead of a
   union. The tool can accept `--platform` more than once and merge the lists.
   This is not in the first implementation.
 - A `check` command in the kubectl plugin that reads the images of a running
-  pod. This is possible with `internal/imagescan` but is not in scope here.
+  pod. The kubectl plugin can reuse the scanning code of `wpgen` for this, but
+  it is not in scope here.

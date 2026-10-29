@@ -4,6 +4,7 @@ package imagescantest
 import (
 	"archive/tar"
 	"bytes"
+	"debug/elf"
 	"io"
 	"testing"
 
@@ -31,9 +32,30 @@ type Entry struct {
 	Content  string
 }
 
-// Reg returns a regular file entry. The content of the file is its name.
+// Reg returns a regular file entry. The file is a small ELF program, so that
+// it is an executable when its mode has an execute bit.
 func Reg(name string, mode int64) Entry {
-	return Entry{Name: name, Typeflag: tar.TypeReg, Mode: mode, Content: name}
+	return File(name, mode, ELF(ELFSpec{Type: elf.ET_EXEC}))
+}
+
+// Library returns a regular file entry that is an ELF shared library.
+func Library(name string, mode int64) Entry {
+	return File(name, mode, ELF(ELFSpec{Type: elf.ET_DYN, Dynamic: true}))
+}
+
+// Script returns a regular file entry that starts with a shebang line.
+func Script(name string, mode int64) Entry {
+	return File(name, mode, []byte("#!/bin/sh\necho "+name+"\n"))
+}
+
+// Data returns a regular file entry that is neither ELF nor a script.
+func Data(name string, mode int64) Entry {
+	return File(name, mode, []byte("data of "+name+"\n"))
+}
+
+// File returns a regular file entry with the given content.
+func File(name string, mode int64, content []byte) Entry {
+	return Entry{Name: name, Typeflag: tar.TypeReg, Mode: mode, Content: string(content)}
 }
 
 // Dir returns a directory entry.

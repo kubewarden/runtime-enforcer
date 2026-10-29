@@ -3,6 +3,7 @@ package imagescan
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/anchore/stereoscope/pkg/file"
 	"github.com/anchore/stereoscope/pkg/filetree"
@@ -11,17 +12,23 @@ import (
 
 const anyExecBit = 0o111
 
-// Executables returns the sorted absolute paths of all the executable files
-// in the squashed file system of the image.
+// Executable is a file with an execute permission bit, and its kind.
+type Executable struct {
+	Path string
+	Kind Kind
+}
+
+// Executables returns all the executable files in the squashed file system
+// of the image, sorted by path, with their kind.
 //
 // A file is executable when it is a regular file, or a hard link, with at
 // least one execute permission bit set. Symbolic links are skipped: the
 // kernel resolves them before the enforcer sees the exec event, so the
 // enforcer always reports the path of the real file.
-func Executables(img *image.Image) ([]string, error) {
+func Executables(img *image.Image) ([]Executable, error) {
 	refs := img.SquashedTree().AllFiles(file.TypeRegular, file.TypeHardLink)
 
-	paths := make([]string, 0, len(refs))
+	executables := make([]Executable, 0, len(refs))
 	for _, ref := range refs {
 		entry, err := img.FileCatalog.Get(ref)
 		if err != nil {
@@ -30,11 +37,30 @@ func Executables(img *image.Image) ([]string, error) {
 		if entry.FileInfo == nil || entry.Mode().Perm()&anyExecBit == 0 {
 			continue
 		}
-		paths = append(paths, string(ref.RealPath))
+
+		kind, err := classifyPath(img, ref.RealPath)
+		if err != nil {
+			return nil, err
+		}
+		executables = append(executables, Executable{Path: string(ref.RealPath), Kind: kind})
 	}
 
-	slices.Sort(paths)
-	return slices.Compact(paths), nil
+	slices.SortFunc(executables, func(a, b Executable) int { return strings.Compare(a.Path, b.Path) })
+	return slices.CompactFunc(executables, func(a, b Executable) bool { return a.Path == b.Path }), nil
+}
+
+func classifyPath(img *image.Image, p file.Path) (Kind, error) {
+	rc, err := img.OpenPathFromSquash(p)
+	if err != nil {
+		return "", fmt.Errorf("cannot read %q: %w", p, err)
+	}
+	defer rc.Close()
+
+	kind, err := classify(rc)
+	if err != nil {
+		return "", fmt.Errorf("cannot read %q: %w", p, err)
+	}
+	return kind, nil
 }
 
 // ResolveLinks returns the real path of each of the given paths that goes

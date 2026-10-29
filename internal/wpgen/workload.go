@@ -98,7 +98,7 @@ func runWorkload(
 			if _, done := scanned[c.Image]; done {
 				continue
 			}
-			if scanned[c.Image], err = scanImage(ctx, c.Image, &opts.loadOptions, nil, stderr); err != nil {
+			if scanned[c.Image], err = scanImage(ctx, c.Image, &opts.scanOptions, nil, stderr); err != nil {
 				return err
 			}
 		}
@@ -196,7 +196,7 @@ func printWorkloadSummary(w io.Writer, d draftedWorkload, scanned map[string]*sc
 		if c.Init {
 			label = "init " + label
 		}
-		printContainerSummary(w, "  ", label, c.Image, len(scanned[c.Image].Executables), warnThreshold)
+		printContainerSummary(w, "  ", label, c.Image, scanned[c.Image], warnThreshold)
 	}
 
 	if d.LabelPresent {

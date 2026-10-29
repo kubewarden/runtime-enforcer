@@ -67,6 +67,30 @@ make wpgen          # output: bin/wpgen
 make wpgen-cross    # output: bin/wpgen-dist/wpgen-<os>-<arch>
 ```
 
+[[kinds]]
+== What wpgen skips
+
+`wpgen` reads each file with an execute bit and decides what kind of file it is:
+
+* A *program*: an ELF executable, linked dynamically or statically.
+* A *script*: a file that starts with `#!`.
+* A *shared library*: an ELF library, for example `/lib/libz.so.1`. Programs load libraries, but do not run them.
+* An *unknown file*: anything else, for example a certificate file with mode `0755`.
+
+By default, a policy allows only programs and scripts. The summary shows how many files `wpgen` skipped:
+
+```text
+container "main" (image alpine:3.20): 11 executables
+skipped 10 shared libraries, use --include-libraries to keep them
+```
+
+Use `--include-libraries` and `--include-unknown` to keep the skipped files. You need them in two rare cases:
+
+* The workload starts the dynamic loader directly, for example `/lib64/ld-linux-x86-64.so.2 ./binary`. A normal program does not need the loader in its policy, because the kernel starts the loader without an exec event of its own.
+* The workload starts a script without a `#!` line directly from a shell. The enforcer checks the path of the script before the shell runs it, so the policy must allow the script.
+
+In `monitor` mode, the enforcer reports these cases as violations.
+
 [[sources]]
 == Where wpgen finds the images
 
@@ -152,6 +176,8 @@ The report has two parts for each container:
 
 * The allowed paths that are not executables in the image. A path can be stale after an image update. It can also come from a volume or a foreign root. In that case, keep it in the policy.
 * The number of executables of the image that the policy does not allow. For a learned policy, this number is usually high. This is not a problem.
+
+Allowed paths that are shared libraries or unknown files are listed apart, unless you use `--include-libraries` or `--include-unknown`. They do not change the exit code.
 
 When an allowed path is a symbolic link in the image, the report shows the real path:
 

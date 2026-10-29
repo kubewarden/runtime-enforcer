@@ -94,7 +94,7 @@ func runImage(ctx context.Context, input string, opts *imageOptions, stdout, std
 		return err
 	}
 
-	scanned, err := scanImage(ctx, input, &opts.loadOptions, nil, stderr)
+	scanned, err := scanImage(ctx, input, &opts.scanOptions, nil, stderr)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func runImage(ctx context.Context, input string, opts *imageOptions, stdout, std
 	}
 
 	printContainerSummary(stderr, "", fmt.Sprintf("container %q", opts.ContainerName), input,
-		len(scanned.Executables), opts.WarnThreshold)
+		scanned, opts.WarnThreshold)
 	fmt.Fprintf(stderr, "Add this label to the pod template of the workload that runs this image:\n  %s: %s\n",
 		v1alpha1.PolicyLabelKey, policyName)
 	if opts.ContainerName == defaultContainerName {

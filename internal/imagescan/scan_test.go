@@ -1,6 +1,7 @@
 package imagescan_test
 
 import (
+	"debug/elf"
 	"testing"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -123,34 +124,177 @@ func TestExecutables(t *testing.T) {
 
 			got, err := imagescan.Executables(img.Image)
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, got)
+
+			paths := make([]string, 0, len(got))
+			for _, e := range got {
+				paths = append(paths, e.Path)
+			}
+			require.Equal(t, tt.expected, paths)
 		})
 	}
 }
 
-func TestResolveLinks(t *testing.T) {
+func TestExecutablesKinds(t *testing.T) {
 	t.Parallel()
 
-	img := ist.LoadOCIDir(t, ist.WriteOCIDir(t, ist.NewLayer(t,
+	elfFile := func(name string, spec ist.ELFSpec) []ist.Entry {
+		return []ist.Entry{ist.File(name, 0o755, ist.ELF(spec))}
+	}
+
+	tests := []struct {
+		name    string
+		entries []ist.Entry
+		path    string
+		kind    imagescan.Kind
+	}{
+		{
+			name:    "ET_EXEC program",
+			entries: elfFile("bin/app", ist.ELFSpec{Type: elf.ET_EXEC}),
+			path:    "/bin/app",
+			kind:    imagescan.KindProgram,
+		},
+		{
+			name: "dynamically linked PIE",
+			entries: elfFile("bin/app", ist.ELFSpec{
+				Type: elf.ET_DYN, Interp: true, Dynamic: true, Flags1: elf.DF_1_PIE,
+			}),
+			path: "/bin/app",
+			kind: imagescan.KindProgram,
+		},
+		{
+			name: "static PIE, with DF_1_PIE and no interpreter",
+			entries: elfFile("bin/app", ist.ELFSpec{
+				Type: elf.ET_DYN, Dynamic: true, Flags1: elf.DF_1_PIE | elf.DF_1_NOW,
+			}),
+			path: "/bin/app",
+			kind: imagescan.KindProgram,
+		},
+		{
+			// An old linker, or glibc's libc.so.6.
+			name:    "ET_DYN with an interpreter and no DF_1_PIE",
+			entries: elfFile("bin/app", ist.ELFSpec{Type: elf.ET_DYN, Interp: true}),
+			path:    "/bin/app",
+			kind:    imagescan.KindProgram,
+		},
+		{
+			name:    "ELF that does not parse",
+			entries: []ist.Entry{ist.File("bin/app", 0o755, []byte("\x7fELF not really"))},
+			path:    "/bin/app",
+			kind:    imagescan.KindProgram,
+		},
+		{
+			name:    "script",
+			entries: []ist.Entry{ist.Script("bin/entrypoint.sh", 0o755)},
+			path:    "/bin/entrypoint.sh",
+			kind:    imagescan.KindScript,
+		},
+		{
+			name:    "shared library",
+			entries: []ist.Entry{ist.Library("lib/libz.so.1", 0o755)},
+			path:    "/lib/libz.so.1",
+			kind:    imagescan.KindLibrary,
+		},
+		{
+			name: "dynamic loader, with flags but no DF_1_PIE",
+			entries: elfFile("lib/ld.so", ist.ELFSpec{
+				Type: elf.ET_DYN, Dynamic: true, Flags1: elf.DF_1_NOW,
+			}),
+			path: "/lib/ld.so",
+			kind: imagescan.KindLibrary,
+		},
+		{
+			name: "hard link to a shared library",
+			entries: []ist.Entry{
+				ist.Library("lib/libz.so.1", 0o755),
+				ist.Hardlink("lib/libz.so", "lib/libz.so.1", 0o755),
+			},
+			path: "/lib/libz.so",
+			kind: imagescan.KindLibrary,
+		},
+		{
+			// The kernel does not run ET_REL files.
+			name:    "ELF object file",
+			entries: elfFile("lib/object.o", ist.ELFSpec{Type: elf.ET_REL}),
+			path:    "/lib/object.o",
+			kind:    imagescan.KindUnknown,
+		},
+		{
+			name:    "data file",
+			entries: []ist.Entry{ist.Data("etc/ca.crt", 0o755)},
+			path:    "/etc/ca.crt",
+			kind:    imagescan.KindUnknown,
+		},
+		{
+			name:    "empty file",
+			entries: []ist.Entry{ist.File("etc/empty", 0o755, nil)},
+			path:    "/etc/empty",
+			kind:    imagescan.KindUnknown,
+		},
+		{
+			name:    "file shorter than the ELF magic",
+			entries: []ist.Entry{ist.File("etc/short", 0o755, []byte("#"))},
+			path:    "/etc/short",
+			kind:    imagescan.KindUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			entries := append([]ist.Entry{ist.Dir("bin/"), ist.Dir("lib/"), ist.Dir("etc/")}, tt.entries...)
+			img := ist.LoadOCIDir(t, ist.WriteOCIDir(t, ist.NewLayer(t, entries...)))
+
+			got, err := imagescan.Executables(img.Image)
+			require.NoError(t, err)
+			assert.Contains(t, got, imagescan.Executable{Path: tt.path, Kind: tt.kind})
+		})
+	}
+}
+
+// linksImage has a program, symbolic links to it, and a dangling link.
+func linksImage(t *testing.T) *imagescan.Image {
+	t.Helper()
+
+	return ist.LoadOCIDir(t, ist.WriteOCIDir(t, ist.NewLayer(t,
 		ist.Dir("usr/"), ist.Dir("usr/bin/"),
 		ist.Reg("usr/bin/busybox", 0o755),
 		ist.Symlink("usr/bin/sh", "busybox"),
 		ist.Symlink("usr/bin/dangling", "/nowhere"),
 		ist.Symlink("bin", "usr/bin"),
 	)))
+}
 
-	links, err := imagescan.ResolveLinks(img.Image, []string{
-		"/usr/bin/sh",
-		"/bin/busybox",
-		"/bin/sh",
-		"/usr/bin/busybox",
-		"/usr/bin/missing",
-		"/usr/bin/dangling",
-	})
-	require.NoError(t, err)
-	assert.Equal(t, map[string]string{
-		"/usr/bin/sh":  "/usr/bin/busybox",
-		"/bin/busybox": "/usr/bin/busybox",
-		"/bin/sh":      "/usr/bin/busybox",
-	}, links)
+func TestResolveLinks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path string
+		// real is the expected real path. Empty means that the path is not
+		// in the result.
+		real string
+	}{
+		{name: "symbolic link to a file", path: "/usr/bin/sh", real: "/usr/bin/busybox"},
+		{name: "file in a linked directory", path: "/bin/busybox", real: "/usr/bin/busybox"},
+		{name: "link in a linked directory", path: "/bin/sh", real: "/usr/bin/busybox"},
+		{name: "already a real path", path: "/usr/bin/busybox"},
+		{name: "missing path", path: "/usr/bin/missing"},
+		{name: "dangling link", path: "/usr/bin/dangling"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			links, err := imagescan.ResolveLinks(linksImage(t).Image, []string{tt.path})
+			require.NoError(t, err)
+
+			if tt.real == "" {
+				assert.Empty(t, links)
+				return
+			}
+			assert.Equal(t, map[string]string{tt.path: tt.real}, links)
+		})
+	}
 }

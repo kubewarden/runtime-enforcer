@@ -223,10 +223,12 @@ wpgen check POLICY_FILE|- (--workload FILE|- | --image IMAGE [--container-name N
 
 Common flags:
 
-| Flag          | Default                       | Description                                                          |
-| ------------- | ----------------------------- | -------------------------------------------------------------------- |
-| `--platform`  | `linux/<host>`                | Platform to select from a multi-platform image.                      |
-| `--image-src` | `file,docker,podman,registry` | Image sources to try, in order. See [Image sources](#image-sources). |
+| Flag                  | Default                       | Description                                                                               |
+| --------------------- | ----------------------------- | ----------------------------------------------------------------------------------------- |
+| `--platform`          | `linux/<host>`                | Platform to select from a multi-platform image.                                           |
+| `--image-src`         | `file,docker,podman,registry` | Image sources to try, in order. See [Image sources](#image-sources).                      |
+| `--include-libraries` | `false`                       | Count shared libraries as executables. See [Kinds of executables](#kinds-of-executables). |
+| `--include-unknown`   | `false`                       | Count files that are neither programs nor scripts as executables.                         |
 
 Flags of `wpgen image` and `wpgen workload`:
 
@@ -302,12 +304,78 @@ The tool does the following steps for each image:
 Each path is absolute and starts with `/`. This matches the regular-expression pattern
 of `spec.rulesByContainer.*.executables.allowed`.
 
-The list contains every file with an execute bit. Scripts with a shebang line
-are included because the kernel reports the script path, not the interpreter.
-Shared libraries are also included when the image sets an execute bit on them.
-Some distributions do this. These paths are noise in the policy, but they are
-not a security risk. A library is never the target of an `execve` call. The
-handling of libraries is an unresolved question of this RFC.
+## Kinds of executables
+
+A file with an execute bit is not always a program. Some distributions set
+the execute bit on shared libraries, and some images have data files with
+mode `0755`. These paths are noise in a policy. The tool reads the content of
+each file and puts it in one of four kinds:
+
+| Kind    | Test                                                        | Example                 |
+| ------- | ----------------------------------------------------------- | ----------------------- |
+| program | ELF of type `ET_EXEC`, or `ET_DYN` that is not a library    | `/usr/sbin/nginx`       |
+| library | ELF of type `ET_DYN`, with no `PT_INTERP` and no `DF_1_PIE` | `/lib/libz.so.1`        |
+| script  | The file starts with `#!`                                   | `/docker-entrypoint.sh` |
+| unknown | Any other file, for example an ELF object file              | `/etc/ssl/certs/ca.crt` |
+
+An ELF file of type `ET_DYN` is either a shared library or a position
+independent program (PIE). A dynamically linked PIE has a `PT_INTERP`
+segment. A static PIE, for example a Rust program linked with musl, has no
+`PT_INTERP`, but the linker sets the `DF_1_PIE` flag in its dynamic segment.
+The `file` utility uses the same two signals. The tool reads the flag from
+the `PT_DYNAMIC` segment, as the kernel does, so that a binary without
+section headers is still classified correctly.
+
+When in doubt, the tool chooses "program". An ELF file that the tool cannot
+parse is a program. `libc.so.6` of glibc has a `PT_INTERP` segment, so that
+you can run it to print its version, and it stays in the list. A program
+that is missing from a policy blocks the workload. An extra library is only
+noise.
+
+By default, the tool skips libraries and unknown files. The flags
+`--include-libraries` and `--include-unknown` keep them. The summary of each
+container shows how many files the tool skipped. The `check` command uses
+the same rule. An allowed path of a skipped kind is listed apart, and it does
+not change the exit code.
+
+Two cases show why the skipped kinds are safe by default, and why the flags
+exist:
+
+- The dynamic loader, for example `/lib64/ld-linux-x86-64.so.2`, is a
+  library. The kernel maps it into the process when it starts a dynamically
+  linked program, without an `execve` call for the loader itself. The
+  enforcer only sees the path of the program. The loader is an exec target
+  only when something starts it on purpose, as in `ld.so ./binary`. A policy
+  that allows the loader lets the workload run any binary through it.
+- A script without a `#!` line is an unknown file. When a shell starts it
+  directly, `execve` fails with `ENOEXEC`, and the shell then runs the file
+  itself. The enforcer sees the exec event for the script path before the
+  kernel finds out that it cannot run the file. In protect mode, a denied
+  path fails with a permission error, and the shell does not fall back. So
+  a policy must allow such a script when the workload starts it directly.
+
+In both cases, the enforcer reports the path as a violation in monitor mode,
+and the user adds it to the policy, or runs the tool again with the flag.
+
+The rule was tested on real images, and compared with the output of `file`.
+No program was classified as a library:
+
+| Image                              | Files with exec bit | Programs | Libraries | Scripts | Unknown |
+| ---------------------------------- | ------------------- | -------- | --------- | ------- | ------- |
+| `alpine:3.20`                      | 21                  | 7        | 10        | 4       | 0       |
+| `debian:12`                        | 479                 | 316      | 2         | 161     | 0       |
+| `nginx:1.27`                       | 506                 | 324      | 2         | 180     | 0       |
+| `python:3.12-slim`                 | 549                 | 282      | 82        | 185     | 0       |
+| `gcr.io/distroless/base-debian12`  | 6                   | 1        | 1         | 1       | 3       |
+| `ghcr.io/kubewarden/policy-server` | 1                   | 1        | 0         | 0       | 0       |
+
+Debian ships most libraries without an execute bit, so the gain is small
+there. On Alpine, libraries are half of the list. On `python:3.12-slim`, most
+libraries are Python extension modules. A Go program built as a static PIE
+and the musl build of `kwctl` were also classified as programs. Reading and
+classifying all the files took less than 100 milliseconds per image.
+
+## Limits of the image scan
 
 The tool only sees the file system of the image. It does not see:
 
@@ -434,6 +502,9 @@ of the image. The report has two parts:
 - Executables of the image that the policy does not allow. This is the normal
   case for a learned policy. The tool prints only the count.
 
+Allowed paths that are libraries or unknown files are listed apart, as
+[Kinds of executables](#kinds-of-executables) describes.
+
 When a path of the first part is a symbolic link in the image, or goes
 through a symbolic link to a directory, the tool shows the real path. The
 enforcer reports only real paths, so this policy entry never matches.
@@ -478,8 +549,10 @@ that resource exists, `wpgen image` can emit an `ImagePolicy` instead of a
 - A user can treat the output as a final policy. A policy that allows every
   executable of a Debian or Ubuntu base image blocks almost nothing. The
   guardrails reduce this risk but do not remove it.
-- Shared libraries with an execute bit end up in the allow-list. They are
-  noise, and they make a review harder.
+- The kinds of executables come from a heuristic. A static PIE program from
+  a linker that does not set `DF_1_PIE` looks like a library, and the tool
+  skips it. The tests found no such program, and monitor mode shows it if it
+  exists.
 - The tool downloads full images. A large image takes time and disk space.
 - The tool only sees the image file system. Volumes, runtime-installed files,
   and foreign roots are missing. A draft policy for such a workload produces
@@ -513,11 +586,7 @@ that resource exists, `wpgen image` can emit an `ImagePolicy` instead of a
 
 [unresolved]: #unresolved-questions
 
-- Shared libraries. The execute bit alone does not separate a library from a
-  program. A possible filter reads the ELF header and skips files of type
-  `ET_DYN` without a `PT_INTERP` segment. Shebang scripts and static binaries
-  are not affected by this filter. The decision is deferred.
-- Default list. The tool allows every executable by default. The alternative
+- Default list. The tool allows every program and script by default. The alternative
   is to allow only the entrypoint by default. The team decides after the first
   users try the tool.
 - Default value of `--warn-threshold`. The value `50` is a guess.

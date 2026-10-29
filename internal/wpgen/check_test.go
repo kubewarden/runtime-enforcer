@@ -107,6 +107,7 @@ func TestCheckCmdStalePaths(t *testing.T) {
 
 	assert.Equal(t, fmt.Sprintf(`Policy "deploy-web" (namespace prod):
   container "shell" (image %s):
+    1 of 4 allowed paths are executables in the image
     3 allowed paths are not executables in the image:
       /bin/sh (symbolic link to /usr/bin/busybox, the enforcer reports /usr/bin/busybox)
       /usr/bin/sh (symbolic link to /usr/bin/busybox, the enforcer reports /usr/bin/busybox)
@@ -137,6 +138,36 @@ func TestCheckCmdContainerMismatch(t *testing.T) {
 	assert.NotContains(t, stdout, `container "removed"`)
 	assert.Contains(t, stderr, `The policy has no rules for container "unknown" of Deployment "web"`)
 	assert.Contains(t, stderr, `The policy has rules for container "removed", which is not in Deployment "web"`)
+}
+
+func TestCheckCmdSkippedKinds(t *testing.T) {
+	t.Parallel()
+
+	img := mixedImage(t)
+	policy := writePolicies(t, newPolicy(t, map[string][]string{
+		"main": {"/usr/bin/app", "/usr/lib/libz.so.1", "/etc/ca.crt"},
+	}))
+
+	stdout, _, err := runWpgen(t, "check", policy, "--image", img, "--image-src", "oci-dir")
+	require.NoError(t, err, "skipped kinds are not stale")
+	assert.Equal(t, fmt.Sprintf(`Policy "deploy-web" (namespace prod):
+  container "main" (image %s):
+    1 of 3 allowed paths are executables in the image
+    1 allowed paths are shared libraries, which wpgen skips unless --include-libraries is set:
+      /usr/lib/libz.so.1
+    1 allowed paths are neither programs nor scripts, which wpgen skips unless --include-unknown is set:
+      /etc/ca.crt
+    1 executables of the image are not allowed
+`, img), stdout)
+
+	stdout, _, err = runWpgen(t, "check", policy, "--image", img, "--image-src", "oci-dir",
+		"--include-libraries", "--include-unknown")
+	require.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf(`Policy "deploy-web" (namespace prod):
+  container "main" (image %s):
+    all 3 allowed paths are executables in the image
+    2 executables of the image are not allowed
+`, img), stdout)
 }
 
 func TestCheckCmdImage(t *testing.T) {

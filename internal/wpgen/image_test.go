@@ -10,6 +10,7 @@ import (
 
 	"github.com/kubewarden/runtime-enforcer/internal/imagescan"
 	ist "github.com/kubewarden/runtime-enforcer/internal/imagescan/imagescantest"
+	"github.com/kubewarden/runtime-enforcer/internal/policydraft"
 )
 
 // TestMain removes the root temporary directory of stereoscope after all the
@@ -81,6 +82,81 @@ func TestImageCmdDefaults(t *testing.T) {
 	assert.Contains(t, stdout, `"mode": "monitor"`)
 	assert.Contains(t, stdout, `"main": {`)
 	assert.Contains(t, stderr, `Make sure that the container is named "main" in the pod`)
+}
+
+// mixedImage has one executable of each kind.
+func mixedImage(t *testing.T) string {
+	t.Helper()
+
+	return ist.WriteOCIDir(t, ist.NewLayer(t,
+		ist.Dir("usr/"), ist.Dir("usr/bin/"), ist.Dir("usr/lib/"), ist.Dir("etc/"),
+		ist.Reg("usr/bin/app", 0o755),
+		ist.Script("usr/bin/entrypoint.sh", 0o755),
+		ist.Library("usr/lib/libapp.so.1", 0o755),
+		ist.Library("usr/lib/libz.so.1", 0o755),
+		ist.Data("etc/ca.crt", 0o755),
+	))
+}
+
+func TestImageCmdSkipsLibrariesAndUnknownFiles(t *testing.T) {
+	t.Parallel()
+
+	img := mixedImage(t)
+
+	tests := []struct {
+		name     string
+		flags    []string
+		expected []string
+		skipped  []string
+	}{
+		{
+			name:     "default",
+			expected: []string{"/usr/bin/app", "/usr/bin/entrypoint.sh"},
+			skipped: []string{
+				"skipped 2 shared libraries, use --include-libraries to keep them\n",
+				"skipped 1 file that is not a program or a script, use --include-unknown to keep them\n",
+			},
+		},
+		{
+			name:     "include libraries",
+			flags:    []string{"--include-libraries"},
+			expected: []string{"/usr/bin/app", "/usr/bin/entrypoint.sh", "/usr/lib/libapp.so.1", "/usr/lib/libz.so.1"},
+			skipped:  []string{"skipped 1 file that is not a program or a script"},
+		},
+		{
+			name:  "include libraries and unknown files",
+			flags: []string{"--include-libraries", "--include-unknown"},
+			expected: []string{
+				"/etc/ca.crt",
+				"/usr/bin/app",
+				"/usr/bin/entrypoint.sh",
+				"/usr/lib/libapp.so.1",
+				"/usr/lib/libz.so.1",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			args := append([]string{"image", img, "--image-src", "oci-dir", "--name", "app"}, tt.flags...)
+			stdout, stderr, err := runWpgen(t, args...)
+			require.NoError(t, err)
+
+			policies, _, err := policydraft.Decode(strings.NewReader(stdout))
+			require.NoError(t, err)
+			require.Len(t, policies, 1)
+			assert.Equal(t, tt.expected, policies[0].Spec.RulesByContainer["main"].Executables.Allowed)
+
+			for _, msg := range tt.skipped {
+				assert.Contains(t, stderr, msg)
+			}
+			if len(tt.skipped) == 0 {
+				assert.NotContains(t, stderr, "skipped")
+			}
+		})
+	}
 }
 
 func TestImageCmdWarnThreshold(t *testing.T) {

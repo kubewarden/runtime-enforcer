@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/internal/imagescan"
 	"github.com/kubewarden/runtime-enforcer/internal/policydraft"
 	"github.com/kubewarden/runtime-enforcer/internal/workloadparse"
 )
@@ -23,7 +25,7 @@ const (
 )
 
 type checkOptions struct {
-	loadOptions
+	scanOptions
 
 	Workload      string
 	Image         string
@@ -45,6 +47,12 @@ type containerReport struct {
 	Stale []string
 	// Links maps the stale paths that are symbolic links to their real path.
 	Links map[string]string
+	// Libraries are the allowed paths that are shared libraries, when the
+	// scan options skip them.
+	Libraries []string
+	// Unknown are the allowed paths that are neither programs nor scripts,
+	// when the scan options skip them.
+	Unknown []string
 	// NotAllowed is the number of executables of the image that the policy
 	// does not allow.
 	NotAllowed int
@@ -103,7 +111,7 @@ The report goes to standard output. Other messages go to standard error.`,
 }
 
 func (o *checkOptions) validate(policyFile string) error {
-	errs := o.loadOptions.validate()
+	errs := o.scanOptions.validate()
 	if o.ContainerName != "" && o.Image == "" {
 		errs = append(errs, fmt.Errorf("--%s needs --%s", containerNameFlag, imageFlag))
 	}
@@ -139,7 +147,7 @@ func runCheck(
 		return err
 	}
 
-	reports, err := checkContainers(ctx, containers, &opts.loadOptions, stderr)
+	reports, err := checkContainers(ctx, containers, &opts.scanOptions, stderr)
 	if err != nil {
 		return err
 	}
@@ -265,7 +273,7 @@ func workloadContainers(
 func checkContainers(
 	ctx context.Context,
 	containers []checkedContainer,
-	opts *loadOptions,
+	opts *scanOptions,
 	stderr io.Writer,
 ) ([]containerReport, error) {
 	var images []string
@@ -298,9 +306,21 @@ func compare(c checkedContainer, s *scannedImage) containerReport {
 
 	allowed := map[string]bool{}
 	for _, p := range c.Allowed {
+		if allowed[p] {
+			continue
+		}
 		allowed[p] = true
 		if _, found := slices.BinarySearch(s.Executables, p); found {
 			continue
+		}
+		switch s.Skipped[p] {
+		case imagescan.KindLibrary:
+			report.Libraries = append(report.Libraries, p)
+			continue
+		case imagescan.KindUnknown:
+			report.Unknown = append(report.Unknown, p)
+			continue
+		case imagescan.KindProgram, imagescan.KindScript:
 		}
 		report.Stale = append(report.Stale, p)
 		if target, isLink := s.Links[p]; isLink {
@@ -308,14 +328,28 @@ func compare(c checkedContainer, s *scannedImage) containerReport {
 		}
 	}
 	slices.Sort(report.Stale)
-	report.Stale = slices.Compact(report.Stale)
+	slices.Sort(report.Libraries)
+	slices.Sort(report.Unknown)
 
 	for _, p := range s.Executables {
 		if !allowed[p] {
 			report.NotAllowed++
 		}
 	}
+	report.Allowed = slices.Sorted(maps.Keys(allowed))
 	return report
+}
+
+// printSkippedPaths lists the allowed paths of a kind that the scan options
+// skip. They are not stale: the files exist and have an execute bit.
+func printSkippedPaths(w io.Writer, paths []string, what, flag string) {
+	if len(paths) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "    %d allowed paths are %s, which wpgen skips unless --%s is set:\n", len(paths), what, flag)
+	for _, p := range paths {
+		fmt.Fprintf(w, "      %s\n", p)
+	}
 }
 
 func printCheckReport(w io.Writer, policy *v1alpha1.WorkloadPolicy, reports []containerReport) error {
@@ -333,9 +367,13 @@ func printCheckReport(w io.Writer, policy *v1alpha1.WorkloadPolicy, reports []co
 		}
 		fmt.Fprintf(w, "  %s (image %s):\n", label, r.Image)
 
-		if len(r.Stale) == 0 {
-			fmt.Fprintf(w, "    all %d allowed paths are executables in the image\n", len(r.Allowed))
+		allowed := len(r.Allowed)
+		if notExecutables := len(r.Stale) + len(r.Libraries) + len(r.Unknown); notExecutables == 0 {
+			fmt.Fprintf(w, "    all %d allowed paths are executables in the image\n", allowed)
 		} else {
+			fmt.Fprintf(w, "    %d of %d allowed paths are executables in the image\n", allowed-notExecutables, allowed)
+		}
+		if len(r.Stale) > 0 {
 			fmt.Fprintf(w, "    %d allowed paths are not executables in the image:\n", len(r.Stale))
 			for _, p := range r.Stale {
 				if target, isLink := r.Links[p]; isLink {
@@ -345,6 +383,8 @@ func printCheckReport(w io.Writer, policy *v1alpha1.WorkloadPolicy, reports []co
 				fmt.Fprintf(w, "      %s\n", p)
 			}
 		}
+		printSkippedPaths(w, r.Libraries, "shared libraries", includeLibrariesFlag)
+		printSkippedPaths(w, r.Unknown, "neither programs nor scripts", includeUnknownFlag)
 		fmt.Fprintf(w, "    %d executables of the image are not allowed\n", r.NotAllowed)
 		stale += len(r.Stale)
 	}

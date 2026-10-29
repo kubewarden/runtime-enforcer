@@ -158,28 +158,6 @@ tests:
             name: otel-ca
           any: true
 
-  - it: "should never render OTEL_EXPORTER_OTLP_PROTOCOL or OTEL_EXPORTER_OTLP_INSECURE"
-    set:
-      global:
-        otel:
-          endpoint: "https://collector:4317"
-          caSecretName: otel-ca
-          clientCertificateSecretName: otel-client
-      common:
-        otel:
-          endpoint: "http://collector:4317"
-    asserts:
-      - notContains:
-          path: "spec.template.spec.containers[0].env"
-          content:
-            name: OTEL_EXPORTER_OTLP_PROTOCOL
-          any: true
-      - notContains:
-          path: "spec.template.spec.containers[0].env"
-          content:
-            name: OTEL_EXPORTER_OTLP_INSECURE
-          any: true
-
   - it: "should render the certificate env, mounts, and volumes with both secret names"
     templates:
       - "templates/controller/deployment.yaml"

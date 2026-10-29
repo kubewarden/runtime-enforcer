@@ -33,7 +33,6 @@ Create chart name and version as used by the chart label.
 {{/*
 Namespace for all namespaced resources of the chart.
 It is namespaceOverride, or the release namespace when namespaceOverride is empty.
-This chart has no NATS subchart, so it has no nats.namespaceOverride check.
 */}}
 {{- define "runtime-enforcer.namespace" -}}
 {{- $override := .Values.namespaceOverride | default "" -}}
@@ -42,14 +41,23 @@ This chart has no NATS subchart, so it has no nats.namespaceOverride check.
 
 {{/*
 Registry prefix for the chart images, with a trailing "/".
-global.imageRegistry wins over the workload imageRegistry.
-This chart has no NATS subchart, so it has no NATS registry check.
+global.imageRegistry wins over the image.registry of the workload block.
 */}}
 {{- define "system_default_registry" -}}
-{{- $l := include "runtime-enforcer._levels" (dict "ctx" . "key" "imageRegistry") | fromYamlArray -}}
-{{- with index $l 0 | default (index $l 2) -}}
+{{- $global := .root.Values.global | default dict -}}
+{{- with $global.imageRegistry | default (include "runtime-enforcer._image" . | fromYaml).registry -}}
 {{- printf "%s/" . -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+runtime-enforcer._image renders the image map of the workload block as YAML,
+or an empty map when the block has no image.
+It takes the context dict of the workload helpers.
+*/}}
+{{- define "runtime-enforcer._image" -}}
+{{- $block := index .root.Values .workload | default dict -}}
+{{- toYaml ($block.image | default dict) -}}
 {{- end -}}
 
 {{/*
@@ -134,7 +142,10 @@ Each public helper reads one key with one private helper. The private helper set
   runtime-enforcer._map:    the global, common, and workload maps merged. The workload wins on a duplicate key.
   runtime-enforcer._concat: the global, common, and workload lists, in this order.
 An empty value ("", [] or {}) counts as unset.
-system_default_registry (above) uses its own order and does not read common.
+The image registry and the pull policy of a workload are in its image map:
+  system_default_registry (above): global.imageRegistry, else the workload image.registry.
+  runtime-enforcer.imagePullPolicy: the workload image.pullPolicy, else common.imagePullPolicy,
+                                    else global.imagePullPolicy.
 
 The private helpers take dict "ctx" <context dict> "key" <key>.
 A key with a dot, for example "serviceAccount.annotations", reads a nested map.
@@ -210,7 +221,8 @@ labels:
 {{/* Public helpers that render a bare value. */}}
 
 {{- define "runtime-enforcer.imagePullPolicy" -}}
-{{- include "runtime-enforcer._scalar" (dict "ctx" . "key" "imagePullPolicy") -}}
+{{- $l := include "runtime-enforcer._levels" (dict "ctx" . "key" "imagePullPolicy") | fromYamlArray -}}
+{{- (include "runtime-enforcer._image" . | fromYaml).pullPolicy | default (index $l 1) | default (index $l 0) | default "" -}}
 {{- end -}}
 
 {{- define "runtime-enforcer.logLevel" -}}

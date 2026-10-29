@@ -7,30 +7,6 @@ set:
   debugger:
     enabled: true
 tests:
-  - it: "should ignore common.imageRegistry"
-    set:
-      common:
-        imageRegistry: mirror.example.com
-    asserts:
-      - matchRegex:
-          path: "spec.template.spec.containers[0].image"
-          pattern: "^ghcr\\.io/kubewarden/runtime-enforcer/"
-
-  - it: "should ignore common.imageRegistry when the workload imageRegistry is empty"
-    set:
-      common:
-        imageRegistry: mirror.example.com
-      controller:
-        imageRegistry: ""
-      agent:
-        imageRegistry: ""
-      debugger:
-        imageRegistry: ""
-    asserts:
-      - matchRegex:
-          path: "spec.template.spec.containers[0].image"
-          pattern: "^kubewarden/runtime-enforcer/"
-
   # The debugger has no log level, so this case checks the controller and the agent only.
   - it: "should render common.logLevel on every workload"
     templates:

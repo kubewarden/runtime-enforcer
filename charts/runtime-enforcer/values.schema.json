@@ -22,6 +22,12 @@
                         "tag"
                     ],
                     "properties": {
+                        "pullPolicy": {
+                            "type": "string"
+                        },
+                        "registry": {
+                            "type": "string"
+                        },
                         "repository": {
                             "type": "string"
                         },
@@ -29,9 +35,6 @@
                             "type": "string"
                         }
                     }
-                },
-                "imageRegistry": {
-                    "type": "string"
                 },
                 "nriFailopen": {
                     "type": "boolean"
@@ -63,6 +66,12 @@
                         "tag"
                     ],
                     "properties": {
+                        "pullPolicy": {
+                            "type": "string"
+                        },
+                        "registry": {
+                            "type": "string"
+                        },
                         "repository": {
                             "type": "string"
                         },
@@ -70,9 +79,6 @@
                             "type": "string"
                         }
                     }
-                },
-                "imageRegistry": {
-                    "type": "string"
                 },
                 "podDisruptionBudget": {
                     "type": "object",
@@ -111,6 +117,12 @@
                         "tag"
                     ],
                     "properties": {
+                        "pullPolicy": {
+                            "type": "string"
+                        },
+                        "registry": {
+                            "type": "string"
+                        },
                         "repository": {
                             "type": "string"
                         },
@@ -118,9 +130,6 @@
                             "type": "string"
                         }
                     }
-                },
-                "imageRegistry": {
-                    "type": "string"
                 },
                 "interval": {
                     "type": "string"

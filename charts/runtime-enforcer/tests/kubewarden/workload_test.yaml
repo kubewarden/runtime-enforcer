@@ -57,14 +57,14 @@ tests:
           value: 256Mi
         template: "templates/controller/deployment.yaml"
 
-  # The runtime-enforcer workloads have no init containers,
-  # so this case checks the main containers only.
-  - it: "should render controller.imageRegistry and agent.imageRegistry on their own workload only"
+  - it: "should render controller.image.registry and agent.image.registry on their own workload only"
     set:
       controller:
-        imageRegistry: controller.example.com
+        image:
+          registry: controller.example.com
       agent:
-        imageRegistry: node.example.com
+        image:
+          registry: node.example.com
     asserts:
       - matchRegex:
           path: "spec.template.spec.containers[0].image"
@@ -76,22 +76,30 @@ tests:
         template: "templates/agent/daemonset.yaml"
 
   # runtime-enforcer cases
-  - it: "should render agent.imageRegistry on the agent only"
+  - it: "should render agent.image.registry on the agent only"
     set:
+      controller:
+        image:
+          tag: 1.0.0
       agent:
-        imageRegistry: mirror.example.com
+        image:
+          registry: mirror.example.com
+          tag: 2.0.0
+      debugger:
+        image:
+          tag: 3.0.0
     asserts:
       - equal:
           path: "spec.template.spec.containers[0].image"
-          value: "mirror.example.com/kubewarden/runtime-enforcer/agent:v0.10.1"
+          value: "mirror.example.com/kubewarden/runtime-enforcer/agent:2.0.0"
         template: "templates/agent/daemonset.yaml"
       - equal:
           path: "spec.template.spec.containers[0].image"
-          value: "ghcr.io/kubewarden/runtime-enforcer/controller:v0.10.1"
+          value: "ghcr.io/kubewarden/runtime-enforcer/controller:1.0.0"
         template: "templates/controller/deployment.yaml"
       - equal:
           path: "spec.template.spec.containers[0].image"
-          value: "ghcr.io/kubewarden/runtime-enforcer/debugger:v0.10.1"
+          value: "ghcr.io/kubewarden/runtime-enforcer/debugger:3.0.0"
         template: "templates/debugger/deployment.yaml"
 
   - it: "should render agent.imagePullSecrets on the agent only"
@@ -112,10 +120,11 @@ tests:
           path: "spec.template.spec.imagePullSecrets"
         template: "templates/debugger/deployment.yaml"
 
-  - it: "should render agent.imagePullPolicy on the agent only"
+  - it: "should render agent.image.pullPolicy on the agent only"
     set:
       agent:
-        imagePullPolicy: Always
+        image:
+          pullPolicy: Always
     asserts:
       - equal:
           path: "spec.template.spec.containers[0].imagePullPolicy"

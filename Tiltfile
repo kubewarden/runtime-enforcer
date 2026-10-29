@@ -33,9 +33,9 @@ debugger_image = settings.get("debugger").get("image")
 helm_options = [
         # The images in tilt-settings.yaml are full references with the registry,
         # so the chart must not add its own registry.
-        "controller.imageRegistry=",
-        "agent.imageRegistry=",
-        "debugger.imageRegistry=",
+        "controller.image.registry=",
+        "agent.image.registry=",
+        "debugger.image.registry=",
         "controller.image.repository=" + controller_image,
         "agent.image.repository=" + agent_image,
         "controller.replicas=1",

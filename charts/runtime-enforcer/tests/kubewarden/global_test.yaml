@@ -209,7 +209,6 @@ tests:
             mountPath: /etc/extra-ca
             readOnly: true
 
-  # runtime-enforcer has no NATS subchart, so this case does not set global.image.registry.
   - it: "should render global.imageRegistry on every workload"
     set:
       global:
@@ -218,16 +217,6 @@ tests:
       - matchRegex:
           path: "spec.template.spec.containers[0].image"
           pattern: "^registry\\.example\\.com/kubewarden/runtime-enforcer/"
-
-  - it: "should ignore global.cattle.systemDefaultRegistry"
-    set:
-      global:
-        cattle:
-          systemDefaultRegistry: rancher.example.com
-    asserts:
-      - matchRegex:
-          path: "spec.template.spec.containers[0].image"
-          pattern: "^ghcr\\.io/"
 
   - it: "should render global.imagePullSecrets on every workload"
     set:

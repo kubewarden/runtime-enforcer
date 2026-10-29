@@ -210,24 +210,23 @@ tests:
             name: OTEL_EXPORTER_OTLP_ENDPOINT
             value: "http://chart:4317"
 
-  # runtime-enforcer has no NATS subchart and no init containers,
-  # so this case does not set global.image.registry and checks the main container only.
-  - it: "should prefer global.imageRegistry over the workload imageRegistry"
+  - it: "should prefer global.imageRegistry over the workload image.registry"
     set:
       global:
         imageRegistry: global.example.com
       controller:
-        imageRegistry: mirror.example.com
+        image:
+          registry: mirror.example.com
     asserts:
       - matchRegex:
           path: "spec.template.spec.containers[0].image"
           pattern: "^global\\.example\\.com/kubewarden/runtime-enforcer/"
 
-  # runtime-enforcer has no init containers, so this case checks the main container only.
-  - it: "should use the workload imageRegistry when global.imageRegistry is empty"
+  - it: "should use the workload image.registry when global.imageRegistry is empty"
     set:
       controller:
-        imageRegistry: mirror.example.com
+        image:
+          registry: mirror.example.com
     asserts:
       - matchRegex:
           path: "spec.template.spec.containers[0].image"
@@ -295,7 +294,8 @@ tests:
         imagePullPolicy: ""
       controller:
         logLevel: ""
-        imagePullPolicy: ""
+        image:
+          pullPolicy: ""
     asserts:
       - contains:
           path: "spec.template.spec.containers[0].args"
@@ -304,6 +304,29 @@ tests:
       - equal:
           path: "spec.template.spec.containers[0].imagePullPolicy"
           value: Never
+
+  - it: "should prefer the workload image.pullPolicy over common and global"
+    set:
+      global:
+        imagePullPolicy: Never
+      common:
+        imagePullPolicy: IfNotPresent
+      controller:
+        image:
+          pullPolicy: Always
+    asserts:
+      - equal:
+          path: "spec.template.spec.containers[0].imagePullPolicy"
+          value: Always
+        template: "templates/controller/deployment.yaml"
+      - equal:
+          path: "spec.template.spec.containers[0].imagePullPolicy"
+          value: IfNotPresent
+        template: "templates/agent/daemonset.yaml"
+      - equal:
+          path: "spec.template.spec.containers[0].imagePullPolicy"
+          value: IfNotPresent
+        template: "templates/debugger/deployment.yaml"
 
   - it: "should replace unnamed lists with the most specific value"
     set:
@@ -591,12 +614,14 @@ tests:
   - it: "should render no registry prefix when every registry is empty"
     set:
       controller:
-        imageRegistry: ""
+        image:
+          registry: ""
+          tag: 1.0.0
     template: "templates/controller/deployment.yaml"
     asserts:
       - equal:
           path: "spec.template.spec.containers[0].image"
-          value: "kubewarden/runtime-enforcer/controller:v0.10.1"
+          value: "kubewarden/runtime-enforcer/controller:1.0.0"
 
   - it: "should keep spec.selector.matchLabels with hostile labels and podLabels"
     set:

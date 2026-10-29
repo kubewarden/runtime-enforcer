@@ -58,8 +58,7 @@ release:
   name: rel
   namespace: release-ns
 tests:
-  # runtime-enforcer has no NATS, no APIService, and no kube-system RoleBinding.
-  # Its namespace references are the webhook service and certificate,
+  # The namespace references are the webhook service and certificate,
   # the CSI certificate DNS name of the controller,
   # the webhook endpoint of the agent, and the binding subjects.
   - it: "should use namespaceOverride in the namespace references"

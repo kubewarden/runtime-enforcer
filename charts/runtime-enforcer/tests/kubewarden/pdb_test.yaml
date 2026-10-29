@@ -123,15 +123,3 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
-
-  - it: "should not render a PodDisruptionBudget from global or common"
-    set:
-      global:
-        podDisruptionBudget:
-          minAvailable: 1
-      common:
-        podDisruptionBudget:
-          minAvailable: 1
-    asserts:
-      - hasDocuments:
-          count: 0

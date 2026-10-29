@@ -187,4 +187,38 @@ When an allowed path is a symbolic link in the image, the report shows the real 
 
 The enforcer reports only real paths. Replace the link with the real path in the policy.
 
+The report shows only the number of executables that the policy does not allow. Use `--list-not-allowed` to list them.
+
 The exit code is `1` when at least one allowed path is not an executable in the image. Otherwise it is `0`. A CI job can use the exit code to stop a change that makes a policy stale.
+
+For a machine-readable report, use `-o json`. The document has one entry for each container:
+
+```json
+{
+  "policy": {"name": "deploy-nginx", "namespace": "web"},
+  "containers": [
+    {
+      "name": "nginx",
+      "init": false,
+      "image": "docker.io/library/nginx:1.27",
+      "allowed": ["/usr/local/bin/wait-for-it.sh", "/usr/sbin/nginx", "/usr/sbin/nginx-debug"],
+      "executables": ["/usr/sbin/nginx"],
+      "stale": [
+        {"path": "/usr/local/bin/wait-for-it.sh"},
+        {"path": "/usr/sbin/nginx-debug"}
+      ],
+      "skipped": [],
+      "notAllowedCount": 310
+    }
+  ],
+  "containersOnlyInPolicy": [],
+  "containersOnlyInWorkload": []
+}
+```
+
+* `executables` are the allowed paths that are executables in the image.
+* `stale` are the allowed paths that are not. `linkTarget` is set when the path is a symbolic link.
+* `skipped` are the allowed paths that are shared libraries or unknown files, with their `kind`.
+* `notAllowed`, the list of the executables that the policy does not allow, is present only with `--list-not-allowed`.
+
+The exit code is the same as with the text report.

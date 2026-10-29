@@ -2,6 +2,7 @@ package wpgen
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,17 +20,23 @@ import (
 )
 
 const (
-	workloadFlag      = "workload"
-	imageFlag         = "image"
-	containerNameFlag = "container-name"
+	workloadFlag       = "workload"
+	imageFlag          = "image"
+	containerNameFlag  = "container-name"
+	listNotAllowedFlag = "list-not-allowed"
+
+	outputText = "text"
+	outputJSON = "json"
 )
 
 type checkOptions struct {
 	scanOptions
 
-	Workload      string
-	Image         string
-	ContainerName string
+	Workload       string
+	Image          string
+	ContainerName  string
+	Output         string
+	ListNotAllowed bool
 }
 
 // checkedContainer is a container of the policy with its image.
@@ -53,9 +60,32 @@ type containerReport struct {
 	// Unknown are the allowed paths that are neither programs nor scripts,
 	// when the scan options skip them.
 	Unknown []string
-	// NotAllowed is the number of executables of the image that the policy
-	// does not allow.
-	NotAllowed int
+	// Executables are the allowed paths that are executables in the image.
+	Executables []string
+	// NotAllowed are the executables of the image that the policy does not
+	// allow.
+	NotAllowed []string
+}
+
+// checkResult is the result of the check of a policy.
+type checkResult struct {
+	Policy     *v1alpha1.WorkloadPolicy
+	Containers []containerReport
+	// OnlyInPolicy are the containers of the policy that are not in the
+	// workload.
+	OnlyInPolicy []string
+	// OnlyInWorkload are the containers of the workload that are not in the
+	// policy.
+	OnlyInWorkload []string
+}
+
+// stale returns the number of stale paths of all the containers.
+func (r *checkResult) stale() int {
+	n := 0
+	for _, c := range r.Containers {
+		n += len(c.Stale)
+	}
+	return n
 }
 
 func newCheckCmd() *cobra.Command {
@@ -73,7 +103,8 @@ given with --workload, or from --image.
 For each container of the policy, wpgen lists the allowed paths that are not
 executables in the image, and counts the executables of the image that the
 policy does not allow. A learned policy usually does not allow most of the
-executables of the image, so this count is not a problem.
+executables of the image, so this count is not a problem. Use
+--list-not-allowed to list them.
 
 When an allowed path is a symbolic link in the image, wpgen shows its real
 path. The enforcer reports the real path, so the policy must allow it.
@@ -83,12 +114,16 @@ the image. This happens after an image update that removes a file. It also
 happens for a path on a volume or in a foreign root: keep these paths in the
 policy if the workload needs them.
 
-The report goes to standard output. Other messages go to standard error.`,
+The report goes to standard output, as text or as JSON. Other messages go to
+standard error.`,
 		Example: `  # Compare a policy with the images of a Deployment
   wpgen check ./policy.yaml --workload ./deploy/nginx.yaml
 
   # Compare a policy with a single image
-  wpgen check ./policy.yaml --image ghcr.io/example/api:2.3.0 --container-name api`,
+  wpgen check ./policy.yaml --image ghcr.io/example/api:2.3.0 --container-name api
+
+  # Write the report as JSON, with the executables that the policy does not allow
+  wpgen check ./policy.yaml --workload ./deploy/nginx.yaml -o json --list-not-allowed`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCheck(cmd.Context(), args[0], opts, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
@@ -102,6 +137,10 @@ The report goes to standard output. Other messages go to standard error.`,
 		"Image of one container of the policy")
 	flags.StringVar(&opts.ContainerName, containerNameFlag, "",
 		"Container of the policy that runs --image (default: the only container of the policy)")
+	flags.StringVarP(&opts.Output, "output", "o", outputText,
+		fmt.Sprintf("Output format (%s or %s)", outputText, outputJSON))
+	flags.BoolVar(&opts.ListNotAllowed, listNotAllowedFlag, false,
+		"List the executables of the image that the policy does not allow, not only their number")
 	opts.addFlags(flags)
 
 	cmd.MarkFlagsMutuallyExclusive(workloadFlag, imageFlag)
@@ -117,6 +156,9 @@ func (o *checkOptions) validate(policyFile string) error {
 	}
 	if policyFile == stdinFile && o.Workload == stdinFile {
 		errs = append(errs, errors.New("the policy and the workload cannot both come from standard input"))
+	}
+	if o.Output != outputText && o.Output != outputJSON {
+		errs = append(errs, fmt.Errorf("invalid output format %q: must be %q or %q", o.Output, outputText, outputJSON))
 	}
 	return errors.Join(errs...)
 }
@@ -137,22 +179,34 @@ func runCheck(
 		return err
 	}
 
+	result := &checkResult{Policy: policy}
 	var containers []checkedContainer
 	if opts.Image != "" {
 		containers, err = imageContainers(policy, opts.Image, opts.ContainerName)
 	} else {
-		containers, err = workloadContainers(policy, opts.Workload, stdin, stderr)
+		containers, err = workloadContainers(result, opts.Workload, stdin, stderr)
 	}
 	if err != nil {
 		return err
 	}
 
-	reports, err := checkContainers(ctx, containers, &opts.scanOptions, stderr)
+	if result.Containers, err = checkContainers(ctx, containers, &opts.scanOptions, stderr); err != nil {
+		return err
+	}
+
+	if opts.Output == outputJSON {
+		err = renderCheckJSON(stdout, result, opts.ListNotAllowed)
+	} else {
+		renderCheckText(stdout, result, opts.ListNotAllowed)
+	}
 	if err != nil {
 		return err
 	}
 
-	return printCheckReport(stdout, policy, reports)
+	if stale := result.stale(); stale > 0 {
+		return fmt.Errorf("%d allowed paths are not executables in the images", stale)
+	}
+	return nil
 }
 
 func readPolicy(file string, stdin io.Reader, stderr io.Writer) (*v1alpha1.WorkloadPolicy, error) {
@@ -211,14 +265,15 @@ func imageContainers(policy *v1alpha1.WorkloadPolicy, imageRef, containerName st
 }
 
 // workloadContainers returns the containers that are both in the policy and
-// in the one workload of the file. It prints a notice for the containers
-// that are only in one of them.
+// in the one workload of the file. It records the containers that are only
+// in one of them in the result, and prints a notice for each one.
 func workloadContainers(
-	policy *v1alpha1.WorkloadPolicy,
+	result *checkResult,
 	file string,
 	stdin io.Reader,
 	stderr io.Writer,
 ) ([]checkedContainer, error) {
+	policy := result.Policy
 	workloads, err := readWorkloads(file, stdin, stderr)
 	if err != nil {
 		return nil, err
@@ -238,6 +293,7 @@ func workloadContainers(
 		inWorkload[c.Name] = true
 		rules, found := policy.Spec.RulesByContainer[c.Name]
 		if !found {
+			result.OnlyInWorkload = append(result.OnlyInWorkload, c.Name)
 			fmt.Fprintf(
 				stderr,
 				"The policy has no rules for container %q of %s %q\n",
@@ -257,6 +313,7 @@ func workloadContainers(
 	slices.Sort(policyContainers)
 	for _, name := range policyContainers {
 		if !inWorkload[name] {
+			result.OnlyInPolicy = append(result.OnlyInPolicy, name)
 			fmt.Fprintf(stderr, "The policy has rules for container %q, which is not in %s %q\n",
 				name, workload.Kind, workload.Name)
 		}
@@ -311,6 +368,7 @@ func compare(c checkedContainer, s *scannedImage) containerReport {
 		}
 		allowed[p] = true
 		if _, found := slices.BinarySearch(s.Executables, p); found {
+			report.Executables = append(report.Executables, p)
 			continue
 		}
 		switch s.Skipped[p] {
@@ -327,70 +385,169 @@ func compare(c checkedContainer, s *scannedImage) containerReport {
 			report.Links[p] = target
 		}
 	}
+	slices.Sort(report.Executables)
 	slices.Sort(report.Stale)
 	slices.Sort(report.Libraries)
 	slices.Sort(report.Unknown)
 
+	// s.Executables is sorted, so NotAllowed is sorted too.
 	for _, p := range s.Executables {
 		if !allowed[p] {
-			report.NotAllowed++
+			report.NotAllowed = append(report.NotAllowed, p)
 		}
 	}
 	report.Allowed = slices.Sorted(maps.Keys(allowed))
 	return report
 }
 
-// printSkippedPaths lists the allowed paths of a kind that the scan options
-// skip. They are not stale: the files exist and have an execute bit.
-func printSkippedPaths(w io.Writer, paths []string, what, flag string) {
-	if len(paths) == 0 {
-		return
-	}
-	fmt.Fprintf(w, "    %d allowed paths are %s, which wpgen skips unless --%s is set:\n", len(paths), what, flag)
+// printPaths prints a heading followed by the paths, one per line.
+func printPaths(w io.Writer, heading string, paths []string) {
+	fmt.Fprintf(w, "    %s:\n", heading)
 	for _, p := range paths {
 		fmt.Fprintf(w, "      %s\n", p)
 	}
 }
 
-func printCheckReport(w io.Writer, policy *v1alpha1.WorkloadPolicy, reports []containerReport) error {
-	namespace := policy.Namespace
+func renderCheckText(w io.Writer, result *checkResult, listNotAllowed bool) {
+	namespace := result.Policy.Namespace
 	if namespace == "" {
 		namespace = "<none>"
 	}
-	fmt.Fprintf(w, "Policy %q (namespace %s):\n", policy.Name, namespace)
+	fmt.Fprintf(w, "Policy %q (namespace %s):\n", result.Policy.Name, namespace)
 
-	stale := 0
-	for _, r := range reports {
-		label := fmt.Sprintf("container %q", r.Name)
-		if r.Init {
-			label = "init " + label
-		}
-		fmt.Fprintf(w, "  %s (image %s):\n", label, r.Image)
+	for _, r := range result.Containers {
+		renderContainerText(w, r, listNotAllowed)
+	}
+}
 
-		allowed := len(r.Allowed)
-		if notExecutables := len(r.Stale) + len(r.Libraries) + len(r.Unknown); notExecutables == 0 {
-			fmt.Fprintf(w, "    all %d allowed paths are executables in the image\n", allowed)
-		} else {
-			fmt.Fprintf(w, "    %d of %d allowed paths are executables in the image\n", allowed-notExecutables, allowed)
-		}
-		if len(r.Stale) > 0 {
-			fmt.Fprintf(w, "    %d allowed paths are not executables in the image:\n", len(r.Stale))
-			for _, p := range r.Stale {
-				if target, isLink := r.Links[p]; isLink {
-					fmt.Fprintf(w, "      %s (symbolic link to %s, the enforcer reports %s)\n", p, target, target)
-					continue
-				}
-				fmt.Fprintf(w, "      %s\n", p)
-			}
-		}
-		printSkippedPaths(w, r.Libraries, "shared libraries", includeLibrariesFlag)
-		printSkippedPaths(w, r.Unknown, "neither programs nor scripts", includeUnknownFlag)
-		fmt.Fprintf(w, "    %d executables of the image are not allowed\n", r.NotAllowed)
-		stale += len(r.Stale)
+func renderContainerText(w io.Writer, r containerReport, listNotAllowed bool) {
+	label := fmt.Sprintf("container %q", r.Name)
+	if r.Init {
+		label = "init " + label
+	}
+	fmt.Fprintf(w, "  %s (image %s):\n", label, r.Image)
+
+	if len(r.Executables) == len(r.Allowed) {
+		fmt.Fprintf(w, "    all %d allowed paths are executables in the image\n", len(r.Allowed))
+	} else {
+		fmt.Fprintf(w, "    %d of %d allowed paths are executables in the image\n",
+			len(r.Executables), len(r.Allowed))
 	}
 
-	if stale > 0 {
-		return fmt.Errorf("%d allowed paths are not executables in the images", stale)
+	if len(r.Stale) > 0 {
+		stale := make([]string, 0, len(r.Stale))
+		for _, p := range r.Stale {
+			if target, isLink := r.Links[p]; isLink {
+				p = fmt.Sprintf("%s (symbolic link to %s, the enforcer reports %s)", p, target, target)
+			}
+			stale = append(stale, p)
+		}
+		printPaths(w, fmt.Sprintf("%d allowed paths are not executables in the image", len(r.Stale)), stale)
+	}
+	if len(r.Libraries) > 0 {
+		printPaths(w, fmt.Sprintf("%d allowed paths are shared libraries, which wpgen skips unless --%s is set",
+			len(r.Libraries), includeLibrariesFlag), r.Libraries)
+	}
+	if len(r.Unknown) > 0 {
+		printPaths(
+			w,
+			fmt.Sprintf("%d allowed paths are neither programs nor scripts, which wpgen skips unless --%s is set",
+				len(r.Unknown), includeUnknownFlag),
+			r.Unknown,
+		)
+	}
+
+	heading := fmt.Sprintf("%d executables of the image are not allowed", len(r.NotAllowed))
+	if listNotAllowed && len(r.NotAllowed) > 0 {
+		printPaths(w, heading, r.NotAllowed)
+	} else {
+		fmt.Fprintf(w, "    %s\n", heading)
+	}
+}
+
+type jsonPolicy struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+type jsonStalePath struct {
+	Path string `json:"path"`
+	// LinkTarget is the real path, when the path is a symbolic link.
+	LinkTarget string `json:"linkTarget,omitempty"`
+}
+
+type jsonSkippedPath struct {
+	Path string         `json:"path"`
+	Kind imagescan.Kind `json:"kind"`
+}
+
+type jsonContainer struct {
+	Name            string            `json:"name"`
+	Init            bool              `json:"init"`
+	Image           string            `json:"image"`
+	Allowed         []string          `json:"allowed"`
+	Executables     []string          `json:"executables"`
+	Stale           []jsonStalePath   `json:"stale"`
+	Skipped         []jsonSkippedPath `json:"skipped"`
+	NotAllowedCount int               `json:"notAllowedCount"`
+	NotAllowed      []string          `json:"notAllowed,omitzero"`
+}
+
+type jsonCheckResult struct {
+	Policy                   jsonPolicy      `json:"policy"`
+	Containers               []jsonContainer `json:"containers"`
+	ContainersOnlyInPolicy   []string        `json:"containersOnlyInPolicy"`
+	ContainersOnlyInWorkload []string        `json:"containersOnlyInWorkload"`
+}
+
+// nonNil returns an empty slice instead of nil, so that JSON has [] and not
+// null.
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}
+
+func renderCheckJSON(w io.Writer, result *checkResult, listNotAllowed bool) error {
+	out := jsonCheckResult{
+		Policy:                   jsonPolicy{Name: result.Policy.Name, Namespace: result.Policy.Namespace},
+		Containers:               make([]jsonContainer, 0, len(result.Containers)),
+		ContainersOnlyInPolicy:   nonNil(result.OnlyInPolicy),
+		ContainersOnlyInWorkload: nonNil(result.OnlyInWorkload),
+	}
+
+	for _, r := range result.Containers {
+		c := jsonContainer{
+			Name:            r.Name,
+			Init:            r.Init,
+			Image:           r.Image,
+			Allowed:         nonNil(r.Allowed),
+			Executables:     nonNil(r.Executables),
+			Stale:           []jsonStalePath{},
+			Skipped:         []jsonSkippedPath{},
+			NotAllowedCount: len(r.NotAllowed),
+		}
+		for _, p := range r.Stale {
+			c.Stale = append(c.Stale, jsonStalePath{Path: p, LinkTarget: r.Links[p]})
+		}
+		for _, p := range r.Libraries {
+			c.Skipped = append(c.Skipped, jsonSkippedPath{Path: p, Kind: imagescan.KindLibrary})
+		}
+		for _, p := range r.Unknown {
+			c.Skipped = append(c.Skipped, jsonSkippedPath{Path: p, Kind: imagescan.KindUnknown})
+		}
+		slices.SortFunc(c.Skipped, func(a, b jsonSkippedPath) int { return strings.Compare(a.Path, b.Path) })
+		if listNotAllowed {
+			c.NotAllowed = nonNil(r.NotAllowed)
+		}
+		out.Containers = append(out.Containers, c)
+	}
+
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(out); err != nil {
+		return fmt.Errorf("cannot write the JSON report: %w", err)
 	}
 	return nil
 }

@@ -48,7 +48,8 @@ given with --workload, or from --image.
 For each container of the policy, wpgen lists the allowed paths that are not
 executables in the image, and counts the executables of the image that the
 policy does not allow. A learned policy usually does not allow most of the
-executables of the image, so this count is not a problem.
+executables of the image, so this count is not a problem. Use
+--list-not-allowed to list them.
 
 When an allowed path is a symbolic link in the image, wpgen shows its real
 path. The enforcer reports the real path, so the policy must allow it.
@@ -58,7 +59,8 @@ the image. This happens after an image update that removes a file. It also
 happens for a path on a volume or in a foreign root: keep these paths in the
 policy if the workload needs them.
 
-The report goes to standard output. Other messages go to standard error.
+The report goes to standard output, as text or as JSON. Other messages go to
+standard error.
 
 *Usage:* `wpgen check POLICY_FILE (--workload FILE | --image IMAGE) [flags]`
 
@@ -70,6 +72,9 @@ The report goes to standard output. Other messages go to standard error.
 
   # Compare a policy with a single image
   wpgen check ./policy.yaml --image ghcr.io/example/api:2.3.0 --container-name api
+
+  # Write the report as JSON, with the executables that the policy does not allow
+  wpgen check ./policy.yaml --workload ./deploy/nginx.yaml -o json --list-not-allowed
 ....
 
 === Options
@@ -81,6 +86,8 @@ The report goes to standard output. Other messages go to standard error.
       --image-src strings       Image sources to try, in order. Valid values: containerd, containers-storage, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
       --include-libraries       Count ELF shared libraries as executables. Programs load them, but do not run them
       --include-unknown         Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
+      --list-not-allowed        List the executables of the image that the policy does not allow, not only their number
+  -o, --output string           Output format (text or json) (default "text")
       --platform string         Platform to select from a multi-platform image (default: linux/<host architecture>)
       --workload string         File with the workload that uses the policy ("-" for standard input)
 ....

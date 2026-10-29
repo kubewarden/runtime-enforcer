@@ -1,0 +1,63 @@
+suite: "Values contract: images"
+templates:
+  - "templates/controller/deployment.yaml"
+  - "templates/agent/daemonset.yaml"
+  - "templates/debugger/deployment.yaml"
+set:
+  debugger:
+    enabled: true
+tests:
+  - it: "should render the default image for each workload"
+    asserts:
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: "ghcr.io/kubewarden/runtime-enforcer/controller:v0.10.1"
+        template: "templates/controller/deployment.yaml"
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: "ghcr.io/kubewarden/runtime-enforcer/agent:v0.10.1"
+        template: "templates/agent/daemonset.yaml"
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: "ghcr.io/kubewarden/runtime-enforcer/debugger:v0.10.1"
+        template: "templates/debugger/deployment.yaml"
+
+  - it: "should change only the tag with <name>.image.tag"
+    set:
+      controller:
+        image:
+          tag: v9.9.9-controller
+      agent:
+        image:
+          tag: v9.9.9-agent
+      debugger:
+        image:
+          tag: v9.9.9-debugger
+    asserts:
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: "ghcr.io/kubewarden/runtime-enforcer/controller:v9.9.9-controller"
+        template: "templates/controller/deployment.yaml"
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: "ghcr.io/kubewarden/runtime-enforcer/agent:v9.9.9-agent"
+        template: "templates/agent/daemonset.yaml"
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: "ghcr.io/kubewarden/runtime-enforcer/debugger:v9.9.9-debugger"
+        template: "templates/debugger/deployment.yaml"
+
+  - it: "should change only the repository with <name>.image.repository"
+    set:
+      agent:
+        image:
+          repository: example/agent
+    asserts:
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: "ghcr.io/example/agent:v0.10.1"
+        template: "templates/agent/daemonset.yaml"
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: "ghcr.io/kubewarden/runtime-enforcer/controller:v0.10.1"
+        template: "templates/controller/deployment.yaml"

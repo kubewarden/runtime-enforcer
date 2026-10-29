@@ -17,7 +17,7 @@ import (
 const stdinFile = "-"
 
 type workloadOptions struct {
-	commonOptions
+	draftOptions
 }
 
 // draftedWorkload is a workload with the name of its policy.
@@ -98,7 +98,7 @@ func runWorkload(
 			if _, done := scanned[c.Image]; done {
 				continue
 			}
-			if scanned[c.Image], err = scanImage(ctx, c.Image, &opts.commonOptions, stderr); err != nil {
+			if scanned[c.Image], err = scanImage(ctx, c.Image, &opts.loadOptions, nil, stderr); err != nil {
 				return err
 			}
 		}

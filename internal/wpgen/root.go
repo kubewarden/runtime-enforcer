@@ -30,6 +30,7 @@ foreign root.`,
 
 	cmd.AddCommand(newImageCmd())
 	cmd.AddCommand(newWorkloadCmd())
+	cmd.AddCommand(newCheckCmd())
 
 	return cmd
 }

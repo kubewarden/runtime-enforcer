@@ -22,7 +22,7 @@ const (
 )
 
 type imageOptions struct {
-	commonOptions
+	draftOptions
 
 	ContainerName string
 	Name          string
@@ -73,7 +73,7 @@ The policy goes to standard output. Messages go to standard error.`,
 }
 
 func (o *imageOptions) validate() error {
-	errs := o.commonOptions.validate()
+	errs := o.draftOptions.validate()
 	if err := validateDNS1123Label("container name", o.ContainerName); err != nil {
 		errs = append(errs, err)
 	}
@@ -94,7 +94,7 @@ func runImage(ctx context.Context, input string, opts *imageOptions, stdout, std
 		return err
 	}
 
-	scanned, err := scanImage(ctx, input, &opts.commonOptions, stderr)
+	scanned, err := scanImage(ctx, input, &opts.loadOptions, nil, stderr)
 	if err != nil {
 		return err
 	}

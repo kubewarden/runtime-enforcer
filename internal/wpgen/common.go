@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/anchore/stereoscope/pkg/image"
@@ -18,30 +19,47 @@ import (
 
 const defaultWarnThreshold = 50
 
-// commonOptions are the flags shared by all the commands that draft a policy.
-type commonOptions struct {
+// loadOptions are the flags of all the commands that load images.
+type loadOptions struct {
+	Platform string
+	Sources  []string
+}
+
+func (o *loadOptions) addFlags(flags *pflag.FlagSet) {
+	flags.StringVar(&o.Platform, "platform", "linux/"+runtime.GOARCH,
+		"Platform to select from a multi-platform image")
+	flags.StringSliceVar(&o.Sources, "image-src", imagescan.DefaultSources,
+		fmt.Sprintf("Image sources to try, in order. Valid values: %s", strings.Join(imagescan.KnownSources(), ", ")))
+}
+
+func (o *loadOptions) validate() []error {
+	if err := imagescan.ValidateSources(o.Sources); err != nil {
+		return []error{err}
+	}
+	return nil
+}
+
+// draftOptions are the flags of the commands that draft a policy.
+type draftOptions struct {
+	loadOptions
+
 	Mode          string
-	Platform      string
 	Output        string
-	Sources       []string
 	WarnThreshold int
 }
 
-func (o *commonOptions) addFlags(flags *pflag.FlagSet) {
+func (o *draftOptions) addFlags(flags *pflag.FlagSet) {
+	o.loadOptions.addFlags(flags)
 	flags.StringVar(&o.Mode, "mode", policymode.MonitorString,
 		fmt.Sprintf("Policy mode (%s or %s)", policymode.MonitorString, policymode.ProtectString))
-	flags.StringVar(&o.Platform, "platform", "linux/"+runtime.GOARCH,
-		"Platform to select from a multi-platform image")
 	flags.StringVarP(&o.Output, "output", "o", policydraft.FormatYAML,
 		fmt.Sprintf("Output format (%s or %s)", policydraft.FormatYAML, policydraft.FormatJSON))
-	flags.StringSliceVar(&o.Sources, "image-src", imagescan.DefaultSources,
-		fmt.Sprintf("Image sources to try, in order. Valid values: %s", strings.Join(imagescan.KnownSources(), ", ")))
 	flags.IntVar(&o.WarnThreshold, "warn-threshold", defaultWarnThreshold,
 		"Print a warning when a container allows more executables than this value (0 disables the warning)")
 }
 
-func (o *commonOptions) validate() []error {
-	var errs []error
+func (o *draftOptions) validate() []error {
+	errs := o.loadOptions.validate()
 	if !policymode.IsValid(o.Mode) {
 		errs = append(errs, fmt.Errorf("invalid mode %q: must be %q or %q",
 			o.Mode, policymode.MonitorString, policymode.ProtectString))
@@ -53,9 +71,6 @@ func (o *commonOptions) validate() []error {
 	if o.WarnThreshold < 0 {
 		errs = append(errs, fmt.Errorf("invalid warn threshold %d: must be 0 or more", o.WarnThreshold))
 	}
-	if err := imagescan.ValidateSources(o.Sources); err != nil {
-		errs = append(errs, err)
-	}
 	return errs
 }
 
@@ -65,11 +80,21 @@ type scannedImage struct {
 	// Repositories are the repositories of the tags stored in the image, when
 	// the source provides them.
 	Repositories []string
+	// Links maps the looked up paths that go through a symbolic link to
+	// their real path.
+	Links map[string]string
 }
 
 // scanImage loads the image, lists its executables and removes the
-// temporary files of the image before it returns.
-func scanImage(ctx context.Context, input string, opts *commonOptions, stderr io.Writer) (*scannedImage, error) {
+// temporary files of the image before it returns. The lookup paths that are
+// not executables are resolved through the symbolic links of the image.
+func scanImage(
+	ctx context.Context,
+	input string,
+	opts *loadOptions,
+	lookup []string,
+	stderr io.Writer,
+) (*scannedImage, error) {
 	fmt.Fprintf(stderr, "Loading image %q...\n", input)
 	img, err := imagescan.Load(ctx, input, imagescan.LoadOptions{
 		Sources:  opts.Sources,
@@ -89,11 +114,22 @@ func scanImage(ctx context.Context, input string, opts *commonOptions, stderr io
 	if err != nil {
 		return nil, fmt.Errorf("cannot list the executables of image %q: %w", input, err)
 	}
+	var notExecutable []string
+	for _, p := range lookup {
+		if _, found := slices.BinarySearch(executables, p); !found {
+			notExecutable = append(notExecutable, p)
+		}
+	}
+	links, err := imagescan.ResolveLinks(img.Image, notExecutable)
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve the paths of image %q: %w", input, err)
+	}
+
 	repositories := make([]string, 0, len(img.Metadata.Tags))
 	for _, tag := range img.Metadata.Tags {
 		repositories = append(repositories, tag.RepositoryStr())
 	}
-	return &scannedImage{Executables: executables, Repositories: repositories}, nil
+	return &scannedImage{Executables: executables, Repositories: repositories, Links: links}, nil
 }
 
 func imagePlatform(md image.Metadata) string {

@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/anchore/stereoscope/pkg/file"
+	"github.com/anchore/stereoscope/pkg/filetree"
 	"github.com/anchore/stereoscope/pkg/image"
 )
 
@@ -34,4 +35,29 @@ func Executables(img *image.Image) ([]string, error) {
 
 	slices.Sort(paths)
 	return slices.Compact(paths), nil
+}
+
+// ResolveLinks returns the real path of each of the given paths that goes
+// through a symbolic link in the image, either in its last element or in one
+// of its directories. Paths that do not exist, or that are already real
+// paths, are not in the result.
+func ResolveLinks(img *image.Image, paths []string) (map[string]string, error) {
+	tree := img.SquashedTree()
+	links := map[string]string{}
+	for _, p := range paths {
+		found, resolution, err := tree.File(file.Path(p), filetree.FollowBasenameLinks)
+		if filetree.IsUnresolvableLink(err) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot resolve %q: %w", p, err)
+		}
+		if !found || !resolution.HasReference() {
+			continue
+		}
+		if realPath := string(resolution.RealPath); realPath != p {
+			links[p] = realPath
+		}
+	}
+	return links, nil
 }

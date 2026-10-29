@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/kubewarden/runtime-enforcer/internal/imagescan"
@@ -125,4 +126,31 @@ func TestExecutables(t *testing.T) {
 			require.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestResolveLinks(t *testing.T) {
+	t.Parallel()
+
+	img := ist.LoadOCIDir(t, ist.WriteOCIDir(t, ist.NewLayer(t,
+		ist.Dir("usr/"), ist.Dir("usr/bin/"),
+		ist.Reg("usr/bin/busybox", 0o755),
+		ist.Symlink("usr/bin/sh", "busybox"),
+		ist.Symlink("usr/bin/dangling", "/nowhere"),
+		ist.Symlink("bin", "usr/bin"),
+	)))
+
+	links, err := imagescan.ResolveLinks(img.Image, []string{
+		"/usr/bin/sh",
+		"/bin/busybox",
+		"/bin/sh",
+		"/usr/bin/busybox",
+		"/usr/bin/missing",
+		"/usr/bin/dangling",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"/usr/bin/sh":  "/usr/bin/busybox",
+		"/bin/busybox": "/usr/bin/busybox",
+		"/bin/sh":      "/usr/bin/busybox",
+	}, links)
 }

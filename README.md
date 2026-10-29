@@ -34,6 +34,13 @@ The full documentation is available at
 - [Kubewarden Runtime Enforcer phases: learn, monitor, protect](https://docs.kubewarden.io/runtime-enforcer/latest/en/phases.html)
   — understand the learn, monitor and protect phases in detail.
 
+This repository also documents two command-line tools:
+
+- [kubectl runtime-enforcer](docs/kubectl_plugin.adoc)
+  — manage `WorkloadPolicyProposal` and `WorkloadPolicy` resources in a cluster.
+- [wpgen](docs/wpgen.adoc)
+  — draft a `WorkloadPolicy` from container images, without a cluster.
+
 ## Installation
 
 Runtime Enforcer is deployed with a Helm chart. The chart is published at

@@ -26,10 +26,20 @@ type loadOptions struct {
 }
 
 func (o *loadOptions) addFlags(flags *pflag.FlagSet) {
-	flags.StringVar(&o.Platform, "platform", "linux/"+runtime.GOARCH,
-		"Platform to select from a multi-platform image")
+	flags.StringVar(&o.Platform, "platform", "",
+		"Platform to select from a multi-platform image (default: linux/<host architecture>)")
 	flags.StringSliceVar(&o.Sources, "image-src", imagescan.DefaultSources,
 		fmt.Sprintf("Image sources to try, in order. Valid values: %s", strings.Join(imagescan.KnownSources(), ", ")))
+}
+
+// platform returns the platform given by the user, or linux with the
+// architecture of the host. The default is resolved here, and not in the flag
+// definition, so that the help text is the same on all hosts.
+func (o *loadOptions) platform() string {
+	if o.Platform != "" {
+		return o.Platform
+	}
+	return "linux/" + runtime.GOARCH
 }
 
 func (o *loadOptions) validate() []error {
@@ -98,7 +108,7 @@ func scanImage(
 	fmt.Fprintf(stderr, "Loading image %q...\n", input)
 	img, err := imagescan.Load(ctx, input, imagescan.LoadOptions{
 		Sources:  opts.Sources,
-		Platform: opts.Platform,
+		Platform: opts.platform(),
 	})
 	if err != nil {
 		return nil, err

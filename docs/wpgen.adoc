@@ -1,0 +1,164 @@
+= wpgen
+
+`wpgen` drafts a `WorkloadPolicy` from the executables found inside container images. It also compares an existing policy with the images of a workload.
+
+`wpgen` does not need a cluster. You can run it on a workstation or in a CI pipeline.
+
+This guide shows the main workflows. For the full list of commands and flags, see the generated link:wpgen/cli-docs.adoc[command reference].
+
+[[draft]]
+== The output is a draft
+
+A container image often contains many executables that the workload never runs. A policy that allows all of them gives little protection. For example, a policy for a Debian or Ubuntu base image can allow several hundred executables.
+
+Use the output of `wpgen` as a starting point:
+
+. Apply the policy in `monitor` mode. This is the default.
+. Look at the violations and at the list of allowed executables.
+. Remove the executables that the workload does not need.
+. Switch the policy to `protect` mode.
+
+When the workload already runs in a cluster, the learn phase of runtime-enforcer is the better way to build a policy. The learn phase records the executables that the workload really runs.
+
+`wpgen` only sees the file system of the image. It does not see:
+
+* Files on volumes that the pod mounts over a path of the image.
+* Files that the workload creates at runtime.
+* Executables from a foreign root.
+
+In `monitor` mode, the enforcer reports these executables as violations. Add them to the policy by hand.
+
+[[install]]
+== Installation
+
+=== Download a pre-built binary
+
+Pre-built binaries for `linux/amd64`, `linux/arm64`, `darwin/amd64`, and `darwin/arm64` are published on each https://github.com/kubewarden/runtime-enforcer/releases[GitHub Release].
+
+```bash
+# Example: linux/amd64
+VERSION=latest
+curl -Lo wpgen \
+  "https://github.com/kubewarden/runtime-enforcer/releases/download/${VERSION}/wpgen-linux-amd64"
+chmod +x wpgen
+sudo mv wpgen /usr/local/bin/
+```
+
+Verify the checksum with the `.sha256` file published next to the binary:
+
+```bash
+sha256sum --check wpgen-linux-amd64.sha256
+```
+
+Verify the build provenance with the GitHub CLI:
+
+```bash
+gh attestation verify wpgen-linux-amd64 --repo kubewarden/runtime-enforcer
+```
+
+=== Build from source
+
+From the repository root:
+
+```bash
+# Current platform
+make wpgen          # output: bin/wpgen
+# All supported platforms at once
+make wpgen-cross    # output: bin/wpgen-dist/wpgen-<os>-<arch>
+```
+
+[[sources]]
+== Where wpgen finds the images
+
+`wpgen` looks for an image in a list of sources, in order, and uses the first source that has the image. The default order is:
+
+. `file`: a tar archive made by `docker save` or `podman save`, an OCI archive, or an OCI layout directory.
+. `docker`: the local Docker daemon.
+. `podman`: the local Podman daemon.
+. `registry`: the remote registry of the image reference.
+
+A daemon source pulls the image into the daemon when the daemon does not have it. To read the image directly from the registry, use `--image-src registry`. This is useful in CI, where a local image can be out of date.
+
+A multi-platform image has one image per platform. `wpgen` selects `linux` with the architecture of the host. Use `--platform` to select another one, for example `--platform linux/arm64`.
+
+[[image]]
+== Draft a policy from a single image
+
+```bash
+wpgen image ghcr.io/example/api:2.3.0 --container-name api --name api --namespace prod > policy.yaml
+```
+
+The policy has one container. The flags are optional:
+
+* Without `--container-name`, the container is `main`.
+* Without `--name`, the policy name is the last part of the image repository, `api` in this example.
+* Without `--namespace`, the policy goes to the `default` namespace.
+
+The container name in the policy must be the same as the container name in the pod. If the names are different, the rules do not apply to the container.
+
+Add the label that `wpgen` prints to the pod template of the workload:
+
+```yaml
+runtimeenforcer.kubewarden.io/policy: api
+```
+
+[[workload]]
+== Draft policies from a workload file
+
+```bash
+wpgen workload ./deploy/nginx.yaml > policies.yaml
+```
+
+`wpgen` writes one policy for each `Deployment`, `ReplicaSet`, `DaemonSet`, `StatefulSet`, `Job`, and `CronJob` in the file. It skips all other documents, and also bare pods. Each policy has one entry for each container and init container.
+
+To read from standard input, use `-` as the file name. For example, with Helm:
+
+```bash
+helm template my-release ./chart | wpgen workload - > policies.yaml
+```
+
+The name of each policy is:
+
+* The value of the `runtimeenforcer.kubewarden.io/policy` label of the pod template, if the label is there.
+* Otherwise, the short kind and the workload name, for example `deploy-nginx`. This is the same name that the learn phase gives to a `WorkloadPolicyProposal`.
+
+The policy has the namespace of the workload. If the workload has no namespace, the policy has none either. Then `kubectl apply -n <namespace>` puts the workload and the policy in the same namespace.
+
+[[check]]
+== Check a policy against the images
+
+After an image update, a policy can allow paths that no longer exist. `wpgen check` finds them:
+
+```bash
+wpgen check ./policy.yaml --workload ./deploy/nginx.yaml
+```
+
+```text
+Policy "deploy-nginx" (namespace web):
+  container "nginx" (image docker.io/library/nginx:1.27):
+    2 allowed paths are not executables in the image:
+      /usr/local/bin/wait-for-it.sh
+      /usr/sbin/nginx-debug
+    310 executables of the image are not allowed
+```
+
+The policy file must contain one `WorkloadPolicy` or one `WorkloadPolicyProposal`. The workload file must contain one workload. To check a single image instead of a workload, use `--image`:
+
+```bash
+wpgen check ./policy.yaml --image ghcr.io/example/api:2.3.0 --container-name api
+```
+
+The report has two parts for each container:
+
+* The allowed paths that are not executables in the image. A path can be stale after an image update. It can also come from a volume or a foreign root. In that case, keep it in the policy.
+* The number of executables of the image that the policy does not allow. For a learned policy, this number is usually high. This is not a problem.
+
+When an allowed path is a symbolic link in the image, the report shows the real path:
+
+```text
+      /bin/sh (symbolic link to /bin/busybox, the enforcer reports /bin/busybox)
+```
+
+The enforcer reports only real paths. Replace the link with the real path in the policy.
+
+The exit code is `1` when at least one allowed path is not an executable in the image. Otherwise it is `0`. A CI job can use the exit code to stop a change that makes a policy stale.

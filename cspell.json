@@ -91,6 +91,13 @@
         "ttrpc",
         "loglevel",
         "finalizer",
+        "wpgen",
+        "imagescan",
+        "workloadparse",
+        "policydraft",
+        "containerregistry",
+        "syft",
+        "INTERP",
     ],
     "ignoreWords": [
         "clientgoscheme",

@@ -58,7 +58,7 @@ TARGET=controller agent debugger
 $(foreach T,$(TARGET),$(eval $(call BUILD_template,$(T))))
 
 .PHONY: generate
-generate: manifests generate-ebpf generate-proto generate-api generate-crd-docs generate-chart generate-kubectl-plugin-docs
+generate: manifests generate-ebpf generate-proto generate-api generate-crd-docs generate-chart generate-kubectl-plugin-docs generate-wpgen-docs
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 .PHONY: fmt
@@ -79,7 +79,11 @@ generate-crd-docs: ## Generate CRD documentation.
 
 .PHONY: generate-kubectl-plugin-docs
 generate-kubectl-plugin-docs: ## Generate kubectl plugin docs.
-	go run ./internal/tools/docgen -out docs/kubectl-plugin/cli-docs.adoc
+	go run ./internal/tools/docgen -tool kubectl-plugin -out docs/kubectl-plugin/cli-docs.adoc
+
+.PHONY: generate-wpgen-docs
+generate-wpgen-docs: ## Generate wpgen docs.
+	go run ./internal/tools/docgen -tool wpgen -out docs/wpgen/cli-docs.adoc
 
 .PHONY: test
 test: generate-ebpf vet setup-envtest ## Run tests.

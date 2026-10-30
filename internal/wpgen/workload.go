@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -63,7 +62,7 @@ The policies go to standard output. Messages go to standard error.`,
   helm template my-release ./chart | wpgen workload -`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runWorkload(cmd.Context(), args[0], opts, newContextReader(cmd.Context(), cmd.InOrStdin()),
+			return runWorkload(cmd.Context(), args[0], opts, cmd.InOrStdin(),
 				g.streams(cmd.OutOrStdout(), cmd.ErrOrStderr()))
 		},
 	}
@@ -84,7 +83,7 @@ func runWorkload(
 		return err
 	}
 
-	workloads, err := readWorkloads(file, stdin, s.err)
+	workloads, err := readWorkloads(ctx, file, stdin, s.err)
 	if err != nil {
 		return err
 	}
@@ -131,16 +130,17 @@ func runWorkload(
 	return nil
 }
 
-func readWorkloads(file string, stdin io.Reader, stderr io.Writer) ([]workloadparse.Workload, error) {
-	r := stdin
-	if file != stdinFile {
-		f, err := os.Open(file)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-		r = f
+func readWorkloads(
+	ctx context.Context,
+	file string,
+	stdin io.Reader,
+	stderr io.Writer,
+) ([]workloadparse.Workload, error) {
+	r, err := openInput(ctx, file, stdin)
+	if err != nil {
+		return nil, err
 	}
+	defer r.Close()
 
 	workloads, skipped, err := workloadparse.Parse(r)
 	if err != nil {

@@ -47,13 +47,20 @@ func newPolicy(t *testing.T, executablesByContainer map[string][]string) *v1alph
 	return policy
 }
 
-func writePolicies(t *testing.T, policies ...*v1alpha1.WorkloadPolicy) string {
+// policyYAML returns the YAML of the policies, as writePolicies writes it.
+func policyYAML(t *testing.T, policies ...*v1alpha1.WorkloadPolicy) string {
 	t.Helper()
 
 	var buf bytes.Buffer
 	require.NoError(t, policydraft.EncodeAll(&buf, policies, policydraft.FormatYAML))
+	return buf.String()
+}
+
+func writePolicies(t *testing.T, policies ...*v1alpha1.WorkloadPolicy) string {
+	t.Helper()
+
 	path := filepath.Join(t.TempDir(), "policy.yaml")
-	require.NoError(t, os.WriteFile(path, buf.Bytes(), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(policyYAML(t, policies...)), 0o600))
 	return path
 }
 

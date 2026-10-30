@@ -66,8 +66,14 @@ the image. This happens after an image update that removes a file. It also
 happens for a path on a volume or in a foreign root: keep these paths in the
 policy if the workload needs them.
 
+The exit code is also 1 when a container of the workload has no rules in the
+policy, for example a new container. The enforcer does not protect such a
+container.
+
 The report goes to standard output, as a table or as JSON. Other messages go
-to standard error.
+to standard error. The last lines on standard error are the verdict. They
+also count the allowed paths that wpgen skipped, and the containers of the
+policy that it did not check.
 
 *Usage:* `wpgen check POLICY_FILE (--workload FILE | --image IMAGE) [flags]`
 

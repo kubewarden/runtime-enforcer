@@ -219,7 +219,7 @@ Policy api (namespace prod)
 │ api       │ ghcr.io/example/api:2.3.0 │       2 │  2 │     0 │       0 │          12 │
 └───────────┴───────────────────────────┴─────────┴────┴───────┴─────────┴─────────────┘
 
-All allowed paths are executables in the images.
+No allowed path is stale.
 $ echo $?
 0
 ```
@@ -538,9 +538,11 @@ The tool reads the images from one of two sources:
   have exactly one container.
 
 With `--workload`, the tool matches the containers of the policy and of the
-workload by name. If a container is only in one of them, the tool prints a
-notice and continues. If they have no container in common, the tool stops
-with an error.
+workload by name. A container of the workload without rules in the policy,
+for example a new container, makes the check fail: the enforcer does not
+protect it. A container of the policy that is not in the workload is not
+checked: the tool prints a notice and continues. If they have no container
+in common, the tool stops with an error.
 
 For each container, the tool compares the allowed paths with the executables
 of the image. The report has two parts:
@@ -572,17 +574,22 @@ document, the number of executables that the policy does not allow is always
 present. Their list is present only with `--list-not-allowed`.
 
 The exit code is `1` when at least one allowed path is not an executable in
-the image. The exit code is `0` in all other cases. The format of the report
-does not change the exit code. A CI job can use this to detect a stale policy
-after an image bump.
+the image, or when a container of the workload has no rules in the policy.
+The exit code is `0` in all other cases. The format of the report does not
+change the exit code. A CI job can use this to detect a stale policy after an
+image bump, or a new container that the policy does not protect.
+
+The verdict, on standard error, says only what the tool checked. It counts
+the allowed paths that the tool skipped, and the containers of the policy
+that it did not check.
 
 ## Colors
 
 The tool uses colors only to make the important lines stand out. The tables
 have no colors. The colored lines are:
 
-- The verdict of `check`, in red when a path is stale and in green when all
-  paths are executables. It goes to standard error, after the report.
+- The verdict of `check`, in red when a path is stale or a container has no
+  rules, and in green otherwise. It goes to standard error, after the report.
 - The `WARNING:` word in the summary of `image` and `workload`.
 - The notices about containers that are only in the policy or only in the
   workload.

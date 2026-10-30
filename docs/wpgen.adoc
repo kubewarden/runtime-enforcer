@@ -192,9 +192,14 @@ Policy deploy-nginx (namespace web)
   nginx: /usr/local/bin/wait-for-it.sh, /usr/sbin/nginx-debug
 ```
 
-The first table has one row for each allowed path. The rows of each container start with the paths that need an action: `stale` first, then `skipped`, then `ok`. The second table counts the paths of each status. The last lines, on standard error, repeat the stale paths.
+The first table has one row for each allowed path. The rows of each container start with the paths that need an action: `stale` first, then `skipped`, then `ok`. The second table counts the paths of each status. The last lines, on standard error, are the verdict. They repeat the stale paths, and they count the skipped paths and the containers that `wpgen` did not check.
 
-The policy file must contain one `WorkloadPolicy` or one `WorkloadPolicyProposal`. The workload file must contain one workload. To check a single image instead of a workload, use `--image`:
+The policy file must contain one `WorkloadPolicy` or one `WorkloadPolicyProposal`. The workload file must contain one workload. `wpgen` matches the containers of the policy and of the workload by name:
+
+* A container of the workload without rules in the policy, for example a new container, makes the check fail. The enforcer does not protect this container.
+* A container of the policy that is not in the workload is not checked. Its rules have no effect, and the check does not fail.
+
+To check a single image instead of a workload, use `--image`:
 
 ```bash
 wpgen check ./policy.yaml --image ghcr.io/example/api:2.3.0 --container-name api
@@ -220,7 +225,7 @@ When an allowed path is a symbolic link in the image, the `NOTE` column says so:
 
 The enforcer reports only real paths. Replace the link with the real path in the policy.
 
-The exit code is `1` when at least one allowed path is not an executable in the image. Otherwise it is `0`. A CI job can use the exit code to stop a change that makes a policy stale.
+The exit code is `1` when at least one allowed path is not an executable in the image, or when a container of the workload has no rules in the policy. Otherwise it is `0`. A CI job can use the exit code to stop a change that makes a policy stale, or that adds a container that the policy does not protect.
 
 When you stop `wpgen` with Ctrl-C, or with the `SIGTERM` signal, all the commands stop and the exit code is `130`.
 

@@ -31,6 +31,12 @@ func TestValidateSources(t *testing.T) {
 	require.ErrorContains(t, err, `unknown image source "nope"`)
 
 	require.Error(t, imagescan.ValidateSources(nil))
+
+	// wpgen is built without the containers-storage provider.
+	assert.NotContains(t, imagescan.KnownSources(), "containers-storage")
+	assert.Contains(t, imagescan.KnownSources(), "pull", "the other providers keep their tags")
+	require.ErrorContains(t, imagescan.ValidateSources([]string{"containers-storage"}),
+		`unknown image source "containers-storage"`)
 }
 
 func TestLoadFallsBackToTheNextSource(t *testing.T) {

@@ -19,8 +19,5 @@ func run() int {
 	defer stop()
 	defer imagescan.CleanupAll()
 
-	if err := wpgen.NewRootCmd().ExecuteContext(ctx); err != nil {
-		return 1
-	}
-	return 0
+	return wpgen.Execute(ctx)
 }

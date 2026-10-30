@@ -115,11 +115,12 @@ spec:
 	assert.Contains(t, stderr, `Skipping Pod "debug" (v1): runtime-enforcer does not learn policies for bare pods`)
 	assert.Equal(t, 1, strings.Count(stderr, fmt.Sprintf("Loading image %q", app)), "each image is scanned once")
 	assert.Equal(t, 1, strings.Count(stderr, fmt.Sprintf("Loading image %q", initImg)))
-	assert.Contains(t, stderr, `Deployment "web" (namespace prod), policy "deploy-web":`)
-	assert.Contains(t, stderr, fmt.Sprintf(`  container "api" (image %s): 2 executables`, app))
-	assert.Contains(t, stderr, fmt.Sprintf(`  container "worker" (image %s): 2 executables`, app))
-	assert.Contains(t, stderr, fmt.Sprintf(`  init container "setup" (image %s): 1 executable`, initImg))
-	assert.Contains(t, stderr, "    runtimeenforcer.kubewarden.io/policy: deploy-web\n")
+	assert.Contains(t, stderr, "Deployment web (namespace prod), policy deploy-web\n")
+	for _, label := range []string{"│ api ", "│ worker ", "│ setup (init) "} {
+		assert.Contains(t, stderr, label, "the summary has a row for each container")
+	}
+	assert.Contains(t, stderr, "Add this label to the pod template of Deployment web:\n"+
+		"  runtimeenforcer.kubewarden.io/policy: deploy-web\n")
 }
 
 func TestWorkloadCmdFromStdin(t *testing.T) {
@@ -169,14 +170,14 @@ spec:
         - /usr/bin/migrate
 `, stdout)
 
-	assert.Contains(t, stderr, `StatefulSet "db" (namespace <none>), policy "database":`)
+	assert.Contains(t, stderr, "StatefulSet db (namespace <none>), policy database\n")
 	assert.Contains(
 		t,
 		stderr,
-		"  The pod template already has the label runtimeenforcer.kubewarden.io/policy: database\n",
+		"The pod template already has the label runtimeenforcer.kubewarden.io/policy: database\n",
 	)
-	assert.Contains(t, stderr, `CronJob "backup" (namespace <none>), policy "cronjob-backup":`)
-	assert.Contains(t, stderr, `  WARNING: container "backup" allows 2 executables.`)
+	assert.Contains(t, stderr, "CronJob backup (namespace <none>), policy cronjob-backup\n")
+	assert.Contains(t, stderr, "WARNING: container backup allows 2 executables.")
 }
 
 func TestWorkloadCmdJSON(t *testing.T) {

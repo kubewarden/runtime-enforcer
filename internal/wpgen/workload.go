@@ -29,7 +29,7 @@ type draftedWorkload struct {
 	LabelPresent bool
 }
 
-func newWorkloadCmd() *cobra.Command {
+func newWorkloadCmd(g *globalOptions) *cobra.Command {
 	opts := &workloadOptions{}
 
 	cmd := &cobra.Command{
@@ -60,7 +60,8 @@ The policies go to standard output. Messages go to standard error.`,
   helm template my-release ./chart | wpgen workload -`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runWorkload(cmd.Context(), args[0], opts, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
+			return runWorkload(cmd.Context(), args[0], opts, cmd.InOrStdin(),
+				g.streams(cmd.OutOrStdout(), cmd.ErrOrStderr()))
 		},
 	}
 
@@ -74,13 +75,13 @@ func runWorkload(
 	file string,
 	opts *workloadOptions,
 	stdin io.Reader,
-	stdout, stderr io.Writer,
+	s streams,
 ) error {
 	if err := errors.Join(opts.validate()...); err != nil {
 		return err
 	}
 
-	workloads, err := readWorkloads(file, stdin, stderr)
+	workloads, err := readWorkloads(file, stdin, s.err)
 	if err != nil {
 		return err
 	}
@@ -98,7 +99,7 @@ func runWorkload(
 			if _, done := scanned[c.Image]; done {
 				continue
 			}
-			if scanned[c.Image], err = scanImage(ctx, c.Image, &opts.scanOptions, nil, stderr); err != nil {
+			if scanned[c.Image], err = scanImage(ctx, c.Image, &opts.scanOptions, nil, s.err); err != nil {
 				return err
 			}
 		}
@@ -116,12 +117,13 @@ func runWorkload(
 		}
 		policies = append(policies, policy)
 	}
-	if err = policydraft.EncodeAll(stdout, policies, opts.Output); err != nil {
+	s.separate()
+	if err = policydraft.EncodeAll(s.out, policies, opts.Output); err != nil {
 		return err
 	}
 
 	for _, w := range drafted {
-		printWorkloadSummary(stderr, w, scanned, opts.WarnThreshold)
+		printWorkloadSummary(s.err, s.errPainter, w, scanned, opts.WarnThreshold)
 	}
 	return nil
 }
@@ -184,25 +186,33 @@ func draftWorkloads(workloads []workloadparse.Workload) ([]draftedWorkload, erro
 	return drafted, nil
 }
 
-func printWorkloadSummary(w io.Writer, d draftedWorkload, scanned map[string]*scannedImage, warnThreshold int) {
+func printWorkloadSummary(
+	w io.Writer,
+	p painter,
+	d draftedWorkload,
+	scanned map[string]*scannedImage,
+	warnThreshold int,
+) {
 	namespace := d.Namespace
 	if namespace == "" {
 		namespace = "<none>"
 	}
-	fmt.Fprintf(w, "%s %q (namespace %s), policy %q:\n", d.Kind, d.Name, namespace, d.PolicyName)
+	fmt.Fprintf(w, "\n%s %s (namespace %s), policy %s\n", d.Kind, d.Name, namespace, d.PolicyName)
 
+	containers := make([]draftedContainer, 0, len(d.Containers))
 	for _, c := range d.Containers {
-		label := fmt.Sprintf("container %q", c.Name)
-		if c.Init {
-			label = "init " + label
-		}
-		printContainerSummary(w, "  ", label, c.Image, scanned[c.Image], warnThreshold)
+		containers = append(containers, draftedContainer{
+			Label:   containerLabel(c.Name, c.Init),
+			Image:   c.Image,
+			Scanned: scanned[c.Image],
+		})
 	}
+	printDraftSummary(w, p, containers, warnThreshold)
 
 	if d.LabelPresent {
-		fmt.Fprintf(w, "  The pod template already has the label %s: %s\n", v1alpha1.PolicyLabelKey, d.PolicyName)
+		fmt.Fprintf(w, "\nThe pod template already has the label %s: %s\n", v1alpha1.PolicyLabelKey, d.PolicyName)
 		return
 	}
-	fmt.Fprintf(w, "  Add this label to the pod template of %s %q:\n    %s: %s\n",
+	fmt.Fprintf(w, "\nAdd this label to the pod template of %s %s:\n  %s: %s\n",
 		d.Kind, d.Name, v1alpha1.PolicyLabelKey, d.PolicyName)
 }

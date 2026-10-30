@@ -80,8 +80,12 @@ make wpgen-cross    # output: bin/wpgen-dist/wpgen-<os>-<arch>
 By default, a policy allows only programs and scripts. The summary shows how many files `wpgen` skipped:
 
 ```text
-container "main" (image alpine:3.20): 11 executables
-skipped 10 shared libraries, use --include-libraries to keep them
+┌───────────┬─────────────┬─────────────┬───────────────────┬───────────────┐
+│ CONTAINER │ IMAGE       │ EXECUTABLES │ SKIPPED LIBRARIES │ SKIPPED OTHER │
+├───────────┼─────────────┼─────────────┼───────────────────┼───────────────┤
+│ main      │ alpine:3.20 │          11 │                10 │             0 │
+└───────────┴─────────────┴─────────────┴───────────────────┴───────────────┘
+Use --include-libraries to keep the skipped shared libraries.
 ```
 
 Use `--include-libraries` and `--include-unknown` to keep the skipped files. You need them in two rare cases:
@@ -90,6 +94,13 @@ Use `--include-libraries` and `--include-unknown` to keep the skipped files. You
 * The workload starts a script without a `#!` line directly from a shell. The enforcer checks the path of the script before the shell runs it, so the policy must allow the script.
 
 In `monitor` mode, the enforcer reports these cases as violations.
+
+[[colors]]
+== Colors
+
+`wpgen` uses colors only for the lines that you must not miss: the verdict of `check`, the `WARNING:` word, the notices about containers that are only in the policy or only in the workload, and errors. The tables have no colors.
+
+By default, `wpgen` uses colors only when the output is a terminal. To turn them off, set the `NO_COLOR` environment variable, or use `--color=never`. To force them, for example in a CI log that shows colors, use `--color=always` or set `CLICOLOR_FORCE=1`.
 
 [[sources]]
 == Where wpgen finds the images
@@ -158,13 +169,28 @@ wpgen check ./policy.yaml --workload ./deploy/nginx.yaml
 ```
 
 ```text
-Policy "deploy-nginx" (namespace web):
-  container "nginx" (image docker.io/library/nginx:1.27):
-    2 allowed paths are not executables in the image:
-      /usr/local/bin/wait-for-it.sh
-      /usr/sbin/nginx-debug
-    310 executables of the image are not allowed
+Policy deploy-nginx (namespace web)
+
+┌───────────┬───────────────────────────────┬────────┬────────────────────────────────┐
+│ CONTAINER │ PATH                          │ STATUS │ NOTE                           │
+├───────────┼───────────────────────────────┼────────┼────────────────────────────────┤
+│           │ /usr/local/bin/wait-for-it.sh │ stale  │ not an executable in the image │
+│   nginx   │ /usr/sbin/nginx-debug         │ stale  │ not an executable in the image │
+│           │ /docker-entrypoint.sh         │ ok     │                                │
+│           │ /usr/sbin/nginx               │ ok     │                                │
+└───────────┴───────────────────────────────┴────────┴────────────────────────────────┘
+
+┌───────────┬──────────────────────────────┬─────────┬────┬───────┬─────────┬─────────────┐
+│ CONTAINER │ IMAGE                        │ ALLOWED │ OK │ STALE │ SKIPPED │ NOT ALLOWED │
+├───────────┼──────────────────────────────┼─────────┼────┼───────┼─────────┼─────────────┤
+│ nginx     │ docker.io/library/nginx:1.27 │       4 │  2 │     2 │       0 │         502 │
+└───────────┴──────────────────────────────┴─────────┴────┴───────┴─────────┴─────────────┘
+
+2 allowed paths are not executables in the images:
+  nginx: /usr/local/bin/wait-for-it.sh, /usr/sbin/nginx-debug
 ```
+
+The first table has one row for each allowed path. The rows of each container start with the paths that need an action: `stale` first, then `skipped`, then `ok`. The second table counts the paths of each status. The last lines, on standard error, repeat the stale paths.
 
 The policy file must contain one `WorkloadPolicy` or one `WorkloadPolicyProposal`. The workload file must contain one workload. To check a single image instead of a workload, use `--image`:
 
@@ -172,26 +198,29 @@ The policy file must contain one `WorkloadPolicy` or one `WorkloadPolicyProposal
 wpgen check ./policy.yaml --image ghcr.io/example/api:2.3.0 --container-name api
 ```
 
-The report has two parts for each container:
+The `STATUS` column has one of these values:
 
-* The allowed paths that are not executables in the image. A path can be stale after an image update. It can also come from a volume or a foreign root. In that case, keep it in the policy.
-* The number of executables of the image that the policy does not allow. For a learned policy, this number is usually high. This is not a problem.
+* `stale`: the path is not an executable in the image. A path can be stale after an image update. It can also come from a volume or a foreign root. In that case, keep it in the policy.
+* `skipped`: the path is a shared library or an unknown file. `wpgen` skips these kinds, unless you use `--include-libraries` or `--include-unknown`. A skipped path does not change the exit code.
+* `ok`: the path is an executable in the image.
+* `not allowed`: an executable of the image that the policy does not allow. These rows are shown only with `--list-not-allowed`. Without the flag, the second table shows only their number. For a learned policy, this number is usually high. This is not a problem.
 
-Allowed paths that are shared libraries or unknown files are listed apart, unless you use `--include-libraries` or `--include-unknown`. They do not change the exit code.
-
-When an allowed path is a symbolic link in the image, the report shows the real path:
+When an allowed path is a symbolic link in the image, the `NOTE` column says so:
 
 ```text
-      /bin/sh (symbolic link to /bin/busybox, the enforcer reports /bin/busybox)
+┌───────────┬─────────┬────────┬────────────────────────────────────────────────────┐
+│ CONTAINER │ PATH    │ STATUS │ NOTE                                               │
+├───────────┼─────────┼────────┼────────────────────────────────────────────────────┤
+│    main   │ /bin/sh │ stale  │ symbolic link to /bin/busybox, the enforcer        │
+│           │         │        │ reports the target                                 │
+└───────────┴─────────┴────────┴────────────────────────────────────────────────────┘
 ```
 
 The enforcer reports only real paths. Replace the link with the real path in the policy.
 
-The report shows only the number of executables that the policy does not allow. Use `--list-not-allowed` to list them.
-
 The exit code is `1` when at least one allowed path is not an executable in the image. Otherwise it is `0`. A CI job can use the exit code to stop a change that makes a policy stale.
 
-For a machine-readable report, use `-o json`. The document has one entry for each container:
+The default format, `-o table`, is for people. For a machine-readable report, use `-o json`. The document has one entry for each container:
 
 ```json
 {
@@ -221,4 +250,4 @@ For a machine-readable report, use `-o json`. The document has one entry for eac
 * `skipped` are the allowed paths that are shared libraries or unknown files, with their `kind`.
 * `notAllowed`, the list of the executables that the policy does not allow, is present only with `--list-not-allowed`.
 
-The exit code is the same as with the text report.
+The exit code is the same as with the table report.

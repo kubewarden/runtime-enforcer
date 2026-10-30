@@ -14,8 +14,8 @@ const anyExecBit = 0o111
 
 // Executable is a file with an execute permission bit, and its kind.
 type Executable struct {
-	Path string
-	Kind Kind
+	Path string `json:"path"`
+	Kind Kind   `json:"kind"`
 }
 
 // Executables returns all the executable files in the squashed file system
@@ -61,6 +61,30 @@ func classifyPath(img *image.Image, p file.Path) (Kind, error) {
 		return "", fmt.Errorf("cannot read %q: %w", p, err)
 	}
 	return kind, nil
+}
+
+// Result is the result of the scan of an image.
+type Result struct {
+	// Executables are all the executables of the image, sorted by path.
+	Executables []Executable
+	// Links maps each looked up path that goes through a symbolic link to its
+	// real path.
+	Links map[string]string
+}
+
+// Scan lists the executables of the image, and resolves the lookup paths
+// through the symbolic links of the image. A lookup path that is already a
+// real path, such as the path of an executable, is not in Links.
+func Scan(img *image.Image, lookup []string) (*Result, error) {
+	executables, err := Executables(img)
+	if err != nil {
+		return nil, err
+	}
+	links, err := ResolveLinks(img, lookup)
+	if err != nil {
+		return nil, err
+	}
+	return &Result{Executables: executables, Links: links}, nil
 }
 
 // ResolveLinks returns the real path of each of the given paths that goes

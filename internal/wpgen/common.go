@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io"
 	"runtime"
-	"slices"
 	"strings"
 
 	"github.com/anchore/stereoscope/pkg/image"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/validation"
 
@@ -128,9 +128,9 @@ type scannedImage struct {
 	Links map[string]string
 }
 
-// scanImage loads the image, lists its executables and removes the
-// temporary files of the image before it returns. The lookup paths that are
-// not executables are resolved through the symbolic links of the image.
+// scanImage loads the image, scans it with imagescan.Scan, and removes the
+// temporary files of the image before it returns. The lookup paths are
+// resolved through the symbolic links of the image.
 func scanImage(
 	ctx context.Context,
 	input string,
@@ -153,41 +153,34 @@ func scanImage(
 	}()
 	fmt.Fprintf(stderr, "Loaded image %q from source %q (%s)\n", input, img.Source, imagePlatform(img.Metadata))
 
-	all, err := imagescan.Executables(img.Image)
+	result, err := imagescan.Scan(img.Image, lookup)
 	if err != nil {
-		return nil, fmt.Errorf("cannot list the executables of image %q: %w", input, err)
+		return nil, fmt.Errorf("cannot scan image %q: %w", input, err)
 	}
-	executables := make([]string, 0, len(all))
-	skipped := map[string]imagescan.Kind{}
-	for _, e := range all {
-		if opts.includes(e.Kind) {
-			executables = append(executables, e.Path)
-		} else {
-			skipped[e.Path] = e.Kind
-		}
-	}
+	scanned := newScannedImage(result, opts)
 
-	var notExecutable []string
-	for _, p := range lookup {
-		if _, found := slices.BinarySearch(executables, p); !found {
-			notExecutable = append(notExecutable, p)
-		}
-	}
-	links, err := imagescan.ResolveLinks(img.Image, notExecutable)
-	if err != nil {
-		return nil, fmt.Errorf("cannot resolve the paths of image %q: %w", input, err)
-	}
-
-	repositories := make([]string, 0, len(img.Metadata.Tags))
 	for _, tag := range img.Metadata.Tags {
-		repositories = append(repositories, tag.RepositoryStr())
+		scanned.Repositories = append(scanned.Repositories, tag.RepositoryStr())
 	}
-	return &scannedImage{
-		Executables:  executables,
-		Skipped:      skipped,
-		Repositories: repositories,
-		Links:        links,
-	}, nil
+	return scanned, nil
+}
+
+// newScannedImage sorts the executables of a scan into the ones of the kinds
+// that the options include, in Executables, and the other ones, in Skipped.
+func newScannedImage(result *imagescan.Result, opts *scanOptions) *scannedImage {
+	scanned := &scannedImage{
+		Executables: make([]string, 0, len(result.Executables)),
+		Skipped:     map[string]imagescan.Kind{},
+		Links:       result.Links,
+	}
+	for _, e := range result.Executables {
+		if opts.includes(e.Kind) {
+			scanned.Executables = append(scanned.Executables, e.Path)
+		} else {
+			scanned.Skipped[e.Path] = e.Kind
+		}
+	}
+	return scanned
 }
 
 // skippedCount returns the number of skipped executables of the kind.
@@ -209,34 +202,59 @@ func imagePlatform(md image.Metadata) string {
 	return p
 }
 
-// printContainerSummary prints the number of executables of a container,
-// the number of skipped files, and a warning when the number of executables
-// is above the threshold.
-func printContainerSummary(w io.Writer, prefix, label, imageRef string, s *scannedImage, warnThreshold int) {
-	count := len(s.Executables)
-	fmt.Fprintf(w, "%s%s (image %s): %s\n", prefix, label, imageRef, plural(count, "executable", "executables"))
-	if n := s.skippedCount(imagescan.KindLibrary); n > 0 {
-		fmt.Fprintf(w, "%sskipped %s, use --%s to keep them\n",
-			prefix, plural(n, "shared library", "shared libraries"), includeLibrariesFlag)
-	}
-	if n := s.skippedCount(imagescan.KindUnknown); n > 0 {
-		fmt.Fprintf(w, "%sskipped %s, use --%s to keep them\n", prefix,
-			plural(n, "file that is not a program or a script", "files that are not programs or scripts"),
-			includeUnknownFlag)
-	}
-	if warnThreshold > 0 && count > warnThreshold {
-		fmt.Fprintf(w, "%sWARNING: %s allows %d executables. A learned policy is usually\n"+
-			"%smuch smaller. Review the list before you switch the policy to protect mode.\n",
-			prefix, label, count, prefix)
-	}
+// draftedContainer is a container of a drafted policy, for the summary.
+type draftedContainer struct {
+	// Label is the container name, with " (init)" for an init container.
+	Label   string
+	Image   string
+	Scanned *scannedImage
 }
 
-// plural returns the number followed by the singular or the plural noun.
-func plural(n int, singular, pluralNoun string) string {
-	if n == 1 {
-		return fmt.Sprintf("%d %s", n, singular)
+// containerLabel returns the name of the container, with a mark for init
+// containers.
+func containerLabel(name string, init bool) string {
+	if init {
+		return name + " (init)"
 	}
-	return fmt.Sprintf("%d %s", n, pluralNoun)
+	return name
+}
+
+// printDraftSummary prints a table with the number of executables of each
+// container, hints for the skipped files, and a warning for each container
+// with more executables than the threshold.
+func printDraftSummary(w io.Writer, p painter, containers []draftedContainer, warnThreshold int) {
+	const (
+		executables = "Executables"
+		libraries   = "Skipped libraries"
+		other       = "Skipped other"
+	)
+	t := newTable(table.Row{headerContainer, "Image", executables, libraries, other},
+		alignRight(executables, libraries, other)...)
+
+	var skippedLibraries, skippedUnknown int
+	for _, c := range containers {
+		l := c.Scanned.skippedCount(imagescan.KindLibrary)
+		u := c.Scanned.skippedCount(imagescan.KindUnknown)
+		t.AppendRow(table.Row{c.Label, c.Image, len(c.Scanned.Executables), l, u})
+		skippedLibraries += l
+		skippedUnknown += u
+	}
+	renderTable(w, t)
+
+	if skippedLibraries > 0 {
+		fmt.Fprintf(w, "Use --%s to keep the skipped shared libraries.\n", includeLibrariesFlag)
+	}
+	if skippedUnknown > 0 {
+		fmt.Fprintf(w, "Use --%s to keep the skipped files that are neither programs nor scripts.\n",
+			includeUnknownFlag)
+	}
+	for _, c := range containers {
+		if count := len(c.Scanned.Executables); warnThreshold > 0 && count > warnThreshold {
+			fmt.Fprintf(w, "\n%s container %s allows %d executables. A learned policy is usually\n"+
+				"much smaller. Review the list before you switch the policy to protect mode.\n",
+				p.warning("WARNING:"), c.Label, count)
+		}
+	}
 }
 
 // validatePolicyName makes sure that the name is a valid object name, and

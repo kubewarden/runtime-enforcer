@@ -88,12 +88,19 @@ spec:
 On standard error the tool prints a summary:
 
 ```text
-Deployment "nginx" (namespace web), policy "deploy-nginx":
-  container "nginx" (image docker.io/library/nginx:1.27): 312 executables
-  WARNING: container "nginx" allows 312 executables. A learned policy is usually
-  much smaller. Review the list before you switch the policy to protect mode.
-  Add this label to the pod template of Deployment "nginx":
-    runtimeenforcer.kubewarden.io/policy: deploy-nginx
+Deployment nginx (namespace web), policy deploy-nginx
+┌───────────┬──────────────────────────────┬─────────────┬───────────────────┬───────────────┐
+│ CONTAINER │ IMAGE                        │ EXECUTABLES │ SKIPPED LIBRARIES │ SKIPPED OTHER │
+├───────────┼──────────────────────────────┼─────────────┼───────────────────┼───────────────┤
+│ nginx     │ docker.io/library/nginx:1.27 │         312 │                 2 │             0 │
+└───────────┴──────────────────────────────┴─────────────┴───────────────────┴───────────────┘
+Use --include-libraries to keep the skipped shared libraries.
+
+WARNING: container nginx allows 312 executables. A learned policy is usually
+much smaller. Review the list before you switch the policy to protect mode.
+
+Add this label to the pod template of Deployment nginx:
+  runtimeenforcer.kubewarden.io/policy: deploy-nginx
 ```
 
 The tool also reads from standard input. This is useful with the output of
@@ -130,7 +137,12 @@ spec:
 On standard error the tool prints a summary:
 
 ```text
-container "api" (image ghcr.io/example/api:2.3.0): 14 executables
+┌───────────┬───────────────────────────┬─────────────┬───────────────────┬───────────────┐
+│ CONTAINER │ IMAGE                     │ EXECUTABLES │ SKIPPED LIBRARIES │ SKIPPED OTHER │
+├───────────┼───────────────────────────┼─────────────┼───────────────────┼───────────────┤
+│ api       │ ghcr.io/example/api:2.3.0 │          14 │                 0 │             0 │
+└───────────┴───────────────────────────┴─────────────┴───────────────────┴───────────────┘
+
 Add this label to the pod template of the workload that runs this image:
   runtimeenforcer.kubewarden.io/policy: api
 ```
@@ -151,27 +163,40 @@ wants to know if the policy still matches the new image. The CI job runs
 
 ```console
 $ wpgen check ./policy.yaml --workload ./deploy/nginx.yaml
-Policy "deploy-nginx" (namespace web):
-  container "nginx" (image docker.io/library/nginx:1.27):
-    2 allowed paths are not executables in the image:
-      /usr/local/bin/wait-for-it.sh
-      /usr/sbin/nginx-debug
-    310 executables of the image are not allowed
-Error: 2 allowed paths are not executables in the images
+Policy deploy-nginx (namespace web)
+
+┌───────────┬───────────────────────────────┬────────┬────────────────────────────────┐
+│ CONTAINER │ PATH                          │ STATUS │ NOTE                           │
+├───────────┼───────────────────────────────┼────────┼────────────────────────────────┤
+│           │ /usr/local/bin/wait-for-it.sh │ stale  │ not an executable in the image │
+│   nginx   │ /usr/sbin/nginx-debug         │ stale  │ not an executable in the image │
+│           │ /docker-entrypoint.sh         │ ok     │                                │
+│           │ /usr/sbin/nginx               │ ok     │                                │
+└───────────┴───────────────────────────────┴────────┴────────────────────────────────┘
+
+┌───────────┬──────────────────────────────┬─────────┬────┬───────┬─────────┬─────────────┐
+│ CONTAINER │ IMAGE                        │ ALLOWED │ OK │ STALE │ SKIPPED │ NOT ALLOWED │
+├───────────┼──────────────────────────────┼─────────┼────┼───────┼─────────┼─────────────┤
+│ nginx     │ docker.io/library/nginx:1.27 │       4 │  2 │     2 │       0 │         502 │
+└───────────┴──────────────────────────────┴─────────┴────┴───────┴─────────┴─────────────┘
+
+2 allowed paths are not executables in the images:
+  nginx: /usr/local/bin/wait-for-it.sh, /usr/sbin/nginx-debug
 $ echo $?
 1
 ```
 
-The report has two parts. The first part lists the allowed paths that the
-tool did not find in the image. In this example, `/usr/sbin/nginx-debug` is
-gone from the new image, and `/usr/local/bin/wait-for-it.sh` comes from a
-volume. The reviewer decides to remove the first path and to keep the second
-one. The second part counts the executables of the image that the policy does
-not allow. This count is high for a learned policy, and that is the expected
-result. The tool prints it so that the reviewer can see how much of the image
-the policy blocks.
+The first table has one row for each allowed path, with its status. The
+paths that need an action come first. In this example,
+`/usr/sbin/nginx-debug` is gone from the new image, and
+`/usr/local/bin/wait-for-it.sh` comes from a volume. The reviewer decides to
+remove the first path and to keep the second one. The second table counts
+the paths of each status. It also counts the executables of the image that
+the policy does not allow. This count is high for a learned policy, and that
+is the expected result. The last lines repeat the stale paths, so that the
+reader does not have to search the table.
 
-The exit code is `1` because the first part is not empty. The CI job fails,
+The exit code is `1` because some paths are stale. The CI job fails,
 and the pull request cannot merge until the reviewer updates the policy or
 accepts the difference.
 
@@ -179,10 +204,22 @@ The same check works for a single image:
 
 ```console
 $ wpgen check ./policy.yaml --image ghcr.io/example/api:2.3.0 --container-name api
-Policy "api" (namespace prod):
-  container "api" (image ghcr.io/example/api:2.3.0):
-    all 14 allowed paths are executables in the image
-    0 executables of the image are not allowed
+Policy api (namespace prod)
+
+┌───────────┬────────────────────────┬────────┬──────┐
+│ CONTAINER │ PATH                   │ STATUS │ NOTE │
+├───────────┼────────────────────────┼────────┼──────┤
+│    api    │ /usr/local/bin/api     │ ok     │      │
+│           │ /usr/local/bin/migrate │ ok     │      │
+└───────────┴────────────────────────┴────────┴──────┘
+
+┌───────────┬───────────────────────────┬─────────┬────┬───────┬─────────┬─────────────┐
+│ CONTAINER │ IMAGE                     │ ALLOWED │ OK │ STALE │ SKIPPED │ NOT ALLOWED │
+├───────────┼───────────────────────────┼─────────┼────┼───────┼─────────┼─────────────┤
+│ api       │ ghcr.io/example/api:2.3.0 │       2 │  2 │     0 │       0 │          12 │
+└───────────┴───────────────────────────┴─────────┴────┴───────┴─────────┴─────────────┘
+
+All allowed paths are executables in the images.
 $ echo $?
 0
 ```
@@ -192,8 +229,12 @@ example `/bin/sh` in a BusyBox image. The enforcer never reports this path.
 The check shows the real path that the policy must allow:
 
 ```text
-    1 allowed paths are not executables in the image:
-      /bin/sh (symbolic link to /bin/busybox, the enforcer reports /bin/busybox)
+┌───────────┬─────────┬────────┬────────────────────────────────────────────────────┐
+│ CONTAINER │ PATH    │ STATUS │ NOTE                                               │
+├───────────┼─────────┼────────┼────────────────────────────────────────────────────┤
+│    main   │ /bin/sh │ stale  │ symbolic link to /bin/busybox, the enforcer        │
+│           │         │        │ reports the target                                 │
+└───────────┴─────────┴────────┴────────────────────────────────────────────────────┘
 ```
 
 # Detailed design
@@ -229,6 +270,7 @@ Common flags:
 | `--image-src`         | `file,docker,podman,registry` | Image sources to try, in order. See [Image sources](#image-sources).                      |
 | `--include-libraries` | `false`                       | Count shared libraries as executables. See [Kinds of executables](#kinds-of-executables). |
 | `--include-unknown`   | `false`                       | Count files that are neither programs nor scripts as executables.                         |
+| `--color`             | `auto`                        | When to use colors: `auto`, `always` or `never`. See [Colors](#colors).                   |
 
 Flags of `wpgen image` and `wpgen workload`:
 
@@ -250,7 +292,7 @@ Flags of `wpgen check`:
 
 | Flag                 | Default | Description                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------------- |
-| `--output`, `-o`     | `text`  | Report format. Accepts `text` or `json`.                                    |
+| `--output`, `-o`     | `table` | Report format. Accepts `table` or `json`.                                   |
 | `--list-not-allowed` | `false` | List the executables that the policy does not allow, not only their number. |
 
 ## Image sources
@@ -520,10 +562,12 @@ The report always shows how many executables of the image the policy does
 not allow. With `--list-not-allowed`, it also lists them. For a learned
 policy, this list can have hundreds of paths.
 
-The report goes to standard output, as text or, with `-o json`, as one JSON
-document. The JSON document has the same content as the text report. It also
-contains the containers that are only in the policy or only in the workload,
-which the text mode prints as notices on standard error. In the JSON
+The report goes to standard output, as tables or, with `-o json`, as one
+JSON document. The tables use the same style as the other `wpgen` output. The
+`table` and `json` names follow the `-o` flag of the kubectl plugin. The JSON
+document has the same content as the tables. It also contains the containers
+that are only in the policy or only in the workload, which the table mode
+prints as notices on standard error. In the JSON
 document, the number of executables that the policy does not allow is always
 present. Their list is present only with `--list-not-allowed`.
 
@@ -531,6 +575,28 @@ The exit code is `1` when at least one allowed path is not an executable in
 the image. The exit code is `0` in all other cases. The format of the report
 does not change the exit code. A CI job can use this to detect a stale policy
 after an image bump.
+
+## Colors
+
+The tool uses colors only to make the important lines stand out. The tables
+have no colors. The colored lines are:
+
+- The verdict of `check`, in red when a path is stale and in green when all
+  paths are executables. It goes to standard error, after the report.
+- The `WARNING:` word in the summary of `image` and `workload`.
+- The notices about containers that are only in the policy or only in the
+  workload.
+- The `Error:` word of a failed command.
+
+The container names in the first table of `check` are bold.
+
+The `--color` flag accepts `auto`, `always` and `never`. With `auto`, the
+default, the tool follows the common conventions: no colors when the
+`NO_COLOR` environment variable is set, colors when `CLICOLOR_FORCE` is set
+to a value other than `0`, and otherwise colors only when the output stream
+is a terminal. The tool decides for each stream. For example, the summary on
+standard error has colors when standard output goes to a file. JSON output
+never has colors.
 
 ## Build and release
 

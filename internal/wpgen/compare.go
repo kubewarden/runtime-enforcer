@@ -42,10 +42,16 @@ type containerReport struct {
 
 // checkResult is the result of the check of a policy.
 type checkResult struct {
+	workloadMatch
+
 	Policy     *v1alpha1.WorkloadPolicy
 	Containers []containerReport
-	// Workload describes the workload, for example `Deployment "web"`. It is
-	// empty with --image.
+}
+
+// workloadMatch is the result of the match of the containers of the policy
+// with the containers of the workload. It is empty with --image.
+type workloadMatch struct {
+	// Workload describes the workload, for example `Deployment "web"`.
 	Workload string
 	// OnlyInPolicy are the containers of the policy that are not in the
 	// workload.
@@ -104,11 +110,12 @@ func imageContainers(policy *v1alpha1.WorkloadPolicy, imageRef, containerName st
 }
 
 // matchContainers returns the containers of the workload that the policy has
-// rules for. It records the workload, and the containers that are only in
-// the policy or only in the workload, in the result.
-func matchContainers(result *checkResult, workload workloadparse.Workload) ([]checkedContainer, error) {
-	policy := result.Policy
-	result.Workload = fmt.Sprintf("%s %q", workload.Kind, workload.Name)
+// rules for, and the match of the containers of both.
+func matchContainers(
+	policy *v1alpha1.WorkloadPolicy,
+	workload workloadparse.Workload,
+) ([]checkedContainer, workloadMatch, error) {
+	match := workloadMatch{Workload: fmt.Sprintf("%s %q", workload.Kind, workload.Name)}
 
 	var containers []checkedContainer
 	inWorkload := map[string]bool{}
@@ -116,7 +123,7 @@ func matchContainers(result *checkResult, workload workloadparse.Workload) ([]ch
 		inWorkload[c.Name] = true
 		rules, found := policy.Spec.RulesByContainer[c.Name]
 		if !found {
-			result.OnlyInWorkload = append(result.OnlyInWorkload, c.Name)
+			match.OnlyInWorkload = append(match.OnlyInWorkload, c.Name)
 			continue
 		}
 		containers = append(containers, checkedContainer{Container: c, Allowed: allowedPaths(rules)})
@@ -124,14 +131,15 @@ func matchContainers(result *checkResult, workload workloadparse.Workload) ([]ch
 
 	for _, name := range slices.Sorted(maps.Keys(policy.Spec.RulesByContainer)) {
 		if !inWorkload[name] {
-			result.OnlyInPolicy = append(result.OnlyInPolicy, name)
+			match.OnlyInPolicy = append(match.OnlyInPolicy, name)
 		}
 	}
 
 	if len(containers) == 0 {
-		return nil, fmt.Errorf("the policy and %s %q have no container in common", workload.Kind, workload.Name)
+		return nil, workloadMatch{}, fmt.Errorf("the policy and %s %q have no container in common",
+			workload.Kind, workload.Name)
 	}
-	return containers, nil
+	return containers, match, nil
 }
 
 // checkContainers scans each image once and compares it with the allowed

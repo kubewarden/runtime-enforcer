@@ -132,16 +132,19 @@ func runCheck(
 		return err
 	}
 
-	result := &checkResult{Policy: policy}
-	var containers []checkedContainer
+	var (
+		containers []checkedContainer
+		match      workloadMatch
+	)
 	if opts.Image != "" {
 		containers, err = imageContainers(policy, opts.Image, opts.ContainerName)
 	} else {
-		containers, err = workloadContainers(result, opts.Workload, stdin, s.err)
+		containers, match, err = workloadContainers(policy, opts.Workload, stdin, s.err)
 	}
 	if err != nil {
 		return err
 	}
+	result := &checkResult{workloadMatch: match, Policy: policy}
 	printMismatches(s.err, s.errPainter, result)
 
 	if result.Containers, err = checkContainers(ctx, containers, &opts.scanOptions, s.err); err != nil {
@@ -187,24 +190,24 @@ func readPolicy(file string, stdin io.Reader, stderr io.Writer) (*v1alpha1.Workl
 }
 
 // workloadContainers returns the containers that are both in the policy and
-// in the one workload of the file. It records the workload, and the
-// containers that are only in one of them, in the result.
+// in the one workload of the file, and the match of the containers of both.
 func workloadContainers(
-	result *checkResult,
+	policy *v1alpha1.WorkloadPolicy,
 	file string,
 	stdin io.Reader,
 	stderr io.Writer,
-) ([]checkedContainer, error) {
+) ([]checkedContainer, workloadMatch, error) {
 	workloads, err := readWorkloads(file, stdin, stderr)
 	if err != nil {
-		return nil, err
+		return nil, workloadMatch{}, err
 	}
 	if len(workloads) != 1 {
 		names := make([]string, 0, len(workloads))
 		for _, w := range workloads {
 			names = append(names, fmt.Sprintf("%s %q", w.Kind, w.Name))
 		}
-		return nil, fmt.Errorf("%s must have exactly one workload, found %s", file, strings.Join(names, ", "))
+		return nil, workloadMatch{}, fmt.Errorf("%s must have exactly one workload, found %s",
+			file, strings.Join(names, ", "))
 	}
-	return matchContainers(result, workloads[0])
+	return matchContainers(policy, workloads[0])
 }

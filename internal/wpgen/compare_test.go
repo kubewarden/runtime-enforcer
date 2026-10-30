@@ -195,19 +195,20 @@ func TestMatchContainers(t *testing.T) {
 		},
 	}
 
-	result := &checkResult{Policy: policy}
-	containers, err := matchContainers(result, workload)
+	containers, match, err := matchContainers(policy, workload)
 	require.NoError(t, err)
 
 	assert.Equal(t, []checkedContainer{
 		{Name: "web", Image: "web:1", Allowed: []string{"/bin/web"}},
 		{Name: "setup", Image: "setup:1", Init: true},
 	}, containers)
-	assert.Equal(t, `Deployment "web"`, result.Workload)
-	assert.Equal(t, []string{"removed"}, result.OnlyInPolicy)
-	assert.Equal(t, []string{"sidecar"}, result.OnlyInWorkload)
+	assert.Equal(t, workloadMatch{
+		Workload:       `Deployment "web"`,
+		OnlyInPolicy:   []string{"removed"},
+		OnlyInWorkload: []string{"sidecar"},
+	}, match)
 
-	_, err = matchContainers(&checkResult{Policy: policy}, workloadparse.Workload{
+	_, _, err = matchContainers(policy, workloadparse.Workload{
 		Kind:       workloadkind.Job,
 		Name:       "other",
 		Containers: []workloadparse.Container{{Name: "other", Image: "other:1"}},

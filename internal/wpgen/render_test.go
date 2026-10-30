@@ -92,7 +92,7 @@ func TestRenderCheck(t *testing.T) {
 			if tt.format == outputJSON {
 				require.NoError(t, renderCheckJSON(&out, tt.result(t), tt.listNotAllowed))
 			} else {
-				renderCheckTable(&out, painter{}, tt.result(t), tt.listNotAllowed)
+				require.NoError(t, renderCheckTable(&out, painter{}, tt.result(t), tt.listNotAllowed))
 			}
 			assertGolden(t, tt.name, out.String())
 		})
@@ -186,4 +186,12 @@ func TestPrintDraftSummary(t *testing.T) {
 			assertGolden(t, tt.name, out.String())
 		})
 	}
+}
+
+func TestRenderCheckTableWriteError(t *testing.T) {
+	t.Parallel()
+
+	err := renderCheckTable(&failingWriter{}, painter{}, tinyResult(), false)
+	require.ErrorIs(t, err, errNoSpace)
+	require.ErrorContains(t, err, "cannot write the table report")
 }

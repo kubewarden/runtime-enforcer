@@ -106,6 +106,32 @@ func TestCheckCmdImage(t *testing.T) {
 	assert.Contains(t, stderr, "All allowed paths are executables in the images.")
 }
 
+// TestCheckCmdReportWriteError checks that a report that cannot be written
+// fails the command, even when the policy matches the image.
+func TestCheckCmdReportWriteError(t *testing.T) {
+	t.Parallel()
+
+	img := busyboxImage(t)
+	policy := writePolicies(t, newPolicy(t, map[string][]string{"main": {"/usr/bin/busybox"}}))
+
+	for _, format := range []string{outputTable, outputJSON} {
+		t.Run(format, func(t *testing.T) {
+			t.Parallel()
+
+			var stderr bytes.Buffer
+			cmd := NewRootCmd()
+			cmd.SetArgs([]string{"check", policy, "--image", img, "--image-src", "oci-dir", "-o", format})
+			cmd.SetOut(&failingWriter{})
+			cmd.SetErr(&stderr)
+
+			err := cmd.ExecuteContext(t.Context())
+			require.ErrorIs(t, err, errNoSpace)
+			assert.NotContains(t, stderr.String(), "All allowed paths are executables",
+				"no verdict when the report is lost")
+		})
+	}
+}
+
 func TestCheckCmdJSON(t *testing.T) {
 	t.Parallel()
 

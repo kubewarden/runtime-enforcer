@@ -112,12 +112,15 @@ func TestStreamsSeparate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		terminals map[io.Writer]bool
-		expected  string
+		name        string
+		outTerminal bool
+		errTerminal bool
+		expected    string
 	}{
-		{name: "both streams on the terminal", terminals: map[io.Writer]bool{}, expected: "\n"},
-		{name: "standard output redirected", expected: ""},
+		{name: "both streams on the terminal", outTerminal: true, errTerminal: true, expected: "\n"},
+		{name: "standard output redirected", errTerminal: true},
+		{name: "standard error redirected", outTerminal: true},
+		{name: "both streams redirected"},
 	}
 
 	for _, tt := range tests {
@@ -126,9 +129,11 @@ func TestStreamsSeparate(t *testing.T) {
 
 			var out, errOut bytes.Buffer
 			g := &globalOptions{
-				Color:      colorNever,
-				getenv:     func(string) string { return "" },
-				isTerminal: func(io.Writer) bool { return tt.terminals != nil },
+				Color:  colorNever,
+				getenv: func(string) string { return "" },
+				isTerminal: func(w io.Writer) bool {
+					return (w == &out && tt.outTerminal) || (w == &errOut && tt.errTerminal)
+				},
 			}
 			g.streams(&out, &errOut).separate()
 			assert.Equal(t, tt.expected, errOut.String())

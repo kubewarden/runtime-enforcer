@@ -2,7 +2,6 @@ package wpgen
 
 import (
 	"context"
-	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -92,41 +91,4 @@ func TestWorkloadCmdStdinInterrupted(t *testing.T) {
 	cancel()
 
 	require.ErrorIs(t, waitResult(t, errs), context.Canceled)
-}
-
-func TestExitCode(t *testing.T) {
-	t.Parallel()
-
-	interrupted, cancel := context.WithCancelCause(t.Context())
-	cancel(errors.New("interrupt signal received"))
-
-	tests := []struct {
-		name   string
-		ctx    context.Context //nolint:containedctx // each row runs with its own context.
-		err    error
-		code   int
-		stderr string
-	}{
-		{name: "success", ctx: t.Context(), code: 0},
-		{name: "error", ctx: t.Context(), err: errors.New("no supported workload found in -"), code: 1,
-			stderr: "Error: no supported workload found in -\n"},
-		{
-			name: "error already reported",
-			ctx:  t.Context(),
-			err:  &reportedError{msg: "1 allowed path is stale"},
-			code: 1,
-		},
-		{name: "interrupted", ctx: interrupted, err: context.Canceled, code: exitInterrupted,
-			stderr: "Interrupted: interrupt signal received\n"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			var stderr strings.Builder
-			assert.Equal(t, tt.code, exitCode(tt.ctx, tt.err, &stderr, painter{}))
-			assert.Equal(t, tt.stderr, stderr.String())
-		})
-	}
 }

@@ -131,7 +131,7 @@ to standard error.`,
   wpgen check ./policy.yaml --workload ./deploy/nginx.yaml -o json --list-not-allowed`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd.Context(), args[0], opts, cmd.InOrStdin(),
+			return runCheck(cmd.Context(), args[0], opts, newContextReader(cmd.Context(), cmd.InOrStdin()),
 				g.streams(cmd.OutOrStdout(), cmd.ErrOrStderr()))
 		},
 	}

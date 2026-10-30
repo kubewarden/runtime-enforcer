@@ -1,6 +1,7 @@
 package imagescan
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -25,11 +26,17 @@ type Executable struct {
 // least one execute permission bit set. Symbolic links are skipped: the
 // kernel resolves them before the enforcer sees the exec event, so the
 // enforcer always reports the path of the real file.
-func Executables(img *image.Image) ([]Executable, error) {
+//
+// Executables reads the start of each executable file. It stops with the
+// error of ctx when ctx is cancelled.
+func Executables(ctx context.Context, img *image.Image) ([]Executable, error) {
 	refs := img.SquashedTree().AllFiles(file.TypeRegular, file.TypeHardLink)
 
 	executables := make([]Executable, 0, len(refs))
 	for _, ref := range refs {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		entry, err := img.FileCatalog.Get(ref)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read metadata of %q: %w", ref.RealPath, err)
@@ -75,8 +82,8 @@ type Result struct {
 // Scan lists the executables of the image, and resolves the lookup paths
 // through the symbolic links of the image. A lookup path that is already a
 // real path, such as the path of an executable, is not in Links.
-func Scan(img *image.Image, lookup []string) (*Result, error) {
-	executables, err := Executables(img)
+func Scan(ctx context.Context, img *image.Image, lookup []string) (*Result, error) {
+	executables, err := Executables(ctx, img)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package imagescan_test
 
 import (
+	"context"
 	"debug/elf"
 	"testing"
 
@@ -122,7 +123,7 @@ func TestExecutables(t *testing.T) {
 			}
 			img := ist.LoadOCIDir(t, ist.WriteOCIDir(t, layers...))
 
-			got, err := imagescan.Executables(img.Image)
+			got, err := imagescan.Executables(t.Context(), img.Image)
 			require.NoError(t, err)
 
 			paths := make([]string, 0, len(got))
@@ -132,6 +133,20 @@ func TestExecutables(t *testing.T) {
 			require.Equal(t, tt.expected, paths)
 		})
 	}
+}
+
+func TestExecutablesStopsWhenCancelled(t *testing.T) {
+	t.Parallel()
+
+	img := ist.LoadOCIDir(t, ist.WriteOCIDir(t, ist.NewLayer(t,
+		ist.Dir("usr/"), ist.Dir("usr/bin/"),
+		ist.Reg("usr/bin/app", 0o755),
+	)))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := imagescan.Executables(ctx, img.Image)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestExecutablesKinds(t *testing.T) {
@@ -245,7 +260,7 @@ func TestExecutablesKinds(t *testing.T) {
 			entries := append([]ist.Entry{ist.Dir("bin/"), ist.Dir("lib/"), ist.Dir("etc/")}, tt.entries...)
 			img := ist.LoadOCIDir(t, ist.WriteOCIDir(t, ist.NewLayer(t, entries...)))
 
-			got, err := imagescan.Executables(img.Image)
+			got, err := imagescan.Executables(t.Context(), img.Image)
 			require.NoError(t, err)
 			assert.Contains(t, got, imagescan.Executable{Path: tt.path, Kind: tt.kind})
 		})

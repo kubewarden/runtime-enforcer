@@ -1,6 +1,7 @@
 package imagescan
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,8 +29,8 @@ type Snapshot struct {
 }
 
 // TakeSnapshot scans the image with Scan, for the lookup paths.
-func TakeSnapshot(img *image.Image, ref, platform string, lookup []string) (*Snapshot, error) {
-	result, err := Scan(img, lookup)
+func TakeSnapshot(ctx context.Context, img *image.Image, ref, platform string, lookup []string) (*Snapshot, error) {
+	result, err := Scan(ctx, img, lookup)
 	if err != nil {
 		return nil, err
 	}

@@ -60,7 +60,7 @@ The policies go to standard output. Messages go to standard error.`,
   helm template my-release ./chart | wpgen workload -`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runWorkload(cmd.Context(), args[0], opts, cmd.InOrStdin(),
+			return runWorkload(cmd.Context(), args[0], opts, newContextReader(cmd.Context(), cmd.InOrStdin()),
 				g.streams(cmd.OutOrStdout(), cmd.ErrOrStderr()))
 		},
 	}

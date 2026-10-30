@@ -33,28 +33,39 @@ In `monitor` mode, the enforcer reports these executables as violations. Add the
 
 === Download a pre-built binary
 
-Pre-built binaries for `linux/amd64`, `linux/arm64`, `darwin/amd64`, and `darwin/arm64` are published on each https://github.com/kubewarden/runtime-enforcer/releases[GitHub Release].
+Pre-built binaries for `linux/amd64`, `linux/arm64`, `darwin/amd64`, and `darwin/arm64` are published on each https://github.com/kubewarden/runtime-enforcer/releases[GitHub Release]. Next to each binary, the release has a `.sha256` file with its checksum.
 
+To install the binary for `linux/amd64`:
+
+. Download the binary and its checksum file. Replace `vX.Y.Z` with the tag of a release:
++
 ```bash
-# Example: linux/amd64
-VERSION=latest
-curl -Lo wpgen \
-  "https://github.com/kubewarden/runtime-enforcer/releases/download/${VERSION}/wpgen-linux-amd64"
-chmod +x wpgen
-sudo mv wpgen /usr/local/bin/
+VERSION=vX.Y.Z
+BASE_URL="https://github.com/kubewarden/runtime-enforcer/releases/download/${VERSION}"
+curl -fLO "${BASE_URL}/wpgen-linux-amd64"
+curl -fLO "${BASE_URL}/wpgen-linux-amd64.sha256"
 ```
-
-Verify the checksum with the `.sha256` file published next to the binary:
-
++
+To get the latest release, set `BASE_URL` to `https://github.com/kubewarden/runtime-enforcer/releases/latest/download` instead.
+. Make sure that the checksum of the binary is correct:
++
 ```bash
 sha256sum --check wpgen-linux-amd64.sha256
 ```
-
-Verify the build provenance with the GitHub CLI:
-
++
+If you use macOS, run `shasum -a 256 --check` instead of `sha256sum --check`.
+. Make sure that the release workflow of the repository built the binary. This step needs the GitHub CLI:
++
 ```bash
 gh attestation verify wpgen-linux-amd64 --repo kubewarden/runtime-enforcer
 ```
+. Install the binary with the name `wpgen`:
++
+```bash
+sudo install -m 0755 wpgen-linux-amd64 /usr/local/bin/wpgen
+```
+
+For another platform, replace `linux-amd64` with `linux-arm64`, `darwin-amd64`, or `darwin-arm64` in all the commands.
 
 === Build from source
 

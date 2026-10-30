@@ -123,6 +123,9 @@ type scannedImage struct {
 	// Repositories are the repositories of the tags stored in the image, when
 	// the source provides them.
 	Repositories []string
+	// FromFile is true when the image comes from a file or a directory, so
+	// that the input is a path and not an image reference.
+	FromFile bool
 	// Links maps the looked up paths that go through a symbolic link to
 	// their real path.
 	Links map[string]string
@@ -158,6 +161,7 @@ func scanImage(
 		return nil, fmt.Errorf("cannot scan image %q: %w", input, err)
 	}
 	scanned := newScannedImage(result, opts)
+	scanned.FromFile = imagescan.IsFileSource(img.Source)
 
 	for _, tag := range img.Metadata.Tags {
 		scanned.Repositories = append(scanned.Repositories, tag.RepositoryStr())

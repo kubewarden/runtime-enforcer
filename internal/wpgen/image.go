@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"strings"
 
@@ -62,8 +61,12 @@ The policy goes to standard output. Messages go to standard error.`,
 	flags := cmd.Flags()
 	flags.StringVar(&opts.ContainerName, "container-name", defaultContainerName,
 		"Name of the container in spec.rulesByContainer")
-	flags.StringVar(&opts.Name, "name", "",
-		"Name of the policy (default: last path element of the image repository)")
+	flags.StringVar(
+		&opts.Name,
+		"name",
+		"",
+		"Name of the policy (default: last path element of the image repository, or \"todo\" when wpgen cannot derive it)",
+	)
 	flags.StringVar(&opts.Namespace, "namespace", defaultNamespace,
 		"Namespace of the policy")
 	opts.addFlags(flags)
@@ -99,8 +102,12 @@ func runImage(ctx context.Context, input string, opts *imageOptions, s streams) 
 	}
 
 	policyName := opts.Name
+	var noNameReason error
 	if policyName == "" {
-		if policyName, err = policyNameFromImage(input, scanned.Repositories); err != nil {
+		policyName, err = policyNameFromImage(input, scanned.FromFile, scanned.Repositories)
+		if errors.Is(err, errNoPolicyName) {
+			policyName, noNameReason = placeholderPolicyName, err
+		} else if err != nil {
 			return err
 		}
 	}
@@ -120,6 +127,10 @@ func runImage(ctx context.Context, input string, opts *imageOptions, s streams) 
 	printDraftSummary(s.err, s.errPainter, []draftedContainer{
 		{Label: opts.ContainerName, Image: input, Scanned: scanned},
 	}, opts.WarnThreshold)
+	if noNameReason != nil {
+		fmt.Fprintf(s.err, "\n%s %v.\nThe policy name is %q. Use --name, or edit metadata.name.\n",
+			s.errPainter.warning("WARNING:"), noNameReason, placeholderPolicyName)
+	}
 	fmt.Fprintf(s.err, "\nAdd this label to the pod template of the workload that runs this image:\n  %s: %s\n",
 		v1alpha1.PolicyLabelKey, policyName)
 	if opts.ContainerName == defaultContainerName {
@@ -129,12 +140,21 @@ func runImage(ctx context.Context, input string, opts *imageOptions, s streams) 
 	return nil
 }
 
+// placeholderPolicyName is the policy name when wpgen cannot derive one, and
+// the user does not give one with --name.
+const placeholderPolicyName = "todo"
+
+// errNoPolicyName is returned when the image gives no name for the policy.
+var errNoPolicyName = errors.New("cannot derive the policy name")
+
 // policyNameFromImage derives the policy name from the last path element of
-// the image repository. For a local archive or directory, the repository
-// comes from the tags stored in the image.
-func policyNameFromImage(input string, repositories []string) (string, error) {
+// the image repository. When the image comes from a file or a directory, the
+// input is a path: the repository comes from the tags stored in the image.
+// Otherwise the input is an image reference, and the tags are the fallback.
+// It returns errNoPolicyName when the image gives no repository.
+func policyNameFromImage(input string, fromFile bool, repositories []string) (string, error) {
 	var repository string
-	if _, statErr := os.Stat(input); statErr != nil {
+	if !fromFile {
 		if ref, err := name.ParseReference(input); err == nil {
 			repository = ref.Context().RepositoryStr()
 		}
@@ -143,7 +163,11 @@ func policyNameFromImage(input string, repositories []string) (string, error) {
 		repository = repositories[0]
 	}
 	if repository == "" {
-		return "", fmt.Errorf("cannot derive the policy name from %q: use --name", input)
+		if fromFile {
+			return "", fmt.Errorf("%w from %q: the image has no tags", errNoPolicyName, input)
+		}
+		return "", fmt.Errorf("%w from %q: it is not an image reference, and the image has no tags",
+			errNoPolicyName, input)
 	}
 
 	policyName := strings.ReplaceAll(path.Base(repository), "_", "-")

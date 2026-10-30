@@ -128,7 +128,7 @@ wpgen image ghcr.io/example/api:2.3.0 --container-name api --name api --namespac
 The policy has one container. The flags are optional:
 
 * Without `--container-name`, the container is `main`.
-* Without `--name`, the policy name is the last part of the image repository, `api` in this example.
+* Without `--name`, the policy name is the last part of the image repository, `api` in this example. For an archive or a directory, the repository comes from the tag stored in the image. When `wpgen` cannot find a name, for example for an OCI layout directory, it uses `todo` and prints a warning. Replace this name before you apply the policy.
 * Without `--namespace`, the policy goes to the `default` namespace.
 
 The container name in the policy must be the same as the container name in the pod. If the names are different, the rules do not apply to the container.

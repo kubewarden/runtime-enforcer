@@ -67,10 +67,16 @@ func IsFileSource(source string) bool {
 	return len(selected) > 0 && len(selected.Remove(stereoscope.FileTag)) == 0
 }
 
-// providers returns the providers of stereoscope with their tags.
+// providers returns the providers of stereoscope with their tags, without
+// the providers that the wpgen binary does not include.
+//
+// The containers-storage provider needs the containers_image_openpgp build
+// tag, and the libraries of containers/image and containers/storage. wpgen is
+// built without them, so stereoscope only has a stub that always fails.
 func providers() collections.TaggedValueSet[image.Provider] {
 	return collections.TaggedValueSet[image.Provider]{}.
-		Join(stereoscope.ImageProviders(stereoscope.ImageProviderConfig{})...)
+		Join(stereoscope.ImageProviders(stereoscope.ImageProviderConfig{})...).
+		Remove(image.ContainersStorageSource)
 }
 
 // ValidateSources returns an error when one of the sources is unknown.

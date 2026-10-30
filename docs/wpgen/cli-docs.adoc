@@ -96,7 +96,7 @@ policy that it did not check.
       --container-name string   Container of the policy that runs --image (default: the only container of the policy)
   -h, --help                    help for check
       --image string            Image of one container of the policy
-      --image-src strings       Image sources to try, in order. Valid values: containerd, containers-storage, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
+      --image-src strings       Image sources to try, in order. Valid values: containerd, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
       --include-libraries       Count ELF shared libraries as executables. Programs load them, but do not run them
       --include-unknown         Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
       --list-not-allowed        List the executables of the image that the policy does not allow, not only their number
@@ -153,7 +153,7 @@ The policy goes to standard output. Messages go to standard error.
 ....
       --container-name string   Name of the container in spec.rulesByContainer (default "main")
   -h, --help                    help for image
-      --image-src strings       Image sources to try, in order. Valid values: containerd, containers-storage, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
+      --image-src strings       Image sources to try, in order. Valid values: containerd, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
       --include-libraries       Count ELF shared libraries as executables. Programs load them, but do not run them
       --include-unknown         Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
       --mode string             Policy mode (monitor or protect) (default "monitor")
@@ -215,7 +215,7 @@ The policies go to standard output. Messages go to standard error.
 
 ....
   -h, --help                 help for workload
-      --image-src strings    Image sources to try, in order. Valid values: containerd, containers-storage, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
+      --image-src strings    Image sources to try, in order. Valid values: containerd, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
       --include-libraries    Count ELF shared libraries as executables. Programs load them, but do not run them
       --include-unknown      Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
       --mode string          Policy mode (monitor or protect) (default "monitor")

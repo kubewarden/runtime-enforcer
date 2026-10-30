@@ -292,7 +292,7 @@ func TestWorkloadCmdStdinInterrupted(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	blocking := newBlockingReader(t)
-	cmd := NewRootCmd()
+	cmd := newRootCmd(testGlobalOptions())
 	cmd.SetArgs([]string{"workload", "-"})
 	cmd.SetIn(blocking)
 	cmd.SetOut(io.Discard)
@@ -339,7 +339,7 @@ func TestCommandsNamedInputInterrupted(t *testing.T) {
 			stdin := strings.NewReader(policyYAML(t, policy))
 
 			ctx, cancel := context.WithCancel(t.Context())
-			cmd := NewRootCmd()
+			cmd := newRootCmd(testGlobalOptions())
 			cmd.SetArgs(tt.args(pipe))
 			cmd.SetIn(stdin)
 			cmd.SetOut(io.Discard)

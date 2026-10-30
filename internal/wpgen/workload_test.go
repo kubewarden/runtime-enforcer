@@ -21,11 +21,22 @@ import (
 	wpt "github.com/kubewarden/runtime-enforcer/internal/workloadparse/workloadparsetest"
 )
 
+// testGlobalOptions returns the options of a command under test: no
+// environment variables and no terminal, whatever the environment of the
+// developer or of CI is. The --color flag still sets the color mode.
+func testGlobalOptions() *globalOptions {
+	return &globalOptions{
+		Color:      colorAuto,
+		getenv:     func(string) string { return "" },
+		isTerminal: func(io.Writer) bool { return false },
+	}
+}
+
 func runWpgenWithStdin(t *testing.T, stdin io.Reader, args ...string) (string, string, error) {
 	t.Helper()
 
 	var stdout, stderr bytes.Buffer
-	cmd := NewRootCmd()
+	cmd := newRootCmd(testGlobalOptions())
 	cmd.SetArgs(args)
 	cmd.SetIn(stdin)
 	cmd.SetOut(&stdout)

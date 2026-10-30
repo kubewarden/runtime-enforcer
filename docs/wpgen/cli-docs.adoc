@@ -154,7 +154,7 @@ The policy goes to standard output. Messages go to standard error.
       --include-libraries       Count ELF shared libraries as executables. Programs load them, but do not run them
       --include-unknown         Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
       --mode string             Policy mode (monitor or protect) (default "monitor")
-      --name string             Name of the policy (default: last path element of the image repository)
+      --name string             Name of the policy (default: last path element of the image repository, or "todo" when wpgen cannot derive it)
       --namespace string        Namespace of the policy (default "default")
   -o, --output string           Output format (yaml or json) (default "yaml")
       --platform string         Platform to select from a multi-platform image (default: linux/<host architecture>)

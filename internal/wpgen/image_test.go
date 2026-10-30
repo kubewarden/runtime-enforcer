@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
 	"github.com/kubewarden/runtime-enforcer/internal/imagescan"
 	ist "github.com/kubewarden/runtime-enforcer/internal/imagescan/imagescantest"
 	"github.com/kubewarden/runtime-enforcer/internal/policydraft"
@@ -176,12 +177,33 @@ func TestImageCmdWarnThreshold(t *testing.T) {
 	assert.NotContains(t, stderr, "WARNING")
 }
 
-func TestImageCmdRequiresNameForLocalImagesWithoutTags(t *testing.T) {
+// TestImageCmdPlaceholderName checks an image that gives no policy name: an
+// OCI directory stores no tags. The policy gets a placeholder name, and a
+// warning tells the user to replace it.
+func TestImageCmdPlaceholderName(t *testing.T) {
 	t.Parallel()
 
-	stdout, _, err := runWpgen(t, "image", testImage(t), "--image-src", "oci-dir")
-	require.ErrorContains(t, err, "use --name")
-	assert.Empty(t, stdout)
+	img := testImage(t)
+	stdout, stderr, err := runWpgen(t, "image", img, "--image-src", "oci-dir")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "  name: todo\n")
+	assert.Contains(t, stderr, fmt.Sprintf(
+		"WARNING: cannot derive the policy name from %q: the image has no tags.\n"+
+			`The policy name is "todo". Use --name, or edit metadata.name.`, img))
+	assert.Contains(t, stderr, v1alpha1.PolicyLabelKey+": todo")
+}
+
+// TestImageCmdNameFromArchiveTag checks that the policy name of an image from
+// a file comes from the tag stored in the image, and not from the file name.
+func TestImageCmdNameFromArchiveTag(t *testing.T) {
+	t.Parallel()
+
+	archive := ist.WriteDockerArchive(t, ist.HostPlatform(),
+		ist.NewLayer(t, ist.Dir("usr/"), ist.Dir("usr/bin/"), ist.Reg("usr/bin/api", 0o755)))
+	stdout, stderr, err := runWpgen(t, "image", archive, "--image-src", "file")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "  name: test\n", "the archive has the tag registry.example/test:1")
+	assert.NotContains(t, stderr, "WARNING")
 }
 
 // TestImageCmdPlatform checks --platform with images of a fixed platform,
@@ -274,42 +296,83 @@ func TestPolicyNameFromImage(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		input    string
-		expected string
-		err      string
+		name         string
+		input        string
+		fromFile     bool
+		repositories []string
+		expected     string
+		err          error
+		errText      string
 	}{
-		{input: "nginx", expected: "nginx"},
-		{input: "docker.io/library/nginx:1.27", expected: "nginx"},
-		{input: "ghcr.io/example/team/my_api@sha256:" + sha256Zero, expected: "my-api"},
-		{input: "localhost:5000/api:dev", expected: "api"},
-		{input: "Not A Reference", err: "use --name"},
+		{name: "short reference", input: "nginx", expected: "nginx"},
+		{name: "full reference", input: "docker.io/library/nginx:1.27", expected: "nginx"},
+		{name: "digest", input: "ghcr.io/example/team/my_api@sha256:" + sha256Zero, expected: "my-api"},
+		{name: "registry with a port", input: "localhost:5000/api:dev", expected: "api"},
+		{
+			// A daemon returns its tags, but the user typed the reference.
+			name:         "reference before the tags",
+			input:        "nginx:1.27",
+			repositories: []string{"internal/web"},
+			expected:     "nginx",
+		},
+		{
+			name:         "tags when the input is not a reference",
+			input:        "Not A Reference",
+			repositories: []string{"library/alpine"},
+			expected:     "alpine",
+		},
+		{name: "no reference and no tags", input: "Not A Reference", err: errNoPolicyName},
+		{
+			name:         "file with tags",
+			input:        "./images/nginx.tar",
+			fromFile:     true,
+			repositories: []string{"library/alpine_linux"},
+			expected:     "alpine-linux",
+		},
+		{
+			// nginx.tar is a valid reference, but it is the name of a file.
+			name:     "file without tags",
+			input:    "nginx.tar",
+			fromFile: true,
+			err:      errNoPolicyName,
+		},
+		{
+			// A label value has at most 63 characters.
+			name:    "derived name that is not valid",
+			input:   "registry.example/" + strings.Repeat("a", 64),
+			errText: "use --name",
+		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := policyNameFromImage(tt.input, nil)
-			if tt.err != "" {
-				require.ErrorContains(t, err, tt.err)
-				return
+			got, err := policyNameFromImage(tt.input, tt.fromFile, tt.repositories)
+			switch {
+			case tt.err != nil:
+				require.ErrorIs(t, err, tt.err)
+			case tt.errText != "":
+				require.ErrorContains(t, err, tt.errText)
+				require.NotErrorIs(t, err, errNoPolicyName, "a name that is not valid is an error, not a placeholder")
+			default:
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, got)
 			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, got)
 		})
 	}
 }
 
-func TestPolicyNameFromImageTags(t *testing.T) {
-	t.Parallel()
+// TestPolicyNameFromImageIgnoresLocalFiles checks that a file or a directory
+// with the name of the image does not change the policy name. It changes the
+// working directory, so it does not run in parallel.
+func TestPolicyNameFromImageIgnoresLocalFiles(t *testing.T) {
+	t.Chdir(t.TempDir())
+	require.NoError(t, os.Mkdir("nginx", 0o700))
 
-	// A local path never parses as a reference: the name comes from the tags.
-	got, err := policyNameFromImage(t.TempDir(), []string{"library/alpine_linux"})
+	got, err := policyNameFromImage("nginx", false, nil)
 	require.NoError(t, err)
-	assert.Equal(t, "alpine-linux", got)
-
-	_, err = policyNameFromImage(t.TempDir(), nil)
-	require.ErrorContains(t, err, "use --name")
+	assert.Equal(t, "nginx", got)
 }
 
 const sha256Zero = "0000000000000000000000000000000000000000000000000000000000000000"

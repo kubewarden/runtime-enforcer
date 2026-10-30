@@ -54,11 +54,23 @@ func (i *Image) Cleanup() error {
 
 // KnownSources returns every provider name and tag that stereoscope accepts.
 func KnownSources() []string {
-	tags := collections.TaggedValueSet[image.Provider]{}.
-		Join(stereoscope.ImageProviders(stereoscope.ImageProviderConfig{})...).
-		Tags()
+	tags := providers().Tags()
 	slices.Sort(tags)
 	return tags
+}
+
+// IsFileSource reports if every provider of the source reads an image from
+// a file or a directory, for example an archive made by "docker save". The
+// name of such an image is a path, not an image reference.
+func IsFileSource(source string) bool {
+	selected := providers().Select(source)
+	return len(selected) > 0 && len(selected.Remove(stereoscope.FileTag)) == 0
+}
+
+// providers returns the providers of stereoscope with their tags.
+func providers() collections.TaggedValueSet[image.Provider] {
+	return collections.TaggedValueSet[image.Provider]{}.
+		Join(stereoscope.ImageProviders(stereoscope.ImageProviderConfig{})...)
 }
 
 // ValidateSources returns an error when one of the sources is unknown.

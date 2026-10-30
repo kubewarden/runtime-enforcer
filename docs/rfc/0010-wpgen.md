@@ -495,6 +495,10 @@ label that the pod template needs:
 container name comes from `--container-name`. The default is `main`. The
 policy name comes from `--name`. The default is the last path element of the
 image repository, for example `nginx` for `docker.io/library/nginx:1.27`.
+For an image from an archive or a directory, the repository comes from the
+tag stored in the image, and never from the file name. When the tool cannot
+find a repository, the policy name is `todo`, and the tool prints a warning
+that asks the user to replace it.
 
 ## Output
 

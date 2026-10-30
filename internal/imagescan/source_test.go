@@ -151,3 +151,14 @@ func TestLoadTriesTheNextSourceAfterAPlatformMismatch(t *testing.T) {
 	require.ErrorContains(t, err, "docker-archive: mismatched platform")
 	require.ErrorContains(t, err, "oci-dir: ", "Load tries the next source after the mismatch")
 }
+
+func TestIsFileSource(t *testing.T) {
+	t.Parallel()
+
+	for _, source := range []string{"file", "dir", "oci-dir", "oci-archive", "docker-archive"} {
+		assert.True(t, imagescan.IsFileSource(source), source)
+	}
+	for _, source := range []string{"docker", "podman", "registry", "pull", "daemon", "nope"} {
+		assert.False(t, imagescan.IsFileSource(source), source)
+	}
+}

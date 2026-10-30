@@ -163,10 +163,10 @@ func TestContainerRows(t *testing.T) {
 	assert.Equal(t, []checkRow{
 		{Path: "/bin/sh", Status: statusStale, Note: "symbolic link to /bin/busybox, the enforcer reports the target"},
 		{Path: "/usr/bin/gone", Status: statusStale, Note: "not an executable in the image"},
-		{Path: "/lib/libz.so.1", Status: statusSkipped, Note: "shared library, see --include-libraries"},
 		{Path: "/etc/ca.crt", Status: statusSkipped, Note: "neither a program nor a script, see --include-unknown"},
+		{Path: "/lib/libz.so.1", Status: statusSkipped, Note: "shared library, see --include-libraries"},
 		{Path: "/bin/busybox", Status: statusOK},
-	}, containerRows(report, false))
+	}, containerRows(report, false), "the skipped paths of both kinds are sorted together")
 
 	withNotAllowed := containerRows(report, true)
 	assert.Equal(t, []checkRow{

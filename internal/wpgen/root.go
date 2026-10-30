@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -63,10 +64,19 @@ const exitInterrupted = 130
 // Execute runs wpgen and returns the exit code. It prints the error of the
 // command, unless the command already reported it.
 func Execute(ctx context.Context) int {
+	return execute(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
+}
+
+// execute runs wpgen with the given arguments and streams, and returns the
+// exit code.
+func execute(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	g := newGlobalOptions()
 	cmd := newRootCmd(g)
+	cmd.SetArgs(args)
+	cmd.SetIn(stdin)
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
 	err := cmd.ExecuteContext(ctx)
-	stderr := cmd.ErrOrStderr()
 	return exitCode(ctx, err, stderr, g.painter(stderr))
 }
 

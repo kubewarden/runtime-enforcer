@@ -525,16 +525,19 @@ func containerRows(r containerReport, listNotAllowed bool) []checkRow {
 		}
 		rows = append(rows, checkRow{Path: p, Status: statusStale, Note: note})
 	}
+	var skipped []checkRow
 	for _, p := range r.Libraries {
-		rows = append(rows, checkRow{
+		skipped = append(skipped, checkRow{
 			Path: p, Status: statusSkipped, Note: "shared library, see --" + includeLibrariesFlag,
 		})
 	}
 	for _, p := range r.Unknown {
-		rows = append(rows, checkRow{
+		skipped = append(skipped, checkRow{
 			Path: p, Status: statusSkipped, Note: "neither a program nor a script, see --" + includeUnknownFlag,
 		})
 	}
+	slices.SortFunc(skipped, func(a, b checkRow) int { return strings.Compare(a.Path, b.Path) })
+	rows = append(rows, skipped...)
 	for _, p := range r.Executables {
 		rows = append(rows, checkRow{Path: p, Status: statusOK})
 	}

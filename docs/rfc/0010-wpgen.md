@@ -484,6 +484,8 @@ The tool writes one `WorkloadPolicy` per workload. The fields are:
 
 If two workloads of the same namespace get the same policy name, the tool
 stops with an error. When applied, the second policy replaces the first one.
+A workload without a namespace can go to any namespace. As a result, the tool
+also stops when such a workload shares its policy name with another workload.
 
 The tool does not change the workload file. On standard error it prints the
 label that the pod template needs:

@@ -54,6 +54,10 @@ WorkloadPolicyProposal that the learn phase creates. The policy has the
 namespace of the workload. When the workload has no namespace, the policy
 has none either, so that "kubectl apply -n" puts both in the same namespace.
 
+Two workloads cannot use the same policy name in the same namespace. A
+workload without a namespace can go to any namespace, so its policy name must
+be unique in the file.
+
 The policies go to standard output. Messages go to standard error.`,
 		Example: `  # Draft the policies of the workloads in a file
   wpgen workload ./deploy/nginx.yaml
@@ -155,12 +159,19 @@ func readWorkloads(
 	return workloads, nil
 }
 
+// policyOwner is a workload that uses a policy name.
+type policyOwner struct {
+	namespace string
+	name      string
+}
+
 // draftWorkloads finds the policy name of each workload. It returns an error
-// when two workloads of the same namespace map to the same policy, because
-// the second policy replaces the first one when applied.
+// when two workloads can map to the same policy, because the second policy
+// replaces the first one when applied. A workload without a namespace can go
+// to any namespace, so its policy name must be unique in the input.
 func draftWorkloads(workloads []workloadparse.Workload) ([]draftedWorkload, error) {
 	drafted := make([]draftedWorkload, 0, len(workloads))
-	owners := map[string]string{}
+	owners := map[string][]policyOwner{}
 
 	for _, w := range workloads {
 		d := draftedWorkload{Workload: w}
@@ -176,17 +187,41 @@ func draftWorkloads(workloads []workloadparse.Workload) ([]draftedWorkload, erro
 			return nil, fmt.Errorf("%s %q: %w", w.Kind, w.Name, err)
 		}
 
-		owner := fmt.Sprintf("%s %q", w.Kind, w.Name)
-		key := w.Namespace + "/" + d.PolicyName
-		if other, found := owners[key]; found {
-			return nil, fmt.Errorf("%s and %s both use the policy %q in the same namespace, "+
-				"give them different %s labels", other, owner, d.PolicyName, v1alpha1.PolicyLabelKey)
+		owner := policyOwner{namespace: w.Namespace, name: fmt.Sprintf("%s %q", w.Kind, w.Name)}
+		for _, other := range owners[d.PolicyName] {
+			if err := policyConflict(other, owner, d.PolicyName); err != nil {
+				return nil, err
+			}
 		}
-		owners[key] = owner
+		owners[d.PolicyName] = append(owners[d.PolicyName], owner)
 
 		drafted = append(drafted, d)
 	}
 	return drafted, nil
+}
+
+// policyConflict returns an error when the two workloads can put the policy
+// in the same namespace.
+func policyConflict(first, second policyOwner, policyName string) error {
+	switch {
+	case first.namespace == second.namespace:
+		return fmt.Errorf("%s and %s both use the policy %q in the same namespace, "+
+			"give them different %s labels", first.name, second.name, policyName, v1alpha1.PolicyLabelKey)
+	case first.namespace == "" || second.namespace == "":
+		return fmt.Errorf("%s (namespace %s) and %s (namespace %s) both use the policy %q and one has no namespace, "+
+			"give them different %s labels or set a different namespace on each",
+			first.name, namespaceLabel(first.namespace), second.name, namespaceLabel(second.namespace),
+			policyName, v1alpha1.PolicyLabelKey)
+	default:
+		return nil
+	}
+}
+
+func namespaceLabel(namespace string) string {
+	if namespace == "" {
+		return "<none>"
+	}
+	return namespace
 }
 
 func printWorkloadSummary(
@@ -196,11 +231,7 @@ func printWorkloadSummary(
 	scanned map[string]*scannedImage,
 	warnThreshold int,
 ) {
-	namespace := d.Namespace
-	if namespace == "" {
-		namespace = "<none>"
-	}
-	fmt.Fprintf(w, "\n%s %s (namespace %s), policy %s\n", d.Kind, d.Name, namespace, d.PolicyName)
+	fmt.Fprintf(w, "\n%s %s (namespace %s), policy %s\n", d.Kind, d.Name, namespaceLabel(d.Namespace), d.PolicyName)
 
 	containers := make([]draftedContainer, 0, len(d.Containers))
 	for _, c := range d.Containers {

@@ -197,6 +197,10 @@ WorkloadPolicyProposal that the learn phase creates. The policy has the
 namespace of the workload. When the workload has no namespace, the policy
 has none either, so that "kubectl apply -n" puts both in the same namespace.
 
+Two workloads cannot use the same policy name in the same namespace. A
+workload without a namespace can go to any namespace, so its policy name must
+be unique in the file.
+
 The policies go to standard output. Messages go to standard error.
 
 *Usage:* `wpgen workload FILE [flags]`

@@ -1,10 +1,12 @@
 package wpgen
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -65,7 +67,7 @@ spec:
         - /usr/bin/api
         - /usr/bin/migrate
 `, stdout)
-	assert.Contains(t, stderr, `from source "oci-dir" (linux/amd64)`)
+	assert.Contains(t, stderr, fmt.Sprintf("from source %q (%s)", "oci-dir", ist.HostPlatform()))
 	assert.Contains(t, stderr, "│ api ", "the summary has a row for the container")
 	assert.Contains(t, stderr, "runtimeenforcer.kubewarden.io/policy: api\n")
 	assert.NotContains(t, stderr, "WARNING")
@@ -180,6 +182,65 @@ func TestImageCmdRequiresNameForLocalImagesWithoutTags(t *testing.T) {
 	stdout, _, err := runWpgen(t, "image", testImage(t), "--image-src", "oci-dir")
 	require.ErrorContains(t, err, "use --name")
 	assert.Empty(t, stdout)
+}
+
+// TestImageCmdPlatform checks --platform with images of a fixed platform,
+// whatever the host is.
+func TestImageCmdPlatform(t *testing.T) {
+	t.Parallel()
+
+	layer := func(t *testing.T) v1.Layer {
+		t.Helper()
+		return ist.NewLayer(t, ist.Dir("usr/"), ist.Dir("usr/bin/"), ist.Reg("usr/bin/api", 0o755))
+	}
+
+	tests := []struct {
+		name   string
+		source string
+		image  func(t *testing.T) string
+		err    string
+	}{
+		{
+			name:   "OCI directory of the requested platform",
+			source: "oci-dir",
+			image:  func(t *testing.T) string { return ist.WriteOCIDirFor(t, "linux/arm64", layer(t)) },
+		},
+		{
+			name:   "OCI directory of another platform",
+			source: "oci-dir",
+			image:  func(t *testing.T) string { return ist.WriteOCIDirFor(t, "linux/amd64", layer(t)) },
+			err:    "mismatched platform (expected linux/arm64)",
+		},
+		{
+			name:   "Docker archive of the requested platform",
+			source: "docker-archive",
+			image:  func(t *testing.T) string { return ist.WriteDockerArchive(t, "linux/arm64", layer(t)) },
+		},
+		{
+			// The Docker archive source of stereoscope does not check the
+			// platform: wpgen checks it.
+			name:   "Docker archive of another platform",
+			source: "docker-archive",
+			image:  func(t *testing.T) string { return ist.WriteDockerArchive(t, "linux/amd64", layer(t)) },
+			err:    `mismatched platform (expected linux/arm64): image platform="linux/amd64"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdout, _, err := runWpgen(t, "image", tt.image(t),
+				"--image-src", tt.source, "--name", "api", "--platform", "linux/arm64")
+			if tt.err != "" {
+				require.ErrorContains(t, err, tt.err)
+				assert.Empty(t, stdout, "no policy for an image of another platform")
+				return
+			}
+			require.NoError(t, err)
+			assert.Contains(t, stdout, "/usr/bin/api")
+		})
+	}
 }
 
 func TestImageCmdValidatesFlagsBeforeLoading(t *testing.T) {

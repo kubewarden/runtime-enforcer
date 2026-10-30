@@ -75,3 +75,79 @@ func TestLoadRejectsUnknownSources(t *testing.T) {
 	t.Cleanup(func() { _ = img.Cleanup() })
 	require.ErrorContains(t, err, `unknown image source "nope"`)
 }
+
+// TestLoadChecksThePlatform uses Docker archives: the Docker archive source
+// of stereoscope does not check the platform, so Load must check it.
+func TestLoadChecksThePlatform(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		declared  string
+		requested string
+		err       string
+	}{
+		{name: "same platform", declared: "linux/arm64", requested: "linux/arm64"},
+		{name: "no requested platform", declared: "linux/s390x"},
+		{name: "alias of the architecture", declared: "linux/amd64", requested: "linux/x86_64"},
+		{
+			name:      "variant not requested",
+			declared:  "linux/riscv64/rva23",
+			requested: "linux/riscv64",
+		},
+		{name: "same variant", declared: "linux/arm/v6", requested: "linux/arm/v6"},
+		{
+			name:      "other variant",
+			declared:  "linux/arm/v6",
+			requested: "linux/arm/v7",
+			err:       `mismatched platform (expected linux/arm/v7): image platform="linux/arm/v6"`,
+		},
+		{
+			name:      "other architecture",
+			declared:  "linux/amd64",
+			requested: "linux/arm64",
+			err:       `docker-archive: mismatched platform (expected linux/arm64): image platform="linux/amd64"`,
+		},
+		{
+			name:      "other operating system",
+			declared:  "windows/amd64",
+			requested: "linux/amd64",
+			err:       `mismatched platform (expected linux/amd64): image platform="windows/amd64"`,
+		},
+		{name: "invalid requested platform", declared: "linux/amd64", requested: "linux/!", err: "invalid platform"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := ist.WriteDockerArchive(t, tt.declared, ist.NewLayer(t, ist.Dir("bin/"), ist.Reg("bin/app", 0o755)))
+			opts := imagescan.LoadOptions{Sources: []string{"docker-archive"}, Platform: tt.requested}
+			if tt.err == "" {
+				img := ist.Load(t, path, opts)
+				assert.Equal(t, "docker-archive", img.Source)
+				return
+			}
+
+			img, err := imagescan.Load(t.Context(), path, opts)
+			t.Cleanup(func() { _ = img.Cleanup() })
+			require.ErrorContains(t, err, tt.err)
+			assert.Nil(t, img)
+		})
+	}
+}
+
+// TestLoadTriesTheNextSourceAfterAPlatformMismatch checks that a mismatch is
+// a failure of one source, like the other errors of a source.
+func TestLoadTriesTheNextSourceAfterAPlatformMismatch(t *testing.T) {
+	t.Parallel()
+
+	path := ist.WriteDockerArchive(t, "linux/amd64", ist.NewLayer(t, ist.Dir("bin/"), ist.Reg("bin/app", 0o755)))
+	img, err := imagescan.Load(t.Context(), path, imagescan.LoadOptions{
+		Sources:  []string{"docker-archive", "oci-dir"},
+		Platform: "linux/arm64",
+	})
+	t.Cleanup(func() { _ = img.Cleanup() })
+	require.ErrorContains(t, err, "docker-archive: mismatched platform")
+	require.ErrorContains(t, err, "oci-dir: ", "Load tries the next source after the mismatch")
+}

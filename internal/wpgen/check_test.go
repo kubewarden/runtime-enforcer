@@ -154,7 +154,7 @@ func TestCheckCmdReportWriteError(t *testing.T) {
 			t.Parallel()
 
 			var stderr bytes.Buffer
-			cmd := NewRootCmd()
+			cmd := newRootCmd(testGlobalOptions())
 			cmd.SetArgs([]string{"check", policy, "--image", img, "--image-src", "oci-dir", "-o", format})
 			cmd.SetOut(&failingWriter{})
 			cmd.SetErr(&stderr)

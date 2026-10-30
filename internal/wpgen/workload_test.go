@@ -18,6 +18,8 @@ import (
 
 	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
 	ist "github.com/kubewarden/runtime-enforcer/internal/imagescan/imagescantest"
+	"github.com/kubewarden/runtime-enforcer/internal/types/workloadkind"
+	"github.com/kubewarden/runtime-enforcer/internal/workloadparse"
 	wpt "github.com/kubewarden/runtime-enforcer/internal/workloadparse/workloadparsetest"
 )
 
@@ -214,10 +216,13 @@ func TestWorkloadCmdJSON(t *testing.T) {
 func TestWorkloadCmdErrors(t *testing.T) {
 	t.Parallel()
 
-	deployment := func(name string, labels map[string]string) *appsv1.Deployment {
-		return &appsv1.Deployment{ObjectMeta: objectMeta(name, ""), Spec: appsv1.DeploymentSpec{
+	deploymentIn := func(name, namespace string, labels map[string]string) *appsv1.Deployment {
+		return &appsv1.Deployment{ObjectMeta: objectMeta(name, namespace), Spec: appsv1.DeploymentSpec{
 			Template: podTemplate(labels, corev1.Container{Name: name, Image: name + ":1"}),
 		}}
+	}
+	deployment := func(name string, labels map[string]string) *appsv1.Deployment {
+		return deploymentIn(name, "", labels)
 	}
 
 	tests := []struct {
@@ -238,6 +243,24 @@ func TestWorkloadCmdErrors(t *testing.T) {
 				deployment("b", policyLabel("shared")),
 			},
 			err: `Deployment "a" and Deployment "b" both use the policy "shared" in the same namespace`,
+		},
+		{
+			name: "same policy without a namespace, then in a namespace",
+			objs: []runtime.Object{
+				deploymentIn("frontend", "", policyLabel("shared")),
+				deploymentIn("backend", "default", policyLabel("shared")),
+			},
+			err: `Deployment "frontend" (namespace <none>) and Deployment "backend" (namespace default) ` +
+				`both use the policy "shared" and one has no namespace`,
+		},
+		{
+			name: "same policy in a namespace, then without a namespace",
+			objs: []runtime.Object{
+				deploymentIn("backend", "default", policyLabel("shared")),
+				deploymentIn("frontend", "", policyLabel("shared")),
+			},
+			err: `Deployment "backend" (namespace default) and Deployment "frontend" (namespace <none>) ` +
+				`both use the policy "shared" and one has no namespace`,
 		},
 		{
 			name: "invalid policy name in the label",
@@ -261,6 +284,30 @@ func TestWorkloadCmdErrors(t *testing.T) {
 			assert.Empty(t, stdout)
 			assert.NotContains(t, stderr, "Loading image")
 		})
+	}
+}
+
+func TestDraftWorkloadsSamePolicyInDifferentNamespaces(t *testing.T) {
+	t.Parallel()
+
+	workload := func(name, namespace string) workloadparse.Workload {
+		return workloadparse.Workload{
+			Kind:       workloadkind.Deployment,
+			Name:       name,
+			Namespace:  namespace,
+			PodLabels:  policyLabel("shared"),
+			Containers: []workloadparse.Container{{Name: name, Image: name + ":1"}},
+		}
+	}
+
+	drafted, err := draftWorkloads([]workloadparse.Workload{
+		workload("frontend", "web"),
+		workload("backend", "api"),
+	})
+	require.NoError(t, err)
+	require.Len(t, drafted, 2)
+	for _, d := range drafted {
+		assert.Equal(t, "shared", d.PolicyName)
 	}
 }
 

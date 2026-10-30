@@ -172,6 +172,8 @@ The name of each policy is:
 
 The policy has the namespace of the workload. If the workload has no namespace, the policy has none either. Then `kubectl apply -n <namespace>` puts the workload and the policy in the same namespace.
 
+Two workloads cannot use the same policy name in the same namespace. A workload without a namespace can go to any namespace, so its policy name must be unique in the file. If two workloads break this rule, `wpgen` stops with an error.
+
 [[check]]
 == Check a policy against the images
 

@@ -43,7 +43,10 @@ StatefulSet, Job and CronJob. It skips the other documents, and also bare
 pods, because the learn phase of runtime-enforcer does not cover them.
 
 Each policy has one entry per container and init container. Each image is
-scanned once, also when more containers use it.
+scanned once, also when more containers use it. As with wpgen image, the
+policy allows the programs and the scripts of the image, and skips the
+shared libraries and the other files, unless you use --include-libraries or
+--include-unknown.
 
 The policy name is the value of the runtimeenforcer.kubewarden.io/policy
 label of the pod template. When the label is not there, the name is

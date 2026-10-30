@@ -36,8 +36,11 @@ func newImageCmd(g *globalOptions) *cobra.Command {
 		Long: `Draft a WorkloadPolicy from a single container image.
 
 The policy has one container. wpgen treats the image as the main container
-of the pod. The policy allows every regular file of the image that has an
-execute permission bit set.
+of the pod. The policy allows the programs and the scripts of the image: the
+regular files that have an execute permission bit set, and that are ELF
+programs or start with "#!". wpgen skips the shared libraries, and the
+files that are neither programs nor scripts. Use --include-libraries and
+--include-unknown to keep them.
 
 wpgen looks for the image in the sources given by --image-src, in order, and
 uses the first source that has it. A daemon source (docker, podman) pulls the

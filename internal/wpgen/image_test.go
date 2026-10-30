@@ -42,7 +42,8 @@ func testImage(t *testing.T) string {
 func TestImageCmd(t *testing.T) {
 	t.Parallel()
 
-	stdout, stderr, err := runWpgen(t, "image", testImage(t),
+	img := testImage(t)
+	stdout, stderr, err := runWpgen(t, "image", img,
 		"--image-src", "oci-dir",
 		"--container-name", "api",
 		"--name", "api",
@@ -65,8 +66,7 @@ spec:
         - /usr/bin/migrate
 `, stdout)
 	assert.Contains(t, stderr, `from source "oci-dir" (linux/amd64)`)
-	assert.Contains(t, stderr, `container "api" (image `)
-	assert.Contains(t, stderr, "): 2 executables\n")
+	assert.Contains(t, stderr, "│ api ", "the summary has a row for the container")
 	assert.Contains(t, stderr, "runtimeenforcer.kubewarden.io/policy: api\n")
 	assert.NotContains(t, stderr, "WARNING")
 	assert.NotContains(t, stderr, "--container-name")
@@ -113,15 +113,15 @@ func TestImageCmdSkipsLibrariesAndUnknownFiles(t *testing.T) {
 			name:     "default",
 			expected: []string{"/usr/bin/app", "/usr/bin/entrypoint.sh"},
 			skipped: []string{
-				"skipped 2 shared libraries, use --include-libraries to keep them\n",
-				"skipped 1 file that is not a program or a script, use --include-unknown to keep them\n",
+				"Use --include-libraries to keep the skipped shared libraries.\n",
+				"Use --include-unknown to keep the skipped files that are neither programs nor scripts.\n",
 			},
 		},
 		{
 			name:     "include libraries",
 			flags:    []string{"--include-libraries"},
 			expected: []string{"/usr/bin/app", "/usr/bin/entrypoint.sh", "/usr/lib/libapp.so.1", "/usr/lib/libz.so.1"},
-			skipped:  []string{"skipped 1 file that is not a program or a script"},
+			skipped:  []string{"Use --include-unknown to keep the skipped files"},
 		},
 		{
 			name:  "include libraries and unknown files",
@@ -153,7 +153,7 @@ func TestImageCmdSkipsLibrariesAndUnknownFiles(t *testing.T) {
 				assert.Contains(t, stderr, msg)
 			}
 			if len(tt.skipped) == 0 {
-				assert.NotContains(t, stderr, "skipped")
+				assert.NotContains(t, stderr, "Use --include")
 			}
 		})
 	}
@@ -166,7 +166,8 @@ func TestImageCmdWarnThreshold(t *testing.T) {
 
 	_, stderr, err := runWpgen(t, "image", img, "--image-src", "oci-dir", "--name", "api", "--warn-threshold", "1")
 	require.NoError(t, err)
-	assert.Contains(t, stderr, `WARNING: container "main" allows 2 executables.`)
+	assert.Contains(t, stderr, "\n\nWARNING: container main allows 2 executables.", "the warning is a paragraph")
+	assert.Contains(t, stderr, "protect mode.\n\nAdd this label", "the label hint is a paragraph")
 
 	_, stderr, err = runWpgen(t, "image", img, "--image-src", "oci-dir", "--name", "api", "--warn-threshold", "0")
 	require.NoError(t, err)

@@ -1,0 +1,3 @@
+
+2 allowed paths are not executables in the images:
+  main: /bin/sh, /usr/local/bin/wait-for-it.sh

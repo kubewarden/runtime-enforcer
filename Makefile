@@ -85,6 +85,10 @@ generate-kubectl-plugin-docs: ## Generate kubectl plugin docs.
 generate-wpgen-docs: ## Generate wpgen docs.
 	go run ./internal/tools/docgen -tool wpgen -out docs/wpgen/cli-docs.adoc
 
+.PHONY: generate-wpgen-fixtures
+generate-wpgen-fixtures: ## Rescan the images of the wpgen test fixtures. Needs network access.
+	go run ./hack/generate_wpgen_fixtures.go ./internal/wpgen/testdata
+
 .PHONY: test
 test: generate-ebpf vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)"    go test $$(go list ./... | grep -v /e2e | grep -v /internal/bpf) -race -test.v -coverprofile coverage/cover.out -covermode=atomic

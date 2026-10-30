@@ -1,0 +1,10 @@
+┌──────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬─────────────┬───────────────────┬───────────────┐
+│ CONTAINER    │ IMAGE                                                                                                                     │ EXECUTABLES │ SKIPPED LIBRARIES │ SKIPPED OTHER │
+├──────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────────┼───────────────────┼───────────────┤
+│ main         │ ghcr.io/kubewarden/sbomscanner/test-assets/golang@sha256:1782cafde43390b032f960c0fad3def745fac18994ced169003cb56e9a93c028 │          97 │                 8 │             0 │
+│ setup (init) │ setup:1                                                                                                                   │           1 │                 0 │             0 │
+└──────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┴─────────────┴───────────────────┴───────────────┘
+Use --include-libraries to keep the skipped shared libraries.
+
+WARNING: container main allows 97 executables. A learned policy is usually
+much smaller. Review the list before you switch the policy to protect mode.

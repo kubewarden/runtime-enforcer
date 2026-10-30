@@ -23,11 +23,18 @@ wpgen only sees the file system of the image. It does not see files on
 volumes, files that the workload creates at runtime, or executables from a
 foreign root.
 
+Colors are used only for the lines that matter: the check verdict, warnings,
+notices and errors. With --color=auto, the default, colors are on only when
+the output is a terminal. The NO_COLOR environment variable turns them off,
+and CLICOLOR_FORCE=1 turns them on. --color=always and --color=never win
+over both.
+
 === Options
 
 ....
-  -h, --help      help for wpgen
-  -v, --version   version for wpgen
+      --color string   When to use colors: auto, always or never. auto follows NO_COLOR and CLICOLOR_FORCE (default "auto")
+  -h, --help           help for wpgen
+  -v, --version        version for wpgen
 ....
 
 === SEE ALSO
@@ -59,8 +66,8 @@ the image. This happens after an image update that removes a file. It also
 happens for a path on a volume or in a foreign root: keep these paths in the
 policy if the workload needs them.
 
-The report goes to standard output, as text or as JSON. Other messages go to
-standard error.
+The report goes to standard output, as a table or as JSON. Other messages go
+to standard error.
 
 *Usage:* `wpgen check POLICY_FILE (--workload FILE | --image IMAGE) [flags]`
 
@@ -87,9 +94,15 @@ standard error.
       --include-libraries       Count ELF shared libraries as executables. Programs load them, but do not run them
       --include-unknown         Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
       --list-not-allowed        List the executables of the image that the policy does not allow, not only their number
-  -o, --output string           Output format (text or json) (default "text")
+  -o, --output string           Report format (table or json) (default "table")
       --platform string         Platform to select from a multi-platform image (default: linux/<host architecture>)
       --workload string         File with the workload that uses the policy ("-" for standard input)
+....
+
+=== Options inherited from parent commands
+
+....
+      --color string   When to use colors: auto, always or never. auto follows NO_COLOR and CLICOLOR_FORCE (default "auto")
 ....
 
 === SEE ALSO
@@ -142,6 +155,12 @@ The policy goes to standard output. Messages go to standard error.
       --warn-threshold int      Print a warning when a container allows more executables than this value (0 disables the warning) (default 50)
 ....
 
+=== Options inherited from parent commands
+
+....
+      --color string   When to use colors: auto, always or never. auto follows NO_COLOR and CLICOLOR_FORCE (default "auto")
+....
+
 === SEE ALSO
 
 * <<wpgen,`wpgen`>> - Draft WorkloadPolicy resources from container images
@@ -191,6 +210,12 @@ The policies go to standard output. Messages go to standard error.
   -o, --output string        Output format (yaml or json) (default "yaml")
       --platform string      Platform to select from a multi-platform image (default: linux/<host architecture>)
       --warn-threshold int   Print a warning when a container allows more executables than this value (0 disables the warning) (default 50)
+....
+
+=== Options inherited from parent commands
+
+....
+      --color string   When to use colors: auto, always or never. auto follows NO_COLOR and CLICOLOR_FORCE (default "auto")
 ....
 
 === SEE ALSO

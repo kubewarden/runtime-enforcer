@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"strings"
@@ -29,7 +28,7 @@ type imageOptions struct {
 	Namespace     string
 }
 
-func newImageCmd() *cobra.Command {
+func newImageCmd(g *globalOptions) *cobra.Command {
 	opts := &imageOptions{}
 
 	cmd := &cobra.Command{
@@ -56,7 +55,7 @@ The policy goes to standard output. Messages go to standard error.`,
   wpgen image ghcr.io/example/api:2.3.0 --image-src registry`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runImage(cmd.Context(), args[0], opts, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			return runImage(cmd.Context(), args[0], opts, g.streams(cmd.OutOrStdout(), cmd.ErrOrStderr()))
 		},
 	}
 
@@ -88,13 +87,13 @@ func (o *imageOptions) validate() error {
 	return errors.Join(errs...)
 }
 
-func runImage(ctx context.Context, input string, opts *imageOptions, stdout, stderr io.Writer) error {
+func runImage(ctx context.Context, input string, opts *imageOptions, s streams) error {
 	// Validate before loading the image: a pull can take a long time.
 	if err := opts.validate(); err != nil {
 		return err
 	}
 
-	scanned, err := scanImage(ctx, input, &opts.scanOptions, nil, stderr)
+	scanned, err := scanImage(ctx, input, &opts.scanOptions, nil, s.err)
 	if err != nil {
 		return err
 	}
@@ -112,16 +111,19 @@ func runImage(ctx context.Context, input string, opts *imageOptions, stdout, std
 	if err != nil {
 		return err
 	}
-	if err = policydraft.Encode(stdout, policy, opts.Output); err != nil {
+	s.separate()
+	if err = policydraft.Encode(s.out, policy, opts.Output); err != nil {
 		return err
 	}
 
-	printContainerSummary(stderr, "", fmt.Sprintf("container %q", opts.ContainerName), input,
-		scanned, opts.WarnThreshold)
-	fmt.Fprintf(stderr, "Add this label to the pod template of the workload that runs this image:\n  %s: %s\n",
+	fmt.Fprintln(s.err)
+	printDraftSummary(s.err, s.errPainter, []draftedContainer{
+		{Label: opts.ContainerName, Image: input, Scanned: scanned},
+	}, opts.WarnThreshold)
+	fmt.Fprintf(s.err, "\nAdd this label to the pod template of the workload that runs this image:\n  %s: %s\n",
 		v1alpha1.PolicyLabelKey, policyName)
 	if opts.ContainerName == defaultContainerName {
-		fmt.Fprintf(stderr, "Make sure that the container is named %q in the pod, or use --container-name.\n",
+		fmt.Fprintf(s.err, "Make sure that the container is named %q in the pod, or use --container-name.\n",
 			defaultContainerName)
 	}
 	return nil

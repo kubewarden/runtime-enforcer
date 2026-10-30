@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
 
 	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
@@ -25,8 +27,8 @@ const (
 	containerNameFlag  = "container-name"
 	listNotAllowedFlag = "list-not-allowed"
 
-	outputText = "text"
-	outputJSON = "json"
+	outputTable = "table"
+	outputJSON  = "json"
 )
 
 type checkOptions struct {
@@ -71,6 +73,9 @@ type containerReport struct {
 type checkResult struct {
 	Policy     *v1alpha1.WorkloadPolicy
 	Containers []containerReport
+	// Workload describes the workload, for example `Deployment "web"`. It is
+	// empty with --image.
+	Workload string
 	// OnlyInPolicy are the containers of the policy that are not in the
 	// workload.
 	OnlyInPolicy []string
@@ -88,7 +93,7 @@ func (r *checkResult) stale() int {
 	return n
 }
 
-func newCheckCmd() *cobra.Command {
+func newCheckCmd(g *globalOptions) *cobra.Command {
 	opts := &checkOptions{}
 
 	cmd := &cobra.Command{
@@ -114,8 +119,8 @@ the image. This happens after an image update that removes a file. It also
 happens for a path on a volume or in a foreign root: keep these paths in the
 policy if the workload needs them.
 
-The report goes to standard output, as text or as JSON. Other messages go to
-standard error.`,
+The report goes to standard output, as a table or as JSON. Other messages go
+to standard error.`,
 		Example: `  # Compare a policy with the images of a Deployment
   wpgen check ./policy.yaml --workload ./deploy/nginx.yaml
 
@@ -126,7 +131,8 @@ standard error.`,
   wpgen check ./policy.yaml --workload ./deploy/nginx.yaml -o json --list-not-allowed`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd.Context(), args[0], opts, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
+			return runCheck(cmd.Context(), args[0], opts, cmd.InOrStdin(),
+				g.streams(cmd.OutOrStdout(), cmd.ErrOrStderr()))
 		},
 	}
 
@@ -137,8 +143,8 @@ standard error.`,
 		"Image of one container of the policy")
 	flags.StringVar(&opts.ContainerName, containerNameFlag, "",
 		"Container of the policy that runs --image (default: the only container of the policy)")
-	flags.StringVarP(&opts.Output, "output", "o", outputText,
-		fmt.Sprintf("Output format (%s or %s)", outputText, outputJSON))
+	flags.StringVarP(&opts.Output, "output", "o", outputTable,
+		fmt.Sprintf("Report format (%s or %s)", outputTable, outputJSON))
 	flags.BoolVar(&opts.ListNotAllowed, listNotAllowedFlag, false,
 		"List the executables of the image that the policy does not allow, not only their number")
 	opts.addFlags(flags)
@@ -157,8 +163,8 @@ func (o *checkOptions) validate(policyFile string) error {
 	if policyFile == stdinFile && o.Workload == stdinFile {
 		errs = append(errs, errors.New("the policy and the workload cannot both come from standard input"))
 	}
-	if o.Output != outputText && o.Output != outputJSON {
-		errs = append(errs, fmt.Errorf("invalid output format %q: must be %q or %q", o.Output, outputText, outputJSON))
+	if o.Output != outputTable && o.Output != outputJSON {
+		errs = append(errs, fmt.Errorf("invalid output format %q: must be %q or %q", o.Output, outputTable, outputJSON))
 	}
 	return errors.Join(errs...)
 }
@@ -168,13 +174,13 @@ func runCheck(
 	policyFile string,
 	opts *checkOptions,
 	stdin io.Reader,
-	stdout, stderr io.Writer,
+	s streams,
 ) error {
 	if err := opts.validate(policyFile); err != nil {
 		return err
 	}
 
-	policy, err := readPolicy(policyFile, stdin, stderr)
+	policy, err := readPolicy(policyFile, stdin, s.err)
 	if err != nil {
 		return err
 	}
@@ -184,29 +190,65 @@ func runCheck(
 	if opts.Image != "" {
 		containers, err = imageContainers(policy, opts.Image, opts.ContainerName)
 	} else {
-		containers, err = workloadContainers(result, opts.Workload, stdin, stderr)
+		containers, err = workloadContainers(result, opts.Workload, stdin, s.err)
 	}
 	if err != nil {
 		return err
 	}
+	printMismatches(s.err, s.errPainter, result)
 
-	if result.Containers, err = checkContainers(ctx, containers, &opts.scanOptions, stderr); err != nil {
+	if result.Containers, err = checkContainers(ctx, containers, &opts.scanOptions, s.err); err != nil {
 		return err
 	}
 
+	s.separate()
 	if opts.Output == outputJSON {
-		err = renderCheckJSON(stdout, result, opts.ListNotAllowed)
+		if err = renderCheckJSON(s.out, result, opts.ListNotAllowed); err != nil {
+			return err
+		}
 	} else {
-		renderCheckText(stdout, result, opts.ListNotAllowed)
-	}
-	if err != nil {
-		return err
+		renderCheckTable(s.out, s.outPainter, result, opts.ListNotAllowed)
 	}
 
-	if stale := result.stale(); stale > 0 {
-		return fmt.Errorf("%d allowed paths are not executables in the images", stale)
+	return printVerdict(s.err, s.errPainter, result)
+}
+
+// printMismatches prints a notice for each container that is only in the
+// policy or only in the workload.
+func printMismatches(w io.Writer, p painter, result *checkResult) {
+	if len(result.OnlyInWorkload)+len(result.OnlyInPolicy) == 0 {
+		return
 	}
-	return nil
+	defer fmt.Fprintln(w)
+	for _, name := range result.OnlyInWorkload {
+		fmt.Fprintln(w, p.notice(fmt.Sprintf("The policy has no rules for container %q of %s.", name, result.Workload)))
+	}
+	for _, name := range result.OnlyInPolicy {
+		fmt.Fprintln(w, p.notice(fmt.Sprintf("The policy has rules for container %q, which is not in %s.",
+			name, result.Workload)))
+	}
+}
+
+// printVerdict prints the result of the check. It returns an error, already
+// reported, when an allowed path is not an executable in the image.
+func printVerdict(w io.Writer, p painter, result *checkResult) error {
+	stale := result.stale()
+	if stale == 0 {
+		fmt.Fprintf(w, "\n%s\n", p.success("All allowed paths are executables in the images."))
+		return nil
+	}
+
+	msg := fmt.Sprintf("%d allowed paths are not executables in the images", stale)
+	if stale == 1 {
+		msg = "1 allowed path is not an executable in the images"
+	}
+	fmt.Fprintf(w, "\n%s\n", p.failure(msg+":"))
+	for _, r := range result.Containers {
+		if len(r.Stale) > 0 {
+			fmt.Fprintf(w, "  %s: %s\n", containerLabel(r.Name, r.Init), strings.Join(r.Stale, ", "))
+		}
+	}
+	return &reportedError{msg: msg}
 }
 
 func readPolicy(file string, stdin io.Reader, stderr io.Writer) (*v1alpha1.WorkloadPolicy, error) {
@@ -265,15 +307,14 @@ func imageContainers(policy *v1alpha1.WorkloadPolicy, imageRef, containerName st
 }
 
 // workloadContainers returns the containers that are both in the policy and
-// in the one workload of the file. It records the containers that are only
-// in one of them in the result, and prints a notice for each one.
+// in the one workload of the file. It records the workload, and the
+// containers that are only in one of them, in the result.
 func workloadContainers(
 	result *checkResult,
 	file string,
 	stdin io.Reader,
 	stderr io.Writer,
 ) ([]checkedContainer, error) {
-	policy := result.Policy
 	workloads, err := readWorkloads(file, stdin, stderr)
 	if err != nil {
 		return nil, err
@@ -285,7 +326,15 @@ func workloadContainers(
 		}
 		return nil, fmt.Errorf("%s must have exactly one workload, found %s", file, strings.Join(names, ", "))
 	}
-	workload := workloads[0]
+	return matchContainers(result, workloads[0])
+}
+
+// matchContainers returns the containers of the workload that the policy has
+// rules for. It records the workload, and the containers that are only in
+// the policy or only in the workload, in the result.
+func matchContainers(result *checkResult, workload workloadparse.Workload) ([]checkedContainer, error) {
+	policy := result.Policy
+	result.Workload = fmt.Sprintf("%s %q", workload.Kind, workload.Name)
 
 	var containers []checkedContainer
 	inWorkload := map[string]bool{}
@@ -294,28 +343,14 @@ func workloadContainers(
 		rules, found := policy.Spec.RulesByContainer[c.Name]
 		if !found {
 			result.OnlyInWorkload = append(result.OnlyInWorkload, c.Name)
-			fmt.Fprintf(
-				stderr,
-				"The policy has no rules for container %q of %s %q\n",
-				c.Name,
-				workload.Kind,
-				workload.Name,
-			)
 			continue
 		}
 		containers = append(containers, checkedContainer{Container: c, Allowed: allowedPaths(rules)})
 	}
 
-	policyContainers := make([]string, 0, len(policy.Spec.RulesByContainer))
-	for name := range policy.Spec.RulesByContainer {
-		policyContainers = append(policyContainers, name)
-	}
-	slices.Sort(policyContainers)
-	for _, name := range policyContainers {
+	for _, name := range slices.Sorted(maps.Keys(policy.Spec.RulesByContainer)) {
 		if !inWorkload[name] {
 			result.OnlyInPolicy = append(result.OnlyInPolicy, name)
-			fmt.Fprintf(stderr, "The policy has rules for container %q, which is not in %s %q\n",
-				name, workload.Kind, workload.Name)
 		}
 	}
 
@@ -400,69 +435,108 @@ func compare(c checkedContainer, s *scannedImage) containerReport {
 	return report
 }
 
-// printPaths prints a heading followed by the paths, one per line.
-func printPaths(w io.Writer, heading string, paths []string) {
-	fmt.Fprintf(w, "    %s:\n", heading)
-	for _, p := range paths {
-		fmt.Fprintf(w, "      %s\n", p)
-	}
+const (
+	statusStale      = "stale"
+	statusSkipped    = "skipped"
+	statusOK         = "ok"
+	statusNotAllowed = "not allowed"
+
+	noteMaxWidth = 50
+	// halves divides the rows of a container to find the middle one.
+	halves = 2
+)
+
+// checkRow is one path of a container in the table report.
+type checkRow struct {
+	Path   string
+	Status string
+	Note   string
 }
 
-func renderCheckText(w io.Writer, result *checkResult, listNotAllowed bool) {
+// containerRows returns the rows of a container, sorted by status: the paths
+// that need an action first. The paths of each status are sorted.
+func containerRows(r containerReport, listNotAllowed bool) []checkRow {
+	var rows []checkRow
+	for _, p := range r.Stale {
+		note := "not an executable in the image"
+		if target, isLink := r.Links[p]; isLink {
+			note = fmt.Sprintf("symbolic link to %s, the enforcer reports the target", target)
+		}
+		rows = append(rows, checkRow{Path: p, Status: statusStale, Note: note})
+	}
+	for _, p := range r.Libraries {
+		rows = append(rows, checkRow{
+			Path: p, Status: statusSkipped, Note: "shared library, see --" + includeLibrariesFlag,
+		})
+	}
+	for _, p := range r.Unknown {
+		rows = append(rows, checkRow{
+			Path: p, Status: statusSkipped, Note: "neither a program nor a script, see --" + includeUnknownFlag,
+		})
+	}
+	for _, p := range r.Executables {
+		rows = append(rows, checkRow{Path: p, Status: statusOK})
+	}
+	if listNotAllowed {
+		for _, p := range r.NotAllowed {
+			rows = append(rows, checkRow{Path: p, Status: statusNotAllowed})
+		}
+	}
+	return rows
+}
+
+func renderCheckTable(w io.Writer, p painter, result *checkResult, listNotAllowed bool) {
 	namespace := result.Policy.Namespace
 	if namespace == "" {
 		namespace = "<none>"
 	}
-	fmt.Fprintf(w, "Policy %q (namespace %s):\n", result.Policy.Name, namespace)
+	fmt.Fprintf(w, "Policy %s (namespace %s)\n\n", result.Policy.Name, namespace)
 
-	for _, r := range result.Containers {
-		renderContainerText(w, r, listNotAllowed)
-	}
-}
-
-func renderContainerText(w io.Writer, r containerReport, listNotAllowed bool) {
-	label := fmt.Sprintf("container %q", r.Name)
-	if r.Init {
-		label = "init " + label
-	}
-	fmt.Fprintf(w, "  %s (image %s):\n", label, r.Image)
-
-	if len(r.Executables) == len(r.Allowed) {
-		fmt.Fprintf(w, "    all %d allowed paths are executables in the image\n", len(r.Allowed))
-	} else {
-		fmt.Fprintf(w, "    %d of %d allowed paths are executables in the image\n",
-			len(r.Executables), len(r.Allowed))
-	}
-
-	if len(r.Stale) > 0 {
-		stale := make([]string, 0, len(r.Stale))
-		for _, p := range r.Stale {
-			if target, isLink := r.Links[p]; isLink {
-				p = fmt.Sprintf("%s (symbolic link to %s, the enforcer reports %s)", p, target, target)
-			}
-			stale = append(stale, p)
+	const note = "Note"
+	paths := newTable(table.Row{headerContainer, "Path", "Status", note},
+		table.ColumnConfig{Name: headerContainer, Align: text.AlignCenter, AlignHeader: text.AlignCenter},
+		table.ColumnConfig{Name: note, WidthMax: noteMaxWidth, WidthMaxEnforcer: text.WrapSoft},
+	)
+	for i, r := range result.Containers {
+		if i > 0 {
+			paths.AppendSeparator()
 		}
-		printPaths(w, fmt.Sprintf("%d allowed paths are not executables in the image", len(r.Stale)), stale)
+		rows := containerRows(r, listNotAllowed)
+		if len(rows) == 0 {
+			rows = []checkRow{{Note: "the policy allows no paths"}}
+		}
+		// The name goes in the middle row of the container, so that it
+		// looks centered across all its rows.
+		middle := (len(rows) - 1) / halves
+		for j, row := range rows {
+			var label string
+			if j == middle {
+				label = p.strong(containerLabel(r.Name, r.Init))
+			}
+			paths.AppendRow(table.Row{label, row.Path, row.Status, row.Note})
+		}
 	}
-	if len(r.Libraries) > 0 {
-		printPaths(w, fmt.Sprintf("%d allowed paths are shared libraries, which wpgen skips unless --%s is set",
-			len(r.Libraries), includeLibrariesFlag), r.Libraries)
-	}
-	if len(r.Unknown) > 0 {
-		printPaths(
-			w,
-			fmt.Sprintf("%d allowed paths are neither programs nor scripts, which wpgen skips unless --%s is set",
-				len(r.Unknown), includeUnknownFlag),
-			r.Unknown,
-		)
-	}
+	renderTable(w, paths)
+	fmt.Fprintln(w)
 
-	heading := fmt.Sprintf("%d executables of the image are not allowed", len(r.NotAllowed))
-	if listNotAllowed && len(r.NotAllowed) > 0 {
-		printPaths(w, heading, r.NotAllowed)
-	} else {
-		fmt.Fprintf(w, "    %s\n", heading)
+	counts := []string{"Allowed", "OK", "Stale", "Skipped", "Not allowed"}
+	header := table.Row{headerContainer, "Image"}
+	for _, c := range counts {
+		header = append(header, c)
 	}
+	summary := newTable(header, alignRight(counts...)...)
+	for _, r := range result.Containers {
+		summary.AppendRow(table.Row{
+			containerLabel(r.Name, r.Init),
+			r.Image,
+			len(r.Allowed),
+			len(r.Executables),
+			len(r.Stale),
+			len(r.Libraries) + len(r.Unknown),
+			len(r.NotAllowed),
+		})
+	}
+	renderTable(w, summary)
 }
 
 type jsonPolicy struct {

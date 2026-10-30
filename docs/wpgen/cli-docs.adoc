@@ -121,8 +121,11 @@ policy that it did not check.
 Draft a WorkloadPolicy from a single container image.
 
 The policy has one container. wpgen treats the image as the main container
-of the pod. The policy allows every regular file of the image that has an
-execute permission bit set.
+of the pod. The policy allows the programs and the scripts of the image: the
+regular files that have an execute permission bit set, and that are ELF
+programs or start with "#!". wpgen skips the shared libraries, and the
+files that are neither programs nor scripts. Use --include-libraries and
+--include-unknown to keep them.
 
 wpgen looks for the image in the sources given by --image-src, in order, and
 uses the first source that has it. A daemon source (docker, podman) pulls the
@@ -182,7 +185,10 @@ StatefulSet, Job and CronJob. It skips the other documents, and also bare
 pods, because the learn phase of runtime-enforcer does not cover them.
 
 Each policy has one entry per container and init container. Each image is
-scanned once, also when more containers use it.
+scanned once, also when more containers use it. As with wpgen image, the
+policy allows the programs and the scripts of the image, and skips the
+shared libraries and the other files, unless you use --include-libraries or
+--include-unknown.
 
 The policy name is the value of the runtimeenforcer.kubewarden.io/policy
 label of the pod template. When the label is not there, the name is

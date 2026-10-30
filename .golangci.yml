@@ -43,6 +43,11 @@ formatters:
       # Default: 100
       max-len: 120
 
+  exclusions:
+    paths:
+      # Copied from syft. Keep it as upstream wrote it, so that it is easy to update.
+      - internal/elfutil/
+
 linters:
   enable:
     - asasalint # checks for pass []any as any in variadic func(...any)
@@ -446,6 +451,9 @@ linters:
       os-temp-dir: true
 
   exclusions:
+    # Copied from syft. Keep it as upstream wrote it, so that it is easy to update.
+    paths:
+      - internal/elfutil/
     # Log a warning if an exclusion rule is unused.
     # Default: false
     warn-unused: true

@@ -35,6 +35,7 @@ import (
 	"github.com/kubewarden/runtime-enforcer/internal/events"
 	"github.com/kubewarden/runtime-enforcer/internal/grpcexporter"
 	"github.com/kubewarden/runtime-enforcer/internal/metrics"
+	"github.com/kubewarden/runtime-enforcer/internal/types/otlp"
 
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/metric"
@@ -54,9 +55,6 @@ type Config struct {
 	logLevel                                         string
 	otlpEndpoint                                     string
 	otlpProtocol                                     string
-	otlpCACert                                       string
-	otlpClientCert                                   string
-	otlpClientKey                                    string
 }
 
 func parseFlags() Config {
@@ -106,33 +104,10 @@ func parseFlags() Config {
 		"info",
 		"controller logger level (debug, info, warn, error)",
 	)
-	flag.StringVar(
-		&config.otlpEndpoint,
-		"otlp-endpoint",
-		os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
-		"OTLP gRPC endpoint (defaults to OTEL_EXPORTER_OTLP_ENDPOINT env var, empty = disabled)",
-	)
-	flag.StringVar(
-		&config.otlpCACert,
-		"otlp-ca-cert",
-		os.Getenv("OTEL_EXPORTER_OTLP_CERTIFICATE"),
-		"Path to the CA certificate for verifying the OTLP collector's TLS certificate (defaults to OTEL_EXPORTER_OTLP_CERTIFICATE env var)",
-	)
-	flag.StringVar(
-		&config.otlpClientCert,
-		"otlp-client-cert",
-		os.Getenv("OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE"),
-		"Path to the client TLS certificate for mTLS with the OTLP collector (defaults to OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE env var)",
-	)
-	flag.StringVar(
-		&config.otlpClientKey,
-		"otlp-client-key",
-		os.Getenv("OTEL_EXPORTER_OTLP_CLIENT_KEY"),
-		"Path to the client TLS key for mTLS with the OTLP collector (defaults to OTEL_EXPORTER_OTLP_CLIENT_KEY env var)",
-	)
-	flag.StringVar(&config.otlpProtocol, "otlp-protocol", os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL"),
-		"OTLP protocol (defaults to OTEL_EXPORTER_OTLP_PROTOCOL env var)")
 	flag.Parse()
+	// The OpenTelemetry SDK reads the other OTEL_EXPORTER_OTLP_* variables itself.
+	config.otlpEndpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	config.otlpProtocol = os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
 
 	return config
 }
@@ -306,6 +281,9 @@ func setupOtel(
 	if config.otlpEndpoint == "" {
 		return func(context.Context) error { return nil }, nil
 	}
+	if err := otlp.ValidateEndpoint(config.otlpEndpoint); err != nil {
+		return nil, err
+	}
 
 	var err error
 	var eventShutdown, metricShutdown func(context.Context) error
@@ -313,14 +291,7 @@ func setupOtel(
 	var activeViolationsGauge metric.Int64Gauge
 	var shutdowns []func(context.Context) error
 
-	eventLogger, eventShutdown, err = events.Init(
-		ctx,
-		config.otlpEndpoint,
-		config.otlpCACert,
-		config.otlpClientCert,
-		config.otlpClientKey,
-		config.otlpProtocol,
-	)
+	eventLogger, eventShutdown, err = events.Init(ctx, config.otlpProtocol)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize otel logs: %w", err)
 	}
@@ -329,10 +300,6 @@ func setupOtel(
 
 	activeViolationsGauge, metricShutdown, err = metrics.Init(
 		ctx,
-		config.otlpEndpoint,
-		config.otlpCACert,
-		config.otlpClientCert,
-		config.otlpClientKey,
 		config.otlpProtocol,
 		config.wpStatusSyncConfig.UpdateInterval,
 	)

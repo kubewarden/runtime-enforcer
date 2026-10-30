@@ -1,0 +1,70 @@
+suite: "Removed resources"
+release:
+  name: rel
+set:
+  debugger:
+    enabled: true
+  global:
+    otel:
+      endpoint: "https://collector:4317"
+tests:
+  - it: "should not render the bundled collector Deployment, ConfigMap, or Service"
+    asserts:
+      - containsDocument:
+          kind: Deployment
+          apiVersion: apps/v1
+          name: rel-runtime-enforcer-otel-collector
+        not: true
+      - containsDocument:
+          kind: ConfigMap
+          apiVersion: v1
+          name: rel-runtime-enforcer-otel-collector
+        not: true
+      - containsDocument:
+          kind: Service
+          apiVersion: v1
+          name: rel-runtime-enforcer-otel-collector
+        not: true
+
+  - it: "should not render the metrics RBAC"
+    asserts:
+      - containsDocument:
+          kind: ClusterRole
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: rel-runtime-enforcer-metrics-auth-role
+        not: true
+      - containsDocument:
+          kind: ClusterRole
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: rel-runtime-enforcer-metrics-reader
+        not: true
+      - containsDocument:
+          kind: ClusterRoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: rel-runtime-enforcer-metrics-auth-rolebinding
+        not: true
+
+  - it: "should never render a PodDisruptionBudget for the agent"
+    set:
+      agent:
+        podDisruptionBudget:
+          minAvailable: 1
+      global:
+        podDisruptionBudget:
+          minAvailable: 1
+    asserts:
+      - containsDocument:
+          kind: PodDisruptionBudget
+          apiVersion: policy/v1
+          name: rel-runtime-enforcer-agent
+        not: true
+
+  - it: "should not pass --metrics-bind-address to the controller"
+    template: "templates/controller/deployment.yaml"
+    asserts:
+      - notContains:
+          path: "spec.template.spec.containers[0].args"
+          content: "--metrics-bind-address=:8443"
+      - notMatchRegex:
+          path: "spec.template.spec.containers[0].args[*]"
+          pattern: "^--metrics-bind-address"

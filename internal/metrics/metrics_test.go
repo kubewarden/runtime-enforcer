@@ -15,34 +15,34 @@ func TestInit(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		endpoint       string
 		protocol       string
 		exportInterval time.Duration
 		wantErr        bool
 	}{
 		{
 			name:           "invalid protocol",
-			endpoint:       "localhost:4317",
 			protocol:       "udp",
 			exportInterval: 30 * time.Second,
 			wantErr:        true,
 		},
 		{
 			name:           "invalid export interval",
-			endpoint:       "localhost:4317",
 			protocol:       "grpc",
 			exportInterval: 0,
 			wantErr:        true,
 		},
 		{
+			name:           "empty protocol means grpc",
+			protocol:       "",
+			exportInterval: 30 * time.Second,
+		},
+		{
 			name:           "grpc",
-			endpoint:       "localhost:4317",
 			protocol:       "grpc",
 			exportInterval: 30 * time.Second,
 		},
 		{
 			name:           "http/protobuf",
-			endpoint:       "http://localhost:4318",
 			protocol:       "http/protobuf",
 			exportInterval: 30 * time.Second,
 		},
@@ -50,7 +50,8 @@ func TestInit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gauge, shutdown, err := Init(ctx, tt.endpoint, "", "", "", tt.protocol, tt.exportInterval)
+			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+			gauge, shutdown, err := Init(ctx, tt.protocol, tt.exportInterval)
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Nil(t, gauge)

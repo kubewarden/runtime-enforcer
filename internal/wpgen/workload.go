@@ -1,0 +1,252 @@
+package wpgen
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+
+	"github.com/spf13/cobra"
+
+	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/internal/policydraft"
+	"github.com/kubewarden/runtime-enforcer/internal/workloadparse"
+)
+
+const stdinFile = "-"
+
+type workloadOptions struct {
+	draftOptions
+}
+
+// draftedWorkload is a workload with the name of its policy.
+type draftedWorkload struct {
+	workloadparse.Workload
+
+	PolicyName string
+	// LabelPresent is true when the pod template already has the policy label.
+	LabelPresent bool
+}
+
+func newWorkloadCmd(g *globalOptions) *cobra.Command {
+	opts := &workloadOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "workload FILE",
+		Short: "Draft one WorkloadPolicy per workload of a manifest file",
+		Long: `Draft one WorkloadPolicy per workload of a manifest file.
+
+FILE has one or more YAML or JSON documents. Use "-" to read from standard
+input. wpgen reads these kinds: Deployment, ReplicaSet, DaemonSet,
+StatefulSet, Job and CronJob. It skips the other documents, and also bare
+pods, because the learn phase of runtime-enforcer does not cover them.
+
+Each policy has one entry per container and init container. Each image is
+scanned once, also when more containers use it. As with wpgen image, the
+policy allows the programs and the scripts of the image, and skips the
+shared libraries and the other files, unless you use --include-libraries or
+--include-unknown.
+
+The policy name is the value of the runtimeenforcer.kubewarden.io/policy
+label of the pod template. When the label is not there, the name is
+<short kind>-<workload name>, for example deploy-nginx, as for the
+WorkloadPolicyProposal that the learn phase creates. The policy has the
+namespace of the workload. When the workload has no namespace, the policy
+has none either, so that "kubectl apply -n" puts both in the same namespace.
+
+Two workloads cannot use the same policy name in the same namespace. A
+workload without a namespace can go to any namespace, so its policy name must
+be unique in the file.
+
+The policies go to standard output. Messages go to standard error.`,
+		Example: `  # Draft the policies of the workloads in a file
+  wpgen workload ./deploy/nginx.yaml
+
+  # Draft the policies of a Helm chart
+  helm template my-release ./chart | wpgen workload -`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runWorkload(cmd.Context(), args[0], opts, cmd.InOrStdin(),
+				g.streams(cmd.OutOrStdout(), cmd.ErrOrStderr()))
+		},
+	}
+
+	opts.addFlags(cmd.Flags())
+
+	return cmd
+}
+
+func runWorkload(
+	ctx context.Context,
+	file string,
+	opts *workloadOptions,
+	stdin io.Reader,
+	s streams,
+) error {
+	if err := errors.Join(opts.validate()...); err != nil {
+		return err
+	}
+
+	workloads, err := readWorkloads(ctx, file, stdin, s.err)
+	if err != nil {
+		return err
+	}
+
+	// Find the policy names before the images are loaded: a pull can take a
+	// long time.
+	drafted, err := draftWorkloads(workloads)
+	if err != nil {
+		return err
+	}
+
+	scanned := map[string]*scannedImage{}
+	for _, w := range drafted {
+		for _, c := range w.Containers {
+			if _, done := scanned[c.Image]; done {
+				continue
+			}
+			if scanned[c.Image], err = scanImage(ctx, c.Image, &opts.scanOptions, nil, s.err); err != nil {
+				return err
+			}
+		}
+	}
+
+	policies := make([]*v1alpha1.WorkloadPolicy, 0, len(drafted))
+	for _, w := range drafted {
+		executables := make(map[string][]string, len(w.Containers))
+		for _, c := range w.Containers {
+			executables[c.Name] = scanned[c.Image].Executables
+		}
+		policy, newErr := policydraft.New(w.PolicyName, w.Namespace, opts.Mode, executables)
+		if newErr != nil {
+			return newErr
+		}
+		policies = append(policies, policy)
+	}
+	s.separate()
+	if err = policydraft.EncodeAll(s.out, policies, opts.Output); err != nil {
+		return err
+	}
+
+	for _, w := range drafted {
+		printWorkloadSummary(s.err, s.errPainter, w, scanned, opts.WarnThreshold)
+	}
+	return nil
+}
+
+func readWorkloads(
+	ctx context.Context,
+	file string,
+	stdin io.Reader,
+	stderr io.Writer,
+) ([]workloadparse.Workload, error) {
+	r, err := openInput(ctx, file, stdin)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	workloads, skipped, err := workloadparse.Parse(r)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read %s: %w", file, err)
+	}
+	for _, s := range skipped {
+		fmt.Fprintf(stderr, "Skipping %s %q (%s): %s\n", s.Kind, s.Name, s.APIVersion, s.Reason)
+	}
+	if len(workloads) == 0 {
+		return nil, fmt.Errorf("no supported workload found in %s", file)
+	}
+	return workloads, nil
+}
+
+// policyOwner is a workload that uses a policy name.
+type policyOwner struct {
+	namespace string
+	name      string
+}
+
+// draftWorkloads finds the policy name of each workload. It returns an error
+// when two workloads can map to the same policy, because the second policy
+// replaces the first one when applied. A workload without a namespace can go
+// to any namespace, so its policy name must be unique in the input.
+func draftWorkloads(workloads []workloadparse.Workload) ([]draftedWorkload, error) {
+	drafted := make([]draftedWorkload, 0, len(workloads))
+	owners := map[string][]policyOwner{}
+
+	for _, w := range workloads {
+		d := draftedWorkload{Workload: w}
+		d.PolicyName, d.LabelPresent = w.PodLabels[v1alpha1.PolicyLabelKey]
+		if !d.LabelPresent {
+			shortName, err := w.Kind.ShortName()
+			if err != nil {
+				return nil, err
+			}
+			d.PolicyName = shortName + "-" + w.Name
+		}
+		if err := validatePolicyName(d.PolicyName); err != nil {
+			return nil, fmt.Errorf("%s %q: %w", w.Kind, w.Name, err)
+		}
+
+		owner := policyOwner{namespace: w.Namespace, name: fmt.Sprintf("%s %q", w.Kind, w.Name)}
+		for _, other := range owners[d.PolicyName] {
+			if err := policyConflict(other, owner, d.PolicyName); err != nil {
+				return nil, err
+			}
+		}
+		owners[d.PolicyName] = append(owners[d.PolicyName], owner)
+
+		drafted = append(drafted, d)
+	}
+	return drafted, nil
+}
+
+// policyConflict returns an error when the two workloads can put the policy
+// in the same namespace.
+func policyConflict(first, second policyOwner, policyName string) error {
+	switch {
+	case first.namespace == second.namespace:
+		return fmt.Errorf("%s and %s both use the policy %q in the same namespace, "+
+			"give them different %s labels", first.name, second.name, policyName, v1alpha1.PolicyLabelKey)
+	case first.namespace == "" || second.namespace == "":
+		return fmt.Errorf("%s (namespace %s) and %s (namespace %s) both use the policy %q and one has no namespace, "+
+			"give them different %s labels or set a different namespace on each",
+			first.name, namespaceLabel(first.namespace), second.name, namespaceLabel(second.namespace),
+			policyName, v1alpha1.PolicyLabelKey)
+	default:
+		return nil
+	}
+}
+
+func namespaceLabel(namespace string) string {
+	if namespace == "" {
+		return "<none>"
+	}
+	return namespace
+}
+
+func printWorkloadSummary(
+	w io.Writer,
+	p painter,
+	d draftedWorkload,
+	scanned map[string]*scannedImage,
+	warnThreshold int,
+) {
+	fmt.Fprintf(w, "\n%s %s (namespace %s), policy %s\n", d.Kind, d.Name, namespaceLabel(d.Namespace), d.PolicyName)
+
+	containers := make([]draftedContainer, 0, len(d.Containers))
+	for _, c := range d.Containers {
+		containers = append(containers, draftedContainer{
+			Label:   containerLabel(c.Name, c.Init),
+			Image:   c.Image,
+			Scanned: scanned[c.Image],
+		})
+	}
+	printDraftSummary(w, p, containers, warnThreshold)
+
+	if d.LabelPresent {
+		fmt.Fprintf(w, "\nThe pod template already has the label %s: %s\n", v1alpha1.PolicyLabelKey, d.PolicyName)
+		return
+	}
+	fmt.Fprintf(w, "\nAdd this label to the pod template of %s %s:\n  %s: %s\n",
+		d.Kind, d.Name, v1alpha1.PolicyLabelKey, d.PolicyName)
+}

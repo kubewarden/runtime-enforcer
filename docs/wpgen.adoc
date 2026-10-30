@@ -1,0 +1,275 @@
+= wpgen
+
+`wpgen` drafts a `WorkloadPolicy` from the executables found inside container images. It also compares an existing policy with the images of a workload.
+
+`wpgen` does not need a cluster. You can run it on a workstation or in a CI pipeline.
+
+This guide shows the main workflows. For the full list of commands and flags, see the generated link:wpgen/cli-docs.adoc[command reference].
+
+[[draft]]
+== The output is a draft
+
+A container image often contains many executables that the workload never runs. A policy that allows all of them gives little protection. For example, a policy for a Debian or Ubuntu base image can allow several hundred executables.
+
+Use the output of `wpgen` as a starting point:
+
+. Apply the policy in `monitor` mode. This is the default.
+. Look at the violations and at the list of allowed executables.
+. Remove the executables that the workload does not need.
+. Switch the policy to `protect` mode.
+
+When the workload already runs in a cluster, the learn phase of runtime-enforcer is the better way to build a policy. The learn phase records the executables that the workload really runs.
+
+`wpgen` only sees the file system of the image. It does not see:
+
+* Files on volumes that the pod mounts over a path of the image.
+* Files that the workload creates at runtime.
+* Executables from a foreign root.
+
+In `monitor` mode, the enforcer reports these executables as violations. Add them to the policy by hand.
+
+[[install]]
+== Installation
+
+=== Download a pre-built binary
+
+Pre-built binaries for `linux/amd64`, `linux/arm64`, `darwin/amd64`, and `darwin/arm64` are published on each https://github.com/kubewarden/runtime-enforcer/releases[GitHub Release]. Next to each binary, the release has a `.sha256` file with its checksum.
+
+To install the binary for `linux/amd64`:
+
+. Download the binary and its checksum file. Replace `vX.Y.Z` with the tag of a release:
++
+```bash
+VERSION=vX.Y.Z
+BASE_URL="https://github.com/kubewarden/runtime-enforcer/releases/download/${VERSION}"
+curl -fLO "${BASE_URL}/wpgen-linux-amd64"
+curl -fLO "${BASE_URL}/wpgen-linux-amd64.sha256"
+```
++
+To get the latest release, set `BASE_URL` to `https://github.com/kubewarden/runtime-enforcer/releases/latest/download` instead.
+. Make sure that the checksum of the binary is correct:
++
+```bash
+sha256sum --check wpgen-linux-amd64.sha256
+```
++
+If you use macOS, run `shasum -a 256 --check` instead of `sha256sum --check`.
+. Make sure that the release workflow of the repository built the binary. This step needs the GitHub CLI:
++
+```bash
+gh attestation verify wpgen-linux-amd64 --repo kubewarden/runtime-enforcer
+```
+. Install the binary with the name `wpgen`:
++
+```bash
+sudo install -m 0755 wpgen-linux-amd64 /usr/local/bin/wpgen
+```
+
+For another platform, replace `linux-amd64` with `linux-arm64`, `darwin-amd64`, or `darwin-arm64` in all the commands.
+
+=== Build from source
+
+From the repository root:
+
+```bash
+# Current platform
+make wpgen          # output: bin/wpgen
+# All supported platforms at once
+make wpgen-cross    # output: bin/wpgen-dist/wpgen-<os>-<arch>
+```
+
+[[kinds]]
+== What wpgen skips
+
+`wpgen` reads each file with an execute bit and decides what kind of file it is:
+
+* A *program*: an ELF executable, linked dynamically or statically.
+* A *script*: a file that starts with `#!`.
+* A *shared library*: an ELF library, for example `/lib/libz.so.1`. Programs load libraries, but do not run them.
+* An *unknown file*: anything else, for example a certificate file with mode `0755`.
+
+By default, a policy allows only programs and scripts. The summary shows how many files `wpgen` skipped:
+
+```text
+┌───────────┬─────────────┬─────────────┬───────────────────┬───────────────┐
+│ CONTAINER │ IMAGE       │ EXECUTABLES │ SKIPPED LIBRARIES │ SKIPPED OTHER │
+├───────────┼─────────────┼─────────────┼───────────────────┼───────────────┤
+│ main      │ alpine:3.20 │          11 │                10 │             0 │
+└───────────┴─────────────┴─────────────┴───────────────────┴───────────────┘
+Use --include-libraries to keep the skipped shared libraries.
+```
+
+Use `--include-libraries` and `--include-unknown` to keep the skipped files. You need them in two rare cases:
+
+* The workload starts the dynamic loader directly, for example `/lib64/ld-linux-x86-64.so.2 ./binary`. A normal program does not need the loader in its policy, because the kernel starts the loader without an exec event of its own.
+* The workload starts a script without a `#!` line directly from a shell. The enforcer checks the path of the script before the shell runs it, so the policy must allow the script.
+
+In `monitor` mode, the enforcer reports these cases as violations.
+
+[[colors]]
+== Colors
+
+`wpgen` uses colors only for the lines that you must not miss: the verdict of `check`, the `WARNING:` word, the notices about containers that are only in the policy or only in the workload, and errors. The tables have no colors.
+
+By default, `wpgen` uses colors only when the output is a terminal. To turn them off, set the `NO_COLOR` environment variable, or use `--color=never`. To force them, for example in a CI log that shows colors, use `--color=always` or set `CLICOLOR_FORCE=1`.
+
+[[sources]]
+== Where wpgen finds the images
+
+`wpgen` looks for an image in a list of sources, in order, and uses the first source that has the image. The default order is:
+
+. `file`: a tar archive made by `docker save` or `podman save`, an OCI archive, or an OCI layout directory.
+. `docker`: the local Docker daemon.
+. `podman`: the local Podman daemon.
+. `registry`: the remote registry of the image reference.
+
+A daemon source pulls the image into the daemon when the daemon does not have it. To read the image directly from the registry, use `--image-src registry`. This is useful in CI, where a local image can be out of date.
+
+A multi-platform image has one image per platform. `wpgen` selects `linux` with the architecture of the host. Use `--platform` to select another one, for example `--platform linux/arm64`.
+
+`wpgen` stops with an error when the image does not have the selected platform. This is true for every image source, local archives included.
+
+[[image]]
+== Draft a policy from a single image
+
+```bash
+wpgen image ghcr.io/example/api:2.3.0 --container-name api --name api --namespace prod > policy.yaml
+```
+
+The policy has one container. The flags are optional:
+
+* Without `--container-name`, the container is `main`.
+* Without `--name`, the policy name is the last part of the image repository, `api` in this example. For an archive or a directory, the repository comes from the tag stored in the image. When `wpgen` cannot find a name, for example for an OCI layout directory, it uses `todo` and prints a warning. Replace this name before you apply the policy.
+* Without `--namespace`, the policy goes to the `default` namespace.
+
+The container name in the policy must be the same as the container name in the pod. If the names are different, the rules do not apply to the container.
+
+Add the label that `wpgen` prints to the pod template of the workload:
+
+```yaml
+runtimeenforcer.kubewarden.io/policy: api
+```
+
+[[workload]]
+== Draft policies from a workload file
+
+```bash
+wpgen workload ./deploy/nginx.yaml > policies.yaml
+```
+
+`wpgen` writes one policy for each `Deployment`, `ReplicaSet`, `DaemonSet`, `StatefulSet`, `Job`, and `CronJob` in the file. It skips all other documents, and also bare pods. Each policy has one entry for each container and init container.
+
+To read from standard input, use `-` as the file name. For example, with Helm:
+
+```bash
+helm template my-release ./chart | wpgen workload - > policies.yaml
+```
+
+The name of each policy is:
+
+* The value of the `runtimeenforcer.kubewarden.io/policy` label of the pod template, if the label is there.
+* Otherwise, the short kind and the workload name, for example `deploy-nginx`. This is the same name that the learn phase gives to a `WorkloadPolicyProposal`.
+
+The policy has the namespace of the workload. If the workload has no namespace, the policy has none either. Then `kubectl apply -n <namespace>` puts the workload and the policy in the same namespace.
+
+Two workloads cannot use the same policy name in the same namespace. A workload without a namespace can go to any namespace, so its policy name must be unique in the file. If two workloads break this rule, `wpgen` stops with an error.
+
+[[check]]
+== Check a policy against the images
+
+After an image update, a policy can allow paths that no longer exist. `wpgen check` finds them:
+
+```bash
+wpgen check ./policy.yaml --workload ./deploy/nginx.yaml
+```
+
+```text
+Policy deploy-nginx (namespace web)
+
+┌───────────┬───────────────────────────────┬────────┬────────────────────────────────┐
+│ CONTAINER │ PATH                          │ STATUS │ NOTE                           │
+├───────────┼───────────────────────────────┼────────┼────────────────────────────────┤
+│           │ /usr/local/bin/wait-for-it.sh │ stale  │ not an executable in the image │
+│   nginx   │ /usr/sbin/nginx-debug         │ stale  │ not an executable in the image │
+│           │ /docker-entrypoint.sh         │ ok     │                                │
+│           │ /usr/sbin/nginx               │ ok     │                                │
+└───────────┴───────────────────────────────┴────────┴────────────────────────────────┘
+
+┌───────────┬──────────────────────────────┬─────────┬────┬───────┬─────────┬─────────────┐
+│ CONTAINER │ IMAGE                        │ ALLOWED │ OK │ STALE │ SKIPPED │ NOT ALLOWED │
+├───────────┼──────────────────────────────┼─────────┼────┼───────┼─────────┼─────────────┤
+│ nginx     │ docker.io/library/nginx:1.27 │       4 │  2 │     2 │       0 │         502 │
+└───────────┴──────────────────────────────┴─────────┴────┴───────┴─────────┴─────────────┘
+
+2 allowed paths are not executables in the images:
+  nginx: /usr/local/bin/wait-for-it.sh, /usr/sbin/nginx-debug
+```
+
+The first table has one row for each allowed path. The rows of each container start with the paths that need an action: `stale` first, then `skipped`, then `ok`. The second table counts the paths of each status. The last lines, on standard error, are the verdict. They repeat the stale paths, and they count the skipped paths and the containers that `wpgen` did not check.
+
+The policy file must contain one `WorkloadPolicy` or one `WorkloadPolicyProposal`. The workload file must contain one workload. `wpgen` matches the containers of the policy and of the workload by name:
+
+* A container of the workload without rules in the policy, for example a new container, makes the check fail. The enforcer does not protect this container.
+* A container of the policy that is not in the workload is not checked. Its rules have no effect, and the check does not fail.
+
+To check a single image instead of a workload, use `--image`:
+
+```bash
+wpgen check ./policy.yaml --image ghcr.io/example/api:2.3.0 --container-name api
+```
+
+The `STATUS` column has one of these values:
+
+* `stale`: the path is not an executable in the image. A path can be stale after an image update. It can also come from a volume or a foreign root. In that case, keep it in the policy.
+* `skipped`: the path is a shared library or an unknown file. `wpgen` skips these kinds, unless you use `--include-libraries` or `--include-unknown`. A skipped path does not change the exit code.
+* `ok`: the path is an executable in the image.
+* `not allowed`: an executable of the image that the policy does not allow. These rows are shown only with `--list-not-allowed`. Without the flag, the second table shows only their number. For a learned policy, this number is usually high. This is not a problem.
+
+When an allowed path is a symbolic link in the image, the `NOTE` column says so:
+
+```text
+┌───────────┬─────────┬────────┬────────────────────────────────────────────────────┐
+│ CONTAINER │ PATH    │ STATUS │ NOTE                                               │
+├───────────┼─────────┼────────┼────────────────────────────────────────────────────┤
+│    main   │ /bin/sh │ stale  │ symbolic link to /bin/busybox, the enforcer        │
+│           │         │        │ reports the target                                 │
+└───────────┴─────────┴────────┴────────────────────────────────────────────────────┘
+```
+
+The enforcer reports only real paths. Replace the link with the real path in the policy.
+
+The exit code is `1` when at least one allowed path is not an executable in the image, or when a container of the workload has no rules in the policy. Otherwise it is `0`. A CI job can use the exit code to stop a change that makes a policy stale, or that adds a container that the policy does not protect.
+
+When you stop `wpgen` with Ctrl-C, or with the `SIGTERM` signal, all the commands stop and the exit code is `130`.
+
+The default format, `-o table`, is for people. For a machine-readable report, use `-o json`. The document has one entry for each container:
+
+```json
+{
+  "policy": {"name": "deploy-nginx", "namespace": "web"},
+  "containers": [
+    {
+      "name": "nginx",
+      "init": false,
+      "image": "docker.io/library/nginx:1.27",
+      "allowed": ["/usr/local/bin/wait-for-it.sh", "/usr/sbin/nginx", "/usr/sbin/nginx-debug"],
+      "executables": ["/usr/sbin/nginx"],
+      "stale": [
+        {"path": "/usr/local/bin/wait-for-it.sh"},
+        {"path": "/usr/sbin/nginx-debug"}
+      ],
+      "skipped": [],
+      "notAllowedCount": 310
+    }
+  ],
+  "containersOnlyInPolicy": [],
+  "containersOnlyInWorkload": []
+}
+```
+
+* `executables` are the allowed paths that are executables in the image.
+* `stale` are the allowed paths that are not. `linkTarget` is set when the path is a symbolic link.
+* `skipped` are the allowed paths that are shared libraries or unknown files, with their `kind`.
+* `notAllowed`, the list of the executables that the policy does not allow, is present only with `--list-not-allowed`.
+
+The exit code is the same as with the table report.

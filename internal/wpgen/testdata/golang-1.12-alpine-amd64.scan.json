@@ -1,0 +1,438 @@
+{
+  "image": "ghcr.io/kubewarden/sbomscanner/test-assets/golang@sha256:1782cafde43390b032f960c0fad3def745fac18994ced169003cb56e9a93c028",
+  "platform": "linux/amd64",
+  "lookup": [
+    "/bin/busybox",
+    "/bin/sh",
+    "/lib/libz.so.1.2.11",
+    "/usr/bin/gone",
+    "/usr/local/bin/wait-for-it.sh",
+    "/usr/local/go/bin/go",
+    "/usr/local/go/bin/gofmt"
+  ],
+  "executables": [
+    {
+      "path": "/bin/busybox",
+      "kind": "program"
+    },
+    {
+      "path": "/etc/ca-certificates/update.d/certhash",
+      "kind": "script"
+    },
+    {
+      "path": "/etc/network/if-up.d/dad",
+      "kind": "script"
+    },
+    {
+      "path": "/etc/ssl/misc/CA.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/etc/ssl/misc/tsget.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/lib/ld-musl-x86_64.so.1",
+      "kind": "library"
+    },
+    {
+      "path": "/lib/libcrypto.so.1.1",
+      "kind": "library"
+    },
+    {
+      "path": "/lib/libssl.so.1.1",
+      "kind": "library"
+    },
+    {
+      "path": "/lib/libz.so.1.2.11",
+      "kind": "library"
+    },
+    {
+      "path": "/sbin/apk",
+      "kind": "program"
+    },
+    {
+      "path": "/sbin/ldconfig",
+      "kind": "script"
+    },
+    {
+      "path": "/sbin/mkmntdirs",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/bin/c_rehash",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/bin/getconf",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/bin/getent",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/bin/iconv",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/bin/ldd",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/bin/scanelf",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/bin/ssl_client",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/lib/engines-1.1/afalg.so",
+      "kind": "library"
+    },
+    {
+      "path": "/usr/lib/engines-1.1/capi.so",
+      "kind": "library"
+    },
+    {
+      "path": "/usr/lib/engines-1.1/padlock.so",
+      "kind": "library"
+    },
+    {
+      "path": "/usr/lib/libtls-standalone.so.1.0.0",
+      "kind": "library"
+    },
+    {
+      "path": "/usr/local/go/bin/go",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/bin/gofmt",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/doc/articles/wiki/test.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/doc/codewalk/run",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/lib/time/update.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/misc/arm/a",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/misc/benchcmp",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/misc/cgo/fortran/test.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/misc/cgo/testgodefs/test.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/misc/cgo/testplugin/test.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/misc/git/pre-commit",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/misc/ios/clangwrap.sh",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/misc/nacl/go_nacl_386_exec",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/misc/nacl/go_nacl_amd64p32_exec",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/misc/nacl/go_nacl_arm_exec",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/misc/wasm/go_js_wasm_exec",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/addr2line",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/api",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/asm",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/buildid",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/cgo",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/compile",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/cover",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/dist",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/doc",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/fix",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/link",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/nm",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/objdump",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/pack",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/pprof",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/test2json",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/trace",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/pkg/tool/linux_amd64/vet",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/src/all.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/all.rc",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/androidtest.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/bootstrap.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/buildall.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/clean.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/clean.rc",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/cmd/go/mkalldocs.sh",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/cmd/go/testdata/failssh/ssh",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/cmd/vendor/golang.org/x/sys/unix/mkall.sh",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/cmd/vendor/golang.org/x/sys/unix/mkerrors.sh",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/cmd/vendor/golang.org/x/sys/unix/mksyscall_aix_ppc.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/cmd/vendor/golang.org/x/sys/unix/mksyscall_aix_ppc64.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/cmd/vendor/golang.org/x/sys/unix/mksyscall_solaris.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/cmd/vendor/golang.org/x/sys/unix/mksysctl_openbsd.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/cmd/vendor/update-xtools.sh",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/debug/dwarf/testdata/ranges.elf",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/src/debug/dwarf/testdata/typedef.elf",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/src/internal/trace/mkcanned.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/internal/x/fiximports.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/iostest.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/make.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/make.rc",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/naclmake.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/nacltest.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/net/http/cgi/testdata/test.cgi",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/race.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/regexp/syntax/make_perl_groups.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/run.bash",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/run.rc",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/runtime/pprof/testdata/test32",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/src/runtime/pprof/testdata/test32be",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/src/runtime/pprof/testdata/test64",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/src/runtime/pprof/testdata/test64be",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mkall.sh",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mkerrors.sh",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mksyscall.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mksyscall_libc.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mksysctl_openbsd.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mksysnum_darwin.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mksysnum_dragonfly.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mksysnum_freebsd.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mksysnum_linux.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mksysnum_netbsd.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mksysnum_openbsd.pl",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/local/go/src/syscall/mksysnum_plan9.sh",
+      "kind": "script"
+    },
+    {
+      "path": "/usr/sbin/update-ca-certificates",
+      "kind": "program"
+    },
+    {
+      "path": "/usr/share/udhcpc/default.script",
+      "kind": "script"
+    }
+  ],
+  "links": {
+    "/bin/sh": "/bin/busybox"
+  }
+}

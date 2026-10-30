@@ -1,0 +1,4 @@
+
+No allowed path is stale.
+
+1 container of the policy was not checked: it is not in Deployment "api".

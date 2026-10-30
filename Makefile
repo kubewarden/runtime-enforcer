@@ -58,7 +58,7 @@ TARGET=controller agent debugger
 $(foreach T,$(TARGET),$(eval $(call BUILD_template,$(T))))
 
 .PHONY: generate
-generate: manifests generate-ebpf generate-proto generate-api generate-crd-docs generate-chart generate-kubectl-plugin-docs
+generate: manifests generate-ebpf generate-proto generate-api generate-crd-docs generate-chart generate-kubectl-plugin-docs generate-wpgen-docs
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 .PHONY: fmt
@@ -79,7 +79,15 @@ generate-crd-docs: ## Generate CRD documentation.
 
 .PHONY: generate-kubectl-plugin-docs
 generate-kubectl-plugin-docs: ## Generate kubectl plugin docs.
-	go run ./internal/tools/docgen -out docs/kubectl-plugin/cli-docs.adoc
+	go run ./internal/tools/docgen -tool kubectl-plugin -out docs/kubectl-plugin/cli-docs.adoc
+
+.PHONY: generate-wpgen-docs
+generate-wpgen-docs: ## Generate wpgen docs.
+	go run ./internal/tools/docgen -tool wpgen -out docs/wpgen/cli-docs.adoc
+
+.PHONY: generate-wpgen-fixtures
+generate-wpgen-fixtures: ## Rescan the images of the wpgen test fixtures. Needs network access.
+	go run ./hack/generate_wpgen_fixtures.go ./internal/wpgen/testdata
 
 .PHONY: test
 test: generate-ebpf vet setup-envtest ## Run tests.
@@ -140,6 +148,30 @@ kubectl-plugin-cross: ## Build kubectl plugin for all target platforms.
 			./cmd/kubectl-plugin; \
 	done
 	@echo "Cross-build complete. Artifacts in bin/kubectl-plugin/"
+
+WPGEN_VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+
+# Platforms for cross-compilation of wpgen
+WPGEN_PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
+
+.PHONY: wpgen
+wpgen: ## Build wpgen for the current platform.
+	CGO_ENABLED=0 go build -ldflags "-X github.com/kubewarden/runtime-enforcer/internal/wpgen.version=$(WPGEN_VERSION)" -o ./bin/wpgen ./cmd/wpgen
+
+.PHONY: wpgen-cross
+wpgen-cross: ## Build wpgen for all target platforms.
+	@mkdir -p bin/wpgen-dist
+	@for platform in $(WPGEN_PLATFORMS); do \
+		os=$$(echo $$platform | cut -d/ -f1); \
+		arch=$$(echo $$platform | cut -d/ -f2); \
+		out=bin/wpgen-dist/wpgen-$$os-$$arch; \
+		echo "Building $$out ..."; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build \
+			-ldflags "-X github.com/kubewarden/runtime-enforcer/internal/wpgen.version=$(WPGEN_VERSION)" \
+			-o $$out \
+			./cmd/wpgen; \
+	done
+	@echo "Cross-build complete. Artifacts in bin/wpgen-dist/"
 
 .PHONY: debugger
 debugger: generate-ebpf fmt ## Build debugger binary.

@@ -203,11 +203,12 @@ func runCheck(
 
 	s.separate()
 	if opts.Output == outputJSON {
-		if err = renderCheckJSON(s.out, result, opts.ListNotAllowed); err != nil {
-			return err
-		}
+		err = renderCheckJSON(s.out, result, opts.ListNotAllowed)
 	} else {
-		renderCheckTable(s.out, s.outPainter, result, opts.ListNotAllowed)
+		err = renderCheckTable(s.out, s.outPainter, result, opts.ListNotAllowed)
+	}
+	if err != nil {
+		return err
 	}
 
 	return printVerdict(s.err, s.errPainter, result)
@@ -485,7 +486,11 @@ func containerRows(r containerReport, listNotAllowed bool) []checkRow {
 	return rows
 }
 
-func renderCheckTable(w io.Writer, p painter, result *checkResult, listNotAllowed bool) {
+// renderCheckTable writes the table report. It returns the first write error:
+// the report is the data of the command, and a lost report is a failure.
+func renderCheckTable(out io.Writer, p painter, result *checkResult, listNotAllowed bool) error {
+	w := &stickyWriter{w: out}
+
 	namespace := result.Policy.Namespace
 	if namespace == "" {
 		namespace = "<none>"
@@ -537,6 +542,11 @@ func renderCheckTable(w io.Writer, p painter, result *checkResult, listNotAllowe
 		})
 	}
 	renderTable(w, summary)
+
+	if w.err != nil {
+		return fmt.Errorf("cannot write the table report: %w", w.err)
+	}
+	return nil
 }
 
 type jsonPolicy struct {

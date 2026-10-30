@@ -163,6 +163,22 @@ func renderTable(w io.Writer, t table.Writer) {
 	fmt.Fprintln(w, t.Render())
 }
 
+// stickyWriter keeps the first write error of w, and skips the writes after
+// it. A report has many writes: the caller checks the error once, at the end.
+type stickyWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (s *stickyWriter) Write(p []byte) (int, error) {
+	if s.err != nil {
+		return 0, s.err
+	}
+	n, err := s.w.Write(p)
+	s.err = err
+	return n, err
+}
+
 // reportedError is an error that the command already reported to the user,
 // so Execute does not print it again.
 type reportedError struct {

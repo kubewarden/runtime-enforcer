@@ -145,3 +145,42 @@ func TestReportedError(t *testing.T) {
 	assert.True(t, isReported(fmt.Errorf("wrapped: %w", reported)))
 	assert.False(t, isReported(errors.New("other")))
 }
+
+var errNoSpace = errors.New("no space left on device")
+
+// failingWriter fails every write, like a full disk.
+type failingWriter struct {
+	writes int
+}
+
+func (f *failingWriter) Write([]byte) (int, error) {
+	f.writes++
+	return 0, errNoSpace
+}
+
+func TestStickyWriter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("passes the writes through", func(t *testing.T) {
+		t.Parallel()
+
+		var out bytes.Buffer
+		w := &stickyWriter{w: &out}
+		fmt.Fprint(w, "first ")
+		fmt.Fprint(w, "second")
+		require.NoError(t, w.err)
+		assert.Equal(t, "first second", out.String())
+	})
+
+	t.Run("keeps the first error and skips the next writes", func(t *testing.T) {
+		t.Parallel()
+
+		out := &failingWriter{}
+		w := &stickyWriter{w: out}
+		fmt.Fprint(w, "first")
+		_, err := fmt.Fprint(w, "second")
+		require.ErrorIs(t, err, errNoSpace)
+		require.ErrorIs(t, w.err, errNoSpace)
+		assert.Equal(t, 1, out.writes, "the writes after the error do not reach the writer")
+	})
+}

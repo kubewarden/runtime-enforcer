@@ -5,6 +5,7 @@ package wpgen
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 )
@@ -55,18 +56,32 @@ over both.`,
 	return cmd
 }
 
+// exitInterrupted is the exit code when a signal stops wpgen. It is the code
+// that a shell uses after Ctrl-C: 128 + SIGINT.
+const exitInterrupted = 130
+
 // Execute runs wpgen and returns the exit code. It prints the error of the
 // command, unless the command already reported it.
 func Execute(ctx context.Context) int {
 	g := newGlobalOptions()
 	cmd := newRootCmd(g)
 	err := cmd.ExecuteContext(ctx)
-	if err == nil {
+	stderr := cmd.ErrOrStderr()
+	return exitCode(ctx, err, stderr, g.painter(stderr))
+}
+
+// exitCode prints the error of the command on stderr and returns the exit
+// code. When ctx is cancelled, a signal stopped the command: the error is
+// only a consequence, so exitCode prints the cause instead.
+func exitCode(ctx context.Context, err error, stderr io.Writer, p painter) int {
+	switch {
+	case err == nil:
 		return 0
-	}
-	if !isReported(err) {
-		stderr := cmd.ErrOrStderr()
-		fmt.Fprintf(stderr, "%s %v\n", g.painter(stderr).failure("Error:"), err)
+	case ctx.Err() != nil:
+		fmt.Fprintf(stderr, "%s %v\n", p.failure("Interrupted:"), context.Cause(ctx))
+		return exitInterrupted
+	case !isReported(err):
+		fmt.Fprintf(stderr, "%s %v\n", p.failure("Error:"), err)
 	}
 	return 1
 }

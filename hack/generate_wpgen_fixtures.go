@@ -66,7 +66,7 @@ func update(ctx context.Context, file string) error {
 	}
 	defer img.Cleanup()
 
-	snapshot, err := imagescan.TakeSnapshot(img.Image, old.Image, old.Platform, old.Lookup)
+	snapshot, err := imagescan.TakeSnapshot(ctx, img.Image, old.Image, old.Platform, old.Lookup)
 	if err != nil {
 		return err
 	}

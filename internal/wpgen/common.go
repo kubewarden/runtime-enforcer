@@ -153,7 +153,7 @@ func scanImage(
 	}()
 	fmt.Fprintf(stderr, "Loaded image %q from source %q (%s)\n", input, img.Source, imagePlatform(img.Metadata))
 
-	result, err := imagescan.Scan(img.Image, lookup)
+	result, err := imagescan.Scan(ctx, img.Image, lookup)
 	if err != nil {
 		return nil, fmt.Errorf("cannot scan image %q: %w", input, err)
 	}

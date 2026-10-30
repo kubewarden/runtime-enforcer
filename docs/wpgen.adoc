@@ -220,6 +220,8 @@ The enforcer reports only real paths. Replace the link with the real path in the
 
 The exit code is `1` when at least one allowed path is not an executable in the image. Otherwise it is `0`. A CI job can use the exit code to stop a change that makes a policy stale.
 
+When you stop `wpgen` with Ctrl-C, or with the `SIGTERM` signal, all the commands stop and the exit code is `130`.
+
 The default format, `-o table`, is for people. For a machine-readable report, use `-o json`. The document has one entry for each container:
 
 ```json

@@ -24,10 +24,10 @@ func TestTakeSnapshot(t *testing.T) {
 	// the file tree. The snapshot must resolve it as wpgen does.
 	lookup := []string{"/bin/sh", "/usr/bin/busybox", "/bin/sh", "/usr/bin/missing"}
 
-	snapshot, err := imagescan.TakeSnapshot(img.Image, "example:1", "linux/amd64", lookup)
+	snapshot, err := imagescan.TakeSnapshot(t.Context(), img.Image, "example:1", "linux/amd64", lookup)
 	require.NoError(t, err)
 
-	want, err := imagescan.Scan(img.Image, lookup)
+	want, err := imagescan.Scan(t.Context(), img.Image, lookup)
 	require.NoError(t, err)
 	assert.Equal(t, want.Executables, snapshot.Executables, "the snapshot is the result of Scan")
 	assert.Equal(t, want.Links, snapshot.Links, "the snapshot is the result of Scan")

@@ -78,6 +78,10 @@ func ValidateSources(sources []string) error {
 // Load resolves the user input to an image. It tries each source in order
 // and returns the first image found. When every source fails, the returned
 // error contains the error of each source.
+//
+// When opts.Platform is set, an image of another platform is a failure of
+// its source. Most sources of stereoscope check the platform themselves,
+// but not all of them: the Docker archive source ignores it.
 func Load(ctx context.Context, input string, opts LoadOptions) (*Image, error) {
 	sources := opts.Sources
 	if len(sources) == 0 {
@@ -87,14 +91,26 @@ func Load(ctx context.Context, input string, opts LoadOptions) (*Image, error) {
 		return nil, err
 	}
 
-	var stereoOpts []stereoscope.Option
+	var (
+		stereoOpts []stereoscope.Option
+		platform   *image.Platform
+	)
 	if opts.Platform != "" {
+		var err error
+		if platform, err = image.NewPlatform(opts.Platform); err != nil {
+			return nil, fmt.Errorf("invalid platform: %w", err)
+		}
 		stereoOpts = append(stereoOpts, stereoscope.WithPlatform(opts.Platform))
 	}
 
 	var errs []error
 	for _, source := range sources {
 		img, err := stereoscope.GetImageFromSource(ctx, input, source, stereoOpts...)
+		if err == nil && platform != nil {
+			if err = checkPlatform(img, platform); err != nil {
+				err = errors.Join(err, img.Cleanup())
+			}
+		}
 		if err == nil {
 			return &Image{Image: img, Source: source}, nil
 		}
@@ -105,6 +121,27 @@ func Load(ctx context.Context, input string, opts LoadOptions) (*Image, error) {
 	}
 
 	return nil, fmt.Errorf("cannot load image %q: %w", input, errors.Join(errs...))
+}
+
+// checkPlatform returns an error when the platform of the image is not the
+// wanted one. The variant must match only when the wanted platform has one,
+// as in stereoscope. An image without a platform in its configuration does
+// not match.
+func checkPlatform(img *image.Image, want *image.Platform) error {
+	declared := image.Platform{
+		OS:           img.Metadata.OS,
+		Architecture: img.Metadata.Architecture,
+		Variant:      img.Metadata.Variant,
+	}
+	got, err := image.NewPlatform(declared.String())
+	if err == nil && got.OS == want.OS && got.Architecture == want.Architecture &&
+		(want.Variant == "" || got.Variant == want.Variant) {
+		return nil
+	}
+	return &image.ErrPlatformMismatch{
+		ExpectedPlatform: want.String(),
+		Err:              fmt.Errorf("image platform=%q", declared.String()),
+	}
 }
 
 // CleanupAll removes the root temporary directory of stereoscope. Call it

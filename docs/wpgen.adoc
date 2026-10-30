@@ -116,6 +116,8 @@ A daemon source pulls the image into the daemon when the daemon does not have it
 
 A multi-platform image has one image per platform. `wpgen` selects `linux` with the architecture of the host. Use `--platform` to select another one, for example `--platform linux/arm64`.
 
+`wpgen` stops with an error when the image does not have the selected platform. This is true for every image source, local archives included.
+
 [[image]]
 == Draft a policy from a single image
 

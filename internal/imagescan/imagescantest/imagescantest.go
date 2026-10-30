@@ -6,8 +6,11 @@ import (
 	"bytes"
 	"debug/elf"
 	"io"
+	"path/filepath"
+	"runtime"
 	"testing"
 
+	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
@@ -103,10 +106,54 @@ func NewLayer(t *testing.T, entries ...Entry) v1.Layer {
 	return layer
 }
 
-// WriteOCIDir stores a linux/amd64 image made of the given layers in a new
-// OCI layout directory and returns the path of the directory.
+// HostPlatform is the platform that the commands select by default:
+// linux with the architecture of the host.
+func HostPlatform() string {
+	return "linux/" + runtime.GOARCH
+}
+
+// WriteOCIDir stores an image of the host platform, made of the given
+// layers, in a new OCI layout directory and returns the path of the
+// directory. The commands select the host platform by default, so they find
+// the image without --platform on every host.
 func WriteOCIDir(t *testing.T, layers ...v1.Layer) string {
 	t.Helper()
+
+	return WriteOCIDirFor(t, HostPlatform(), layers...)
+}
+
+// WriteOCIDirFor is WriteOCIDir for an image that declares the given
+// platform, for example "linux/arm64".
+func WriteOCIDirFor(t *testing.T, platform string, layers ...v1.Layer) string {
+	t.Helper()
+
+	path := t.TempDir()
+	lp, err := layout.Write(path, empty.Index)
+	require.NoError(t, err)
+	require.NoError(t, lp.AppendImage(newImage(t, platform, layers...)))
+	return path
+}
+
+// WriteDockerArchive stores an image that declares the given platform in a
+// new archive in the format of "docker save", and returns the path of the
+// archive.
+func WriteDockerArchive(t *testing.T, platform string, layers ...v1.Layer) string {
+	t.Helper()
+
+	tag, err := name.NewTag("registry.example/test:1")
+	require.NoError(t, err)
+	path := filepath.Join(t.TempDir(), "image.tar")
+	require.NoError(t, tarball.WriteToFile(path, tag, newImage(t, platform, layers...)))
+	return path
+}
+
+// newImage returns an image made of the layers, with the platform in its
+// configuration.
+func newImage(t *testing.T, platform string, layers ...v1.Layer) v1.Image {
+	t.Helper()
+
+	p, err := v1.ParsePlatform(platform)
+	require.NoError(t, err)
 
 	img, err := mutate.AppendLayers(empty.Image, layers...)
 	require.NoError(t, err)
@@ -114,16 +161,12 @@ func WriteOCIDir(t *testing.T, layers ...v1.Layer) string {
 	cfg, err := img.ConfigFile()
 	require.NoError(t, err)
 	cfg = cfg.DeepCopy()
-	cfg.OS = "linux"
-	cfg.Architecture = "amd64"
+	cfg.OS = p.OS
+	cfg.Architecture = p.Architecture
+	cfg.Variant = p.Variant
 	img, err = mutate.ConfigFile(img, cfg)
 	require.NoError(t, err)
-
-	path := t.TempDir()
-	lp, err := layout.Write(path, empty.Index)
-	require.NoError(t, err)
-	require.NoError(t, lp.AppendImage(img))
-	return path
+	return img
 }
 
 // Load loads an image with imagescan.Load and removes its temporary files

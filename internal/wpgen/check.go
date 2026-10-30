@@ -93,6 +93,15 @@ func (r *checkResult) stale() int {
 	return n
 }
 
+// skipped returns the number of skipped paths of all the containers.
+func (r *checkResult) skipped() int {
+	n := 0
+	for _, c := range r.Containers {
+		n += len(c.Libraries) + len(c.Unknown)
+	}
+	return n
+}
+
 func newCheckCmd(g *globalOptions) *cobra.Command {
 	opts := &checkOptions{}
 
@@ -119,8 +128,14 @@ the image. This happens after an image update that removes a file. It also
 happens for a path on a volume or in a foreign root: keep these paths in the
 policy if the workload needs them.
 
+The exit code is also 1 when a container of the workload has no rules in the
+policy, for example a new container. The enforcer does not protect such a
+container.
+
 The report goes to standard output, as a table or as JSON. Other messages go
-to standard error.`,
+to standard error. The last lines on standard error are the verdict. They
+also count the allowed paths that wpgen skipped, and the containers of the
+policy that it did not check.`,
 		Example: `  # Compare a policy with the images of a Deployment
   wpgen check ./policy.yaml --workload ./deploy/nginx.yaml
 
@@ -231,25 +246,70 @@ func printMismatches(w io.Writer, p painter, result *checkResult) {
 }
 
 // printVerdict prints the result of the check. It returns an error, already
-// reported, when an allowed path is not an executable in the image.
+// reported, when an allowed path is stale, or when a container of the
+// workload has no rules in the policy: the enforcer does not protect such a
+// container. Then it adds a note for each thing that the check did not cover.
 func printVerdict(w io.Writer, p painter, result *checkResult) error {
-	stale := result.stale()
-	if stale == 0 {
-		fmt.Fprintf(w, "\n%s\n", p.success("All allowed paths are executables in the images."))
-		return nil
+	var problems []string
+
+	if stale := result.stale(); stale > 0 {
+		msg := count(stale, "allowed path is not an executable in the images",
+			"allowed paths are not executables in the images")
+		fmt.Fprintf(w, "\n%s\n", p.failure(msg+":"))
+		for _, r := range result.Containers {
+			if len(r.Stale) > 0 {
+				fmt.Fprintf(w, "  %s: %s\n", containerLabel(r.Name, r.Init), strings.Join(r.Stale, ", "))
+			}
+		}
+		problems = append(problems, msg)
 	}
 
-	msg := fmt.Sprintf("%d allowed paths are not executables in the images", stale)
-	if stale == 1 {
-		msg = "1 allowed path is not an executable in the images"
+	if n := len(result.OnlyInWorkload); n > 0 {
+		msg := count(n, "container of the workload has no rules in the policy",
+			"containers of the workload have no rules in the policy")
+		pronoun := "it"
+		if n > 1 {
+			pronoun = "them"
+		}
+		fmt.Fprintf(w, "\n%s\n", p.failure(fmt.Sprintf("%s, so the enforcer does not protect %s:", msg, pronoun)))
+		fmt.Fprintf(w, "  %s\n", strings.Join(result.OnlyInWorkload, ", "))
+		problems = append(problems, msg)
 	}
-	fmt.Fprintf(w, "\n%s\n", p.failure(msg+":"))
-	for _, r := range result.Containers {
-		if len(r.Stale) > 0 {
-			fmt.Fprintf(w, "  %s: %s\n", containerLabel(r.Name, r.Init), strings.Join(r.Stale, ", "))
+
+	if len(problems) == 0 {
+		fmt.Fprintf(w, "\n%s\n", p.success("No allowed path is stale."))
+	}
+
+	var notes []string
+	if skipped := result.skipped(); skipped > 0 {
+		notes = append(notes, count(skipped,
+			"allowed path was skipped: it is a shared library, or a file that is neither a program nor a script.",
+			"allowed paths were skipped: they are shared libraries, or files that are neither programs nor scripts."))
+	}
+	if n := len(result.OnlyInPolicy); n > 0 {
+		notes = append(notes, count(n,
+			"container of the policy was not checked: it is not in "+result.Workload+".",
+			"containers of the policy were not checked: they are not in "+result.Workload+"."))
+	}
+	if len(notes) > 0 {
+		fmt.Fprintln(w)
+		for _, note := range notes {
+			fmt.Fprintln(w, p.notice(note))
 		}
 	}
-	return &reportedError{msg: msg}
+
+	if len(problems) > 0 {
+		return &reportedError{msg: strings.Join(problems, ", and ")}
+	}
+	return nil
+}
+
+// count returns n followed by the singular or the plural text.
+func count(n int, singular, plural string) string {
+	if n == 1 {
+		return "1 " + singular
+	}
+	return fmt.Sprintf("%d %s", n, plural)
 }
 
 func readPolicy(file string, stdin io.Reader, stderr io.Writer) (*v1alpha1.WorkloadPolicy, error) {

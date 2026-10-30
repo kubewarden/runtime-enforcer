@@ -103,15 +103,38 @@ func TestPrintVerdict(t *testing.T) {
 	t.Parallel()
 
 	clean := tinyResult()
+	clean.OnlyInPolicy, clean.OnlyInWorkload = nil, nil
 	clean.Containers = []containerReport{compare(checked("/bin/busybox"), tinyImage())}
+
+	notChecked := tinyResult()
+	notChecked.OnlyInWorkload = nil
+	notChecked.Containers = clean.Containers
+
+	staleAndNewContainer := snapshotResult(t)
+	staleAndNewContainer.Workload = `Deployment "web"`
+	staleAndNewContainer.OnlyInWorkload = []string{"sidecar"}
 
 	tests := []struct {
 		name   string
 		result *checkResult
 		err    string
 	}{
-		{name: "verdict-stale", result: snapshotResult(t), err: "2 allowed paths are not executables in the images"},
 		{name: "verdict-clean", result: clean},
+		{name: "verdict-stale", result: snapshotResult(t), err: "2 allowed paths are not executables in the images"},
+		{
+			// tinyResult has a container only in the workload, a container
+			// only in the policy, and a skipped path.
+			name:   "verdict-new-container",
+			result: tinyResult(),
+			err:    "1 container of the workload has no rules in the policy",
+		},
+		{name: "verdict-not-checked", result: notChecked},
+		{
+			name:   "verdict-stale-and-new-container",
+			result: staleAndNewContainer,
+			err: "2 allowed paths are not executables in the images, " +
+				"and 1 container of the workload has no rules in the policy",
+		},
 	}
 
 	for _, tt := range tests {

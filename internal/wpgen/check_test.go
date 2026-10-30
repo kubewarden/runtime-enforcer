@@ -80,13 +80,41 @@ func TestCheckCmdWorkload(t *testing.T) {
 	stdout, stderr, err := runWpgen(t, "check", policy,
 		"--workload", wpt.WriteFile(t, workload), "--image-src", "oci-dir")
 
-	require.EqualError(t, err, "1 allowed path is not an executable in the images")
+	require.EqualError(t, err, "1 allowed path is not an executable in the images, "+
+		"and 1 container of the workload has no rules in the policy")
 	assert.True(t, strings.HasPrefix(stdout, "Policy deploy-web (namespace prod)\n"), "the report goes to stdout")
 	assert.Contains(t, stdout, "/usr/local/bin/gone")
 	assert.Equal(t, 1, strings.Count(stderr, fmt.Sprintf("Loading image %q", img)), "each image is scanned once")
 	assert.Contains(t, stderr, `The policy has no rules for container "unknown" of Deployment "web".`)
 	assert.Equal(t, 1, strings.Count(stderr, "1 allowed path is not an executable in the images"),
 		"the verdict is printed once")
+	assert.Contains(t, stderr, "1 container of the workload has no rules in the policy, "+
+		"so the enforcer does not protect it:\n  unknown\n")
+}
+
+// TestCheckCmdNewContainer checks a policy made for two containers against a
+// workload with a third, new container. Nothing is stale, but the enforcer
+// does not protect the new container, so the check fails.
+func TestCheckCmdNewContainer(t *testing.T) {
+	t.Parallel()
+
+	img := busyboxImage(t)
+	workload := deploymentWith(
+		corev1.Container{Name: "shell", Image: img},
+		corev1.Container{Name: "tools", Image: img},
+		corev1.Container{Name: "sidecar", Image: img},
+	)
+	policy := writePolicies(t, newPolicy(t, map[string][]string{
+		"shell": {"/usr/bin/busybox"},
+		"tools": {"/usr/bin/extra"},
+	}))
+
+	_, stderr, err := runWpgen(t, "check", policy,
+		"--workload", wpt.WriteFile(t, workload), "--image-src", "oci-dir")
+
+	require.EqualError(t, err, "1 container of the workload has no rules in the policy")
+	assert.Contains(t, stderr, "so the enforcer does not protect it:\n  sidecar\n")
+	assert.NotContains(t, stderr, "No allowed path is stale")
 }
 
 func TestCheckCmdImage(t *testing.T) {
@@ -103,7 +131,7 @@ func TestCheckCmdImage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "sidecar")
 	assert.NotContains(t, stdout, "/usr/bin/busybox", "only the chosen container is checked")
-	assert.Contains(t, stderr, "All allowed paths are executables in the images.")
+	assert.Contains(t, stderr, "No allowed path is stale.")
 }
 
 // TestCheckCmdReportWriteError checks that a report that cannot be written
@@ -126,7 +154,7 @@ func TestCheckCmdReportWriteError(t *testing.T) {
 
 			err := cmd.ExecuteContext(t.Context())
 			require.ErrorIs(t, err, errNoSpace)
-			assert.NotContains(t, stderr.String(), "All allowed paths are executables",
+			assert.NotContains(t, stderr.String(), "No allowed path is stale",
 				"no verdict when the report is lost")
 		})
 	}

@@ -1,0 +1,6 @@
+
+1 container of the workload has no rules in the policy, so the enforcer does not protect it:
+  sidecar
+
+1 allowed path was skipped: it is a shared library, or a file that is neither a program nor a script.
+1 container of the policy was not checked: it is not in Deployment "api".

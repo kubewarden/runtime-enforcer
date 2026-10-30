@@ -1,3 +1,5 @@
 
 2 allowed paths are not executables in the images:
   main: /bin/sh, /usr/local/bin/wait-for-it.sh
+
+1 allowed path was skipped: it is a shared library, or a file that is neither a program nor a script.

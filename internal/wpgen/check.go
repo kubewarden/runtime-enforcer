@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -78,7 +77,7 @@ policy that it did not check.`,
   wpgen check ./policy.yaml --workload ./deploy/nginx.yaml -o json --list-not-allowed`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd.Context(), args[0], opts, newContextReader(cmd.Context(), cmd.InOrStdin()),
+			return runCheck(cmd.Context(), args[0], opts, cmd.InOrStdin(),
 				g.streams(cmd.OutOrStdout(), cmd.ErrOrStderr()))
 		},
 	}
@@ -127,7 +126,7 @@ func runCheck(
 		return err
 	}
 
-	policy, err := readPolicy(policyFile, stdin, s.err)
+	policy, err := readPolicy(ctx, policyFile, stdin, s.err)
 	if err != nil {
 		return err
 	}
@@ -139,7 +138,7 @@ func runCheck(
 	if opts.Image != "" {
 		containers, err = imageContainers(policy, opts.Image, opts.ContainerName)
 	} else {
-		containers, match, err = workloadContainers(policy, opts.Workload, stdin, s.err)
+		containers, match, err = workloadContainers(ctx, policy, opts.Workload, stdin, s.err)
 	}
 	if err != nil {
 		return err
@@ -164,16 +163,17 @@ func runCheck(
 	return printVerdict(s.err, s.errPainter, result)
 }
 
-func readPolicy(file string, stdin io.Reader, stderr io.Writer) (*v1alpha1.WorkloadPolicy, error) {
-	r := stdin
-	if file != stdinFile {
-		f, err := os.Open(file)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-		r = f
+func readPolicy(
+	ctx context.Context,
+	file string,
+	stdin io.Reader,
+	stderr io.Writer,
+) (*v1alpha1.WorkloadPolicy, error) {
+	r, err := openInput(ctx, file, stdin)
+	if err != nil {
+		return nil, err
 	}
+	defer r.Close()
 
 	policies, skipped, err := policydraft.Decode(r)
 	if err != nil {
@@ -192,12 +192,13 @@ func readPolicy(file string, stdin io.Reader, stderr io.Writer) (*v1alpha1.Workl
 // workloadContainers returns the containers that are both in the policy and
 // in the one workload of the file, and the match of the containers of both.
 func workloadContainers(
+	ctx context.Context,
 	policy *v1alpha1.WorkloadPolicy,
 	file string,
 	stdin io.Reader,
 	stderr io.Writer,
 ) ([]checkedContainer, workloadMatch, error) {
-	workloads, err := readWorkloads(file, stdin, stderr)
+	workloads, err := readWorkloads(ctx, file, stdin, stderr)
 	if err != nil {
 		return nil, workloadMatch{}, err
 	}

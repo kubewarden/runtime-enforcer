@@ -267,6 +267,99 @@ func TestExecutablesKinds(t *testing.T) {
 	}
 }
 
+// TestExecutablesCrossLayerHardLink covers hard links to a file of a lower
+// layer. At runtime, the link keeps the contents that its target had when the
+// link was created, whatever the later layers do with the target.
+func TestExecutablesCrossLayerHardLink(t *testing.T) {
+	t.Parallel()
+
+	program := []ist.Entry{ist.Dir("bin/"), ist.Reg("bin/a", 0o755)}
+	link := []ist.Entry{ist.Dir("bin/"), ist.Hardlink("bin/b", "bin/a", 0o755)}
+
+	tests := []struct {
+		name     string
+		layers   [][]ist.Entry
+		expected []imagescan.Executable
+	}{
+		{
+			name:   "target unchanged",
+			layers: [][]ist.Entry{program, link},
+			expected: []imagescan.Executable{
+				{Path: "/bin/a", Kind: imagescan.KindProgram},
+				{Path: "/bin/b", Kind: imagescan.KindProgram},
+			},
+		},
+		{
+			name:   "target replaced by a shared library",
+			layers: [][]ist.Entry{program, link, {ist.Dir("bin/"), ist.Library("bin/a", 0o755)}},
+			expected: []imagescan.Executable{
+				{Path: "/bin/a", Kind: imagescan.KindLibrary},
+				{Path: "/bin/b", Kind: imagescan.KindProgram},
+			},
+		},
+		{
+			name:   "target replaced by a script",
+			layers: [][]ist.Entry{program, link, {ist.Dir("bin/"), ist.Script("bin/a", 0o755)}},
+			expected: []imagescan.Executable{
+				{Path: "/bin/a", Kind: imagescan.KindScript},
+				{Path: "/bin/b", Kind: imagescan.KindProgram},
+			},
+		},
+		{
+			name:     "target deleted",
+			layers:   [][]ist.Entry{program, link, {ist.Dir("bin/"), ist.Reg("bin/.wh.a", 0o644)}},
+			expected: []imagescan.Executable{{Path: "/bin/b", Kind: imagescan.KindProgram}},
+		},
+		{
+			name: "chain of links, then target replaced",
+			layers: [][]ist.Entry{
+				program,
+				link,
+				{ist.Dir("bin/"), ist.Hardlink("bin/c", "bin/b", 0o755)},
+				{ist.Dir("bin/"), ist.Library("bin/a", 0o755), ist.Library("bin/b", 0o755)},
+			},
+			expected: []imagescan.Executable{
+				{Path: "/bin/a", Kind: imagescan.KindLibrary},
+				{Path: "/bin/b", Kind: imagescan.KindLibrary},
+				{Path: "/bin/c", Kind: imagescan.KindProgram},
+			},
+		},
+		{
+			name: "link to a shared library, then target replaced by a program",
+			layers: [][]ist.Entry{
+				{ist.Dir("lib/"), ist.Library("lib/libz.so.1", 0o755)},
+				{ist.Dir("lib/"), ist.Hardlink("lib/libz.so", "lib/libz.so.1", 0o755)},
+				{ist.Dir("lib/"), ist.Reg("lib/libz.so.1", 0o755)},
+			},
+			expected: []imagescan.Executable{
+				{Path: "/lib/libz.so", Kind: imagescan.KindLibrary},
+				{Path: "/lib/libz.so.1", Kind: imagescan.KindProgram},
+			},
+		},
+		{
+			name:     "target missing from the lower layers",
+			layers:   [][]ist.Entry{{ist.Dir("bin/")}, link},
+			expected: []imagescan.Executable{{Path: "/bin/b", Kind: imagescan.KindProgram}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			layers := make([]v1.Layer, 0, len(tt.layers))
+			for _, entries := range tt.layers {
+				layers = append(layers, ist.NewLayer(t, entries...))
+			}
+			img := ist.LoadOCIDir(t, ist.WriteOCIDir(t, layers...))
+
+			got, err := imagescan.Executables(t.Context(), img.Image)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
 // linksImage has a program, symbolic links to it, and a dangling link.
 func linksImage(t *testing.T) *imagescan.Image {
 	t.Helper()

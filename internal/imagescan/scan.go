@@ -3,6 +3,7 @@ package imagescan
 import (
 	"context"
 	"fmt"
+	"path"
 	"slices"
 	"strings"
 
@@ -25,7 +26,8 @@ type Executable struct {
 // A file is executable when it is a regular file, or a hard link, with at
 // least one execute permission bit set. Symbolic links are skipped: the
 // kernel resolves them before the enforcer sees the exec event, so the
-// enforcer always reports the path of the real file.
+// enforcer always reports the path of the real file. A hard link has the
+// kind of the file that it named when a layer created it, as at runtime.
 //
 // Executables reads the start of each executable file. It stops with the
 // error of ctx when ctx is cancelled.
@@ -45,7 +47,7 @@ func Executables(ctx context.Context, img *image.Image) ([]Executable, error) {
 			continue
 		}
 
-		kind, err := classifyPath(img, ref.RealPath)
+		kind, err := classifyFile(img, ref, entry)
 		if err != nil {
 			return nil, err
 		}
@@ -56,18 +58,65 @@ func Executables(ctx context.Context, img *image.Image) ([]Executable, error) {
 	return slices.CompactFunc(executables, func(a, b Executable) bool { return a.Path == b.Path }), nil
 }
 
-func classifyPath(img *image.Image, p file.Path) (Kind, error) {
-	rc, err := img.OpenPathFromSquash(p)
+// classifyFile returns the kind of the file. It reads the contents that the
+// file has at runtime, and not the contents of its path in the squashed tree,
+// which can be wrong for a hard link.
+//
+// A hard link is a second name for a file. Stereoscope binds a hard link to its
+// target only when both are in the same layer. When the target is in a lower
+// layer, the entry keeps the type TypeHardLink and the name of the target. At
+// runtime, the link has the contents of the target at the time the link was
+// created, so a later layer can replace or delete the target without an effect
+// on the link. classifyFile reads the target in the squashed tree of the layer
+// that added the link. When it cannot find a regular file there, it returns
+// KindProgram, because dropping a program from a policy blocks the workload.
+func classifyFile(img *image.Image, ref file.Reference, entry filetree.IndexEntry) (Kind, error) {
+	targetRef, ok := hardLinkTarget(img, ref, entry)
+	if !ok {
+		return KindProgram, nil
+	}
+
+	rc, err := img.OpenReference(targetRef)
 	if err != nil {
-		return "", fmt.Errorf("cannot read %q: %w", p, err)
+		return "", fmt.Errorf("cannot read %q: %w", ref.RealPath, err)
 	}
 	defer rc.Close()
 
 	kind, err := classify(rc)
 	if err != nil {
-		return "", fmt.Errorf("cannot read %q: %w", p, err)
+		return "", fmt.Errorf("cannot read %q: %w", ref.RealPath, err)
 	}
 	return kind, nil
+}
+
+// hardLinkTarget returns the regular file that has the contents of ref. For a
+// regular file, it is ref itself. For a hard link to a lower layer, it follows
+// the link, and the next ones, in the layer that added each link. It returns
+// false when the target is not a regular file, or when it cannot find it.
+func hardLinkTarget(img *image.Image, ref file.Reference, entry filetree.IndexEntry) (file.Reference, bool) {
+	// Each link points into a lower layer, so a valid chain is shorter than
+	// the number of layers.
+	for range len(img.Layers) {
+		if entry.Type != file.TypeHardLink {
+			return ref, entry.Type == file.TypeRegular
+		}
+		layer := img.FileCatalog.Layer(ref)
+		if layer == nil || layer.SquashedTree == nil || entry.LinkDestination == "" {
+			return ref, false
+		}
+		target := file.Path(path.Clean(file.DirSeparator + entry.LinkDestination))
+		// Without FollowBasenameLinks, the lookup returns the node of the
+		// target itself, also when the target is a link.
+		found, resolution, err := layer.SquashedTree.File(target)
+		if err != nil || !found || !resolution.HasReference() {
+			return ref, false
+		}
+		ref = *resolution.Reference
+		if entry, err = img.FileCatalog.Get(ref); err != nil {
+			return ref, false
+		}
+	}
+	return ref, false
 }
 
 // Result is the result of the scan of an image.

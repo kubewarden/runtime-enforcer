@@ -55,9 +55,7 @@ When an allowed path is a symbolic link in the image, wpgen shows its real
 path. The enforcer reports the real path, so the policy must allow it.
 
 The exit code is 1 when at least one allowed path is not an executable in
-the image. This happens after an image update that removes a file. It also
-happens for a path on a volume or in a foreign root: keep these paths in the
-policy if the workload needs them.
+the image. This happens after an image update that removes a file.
 
 The exit code is also 1 when a container of the workload has no rules in the
 policy, for example a new container. The enforcer does not protect such a

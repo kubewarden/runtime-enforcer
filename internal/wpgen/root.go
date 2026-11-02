@@ -30,8 +30,7 @@ monitor mode first, and prefer the learn phase of runtime-enforcer to build
 a policy from the real behavior of the workload.
 
 wpgen only sees the file system of the image. It does not see files on
-volumes, files that the workload creates at runtime, or executables from a
-foreign root.
+volumes, or files that the workload creates at runtime.
 
 Colors are used only for the lines that matter: the check verdict, warnings,
 notices and errors. With --color=auto, the default, colors are on only when

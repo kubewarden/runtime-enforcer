@@ -24,7 +24,6 @@ When the workload already runs in a cluster, the learn phase of runtime-enforcer
 
 * Files on volumes that the pod mounts over a path of the image.
 * Files that the workload creates at runtime.
-* Executables from a foreign root.
 
 In `monitor` mode, the enforcer reports these executables as violations. Add them to the policy by hand.
 
@@ -220,7 +219,7 @@ wpgen check ./policy.yaml --image ghcr.io/example/api:2.3.0 --container-name api
 
 The `STATUS` column has one of these values:
 
-* `stale`: the path is not an executable in the image. A path can be stale after an image update. It can also come from a volume or a foreign root. In that case, keep it in the policy.
+* `stale`: the path is not an executable in the image. A path can be stale after an image update.
 * `skipped`: the path is a shared library or an unknown file. `wpgen` skips these kinds, unless you use `--include-libraries` or `--include-unknown`. A skipped path does not change the exit code.
 * `ok`: the path is an executable in the image.
 * `not allowed`: an executable of the image that the policy does not allow. These rows are shown only with `--list-not-allowed`. Without the flag, the second table shows only their number. For a learned policy, this number is usually high. This is not a problem.

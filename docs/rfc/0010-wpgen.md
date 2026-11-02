@@ -431,7 +431,6 @@ The tool only sees the file system of the image. It does not see:
 - Files on volumes that the pod mounts over a path of the image.
 - Files that the workload creates at runtime, for example a package that a
   start script installs.
-- Files from a foreign root, as RFC 0008 defines them.
 
 The tool documents these limits in its `--help` text. In monitor mode, the
 enforcer reports these paths as violations, and the user adds them by hand.
@@ -554,8 +553,7 @@ For each container, the tool compares the allowed paths with the executables
 of the image. The report has two parts:
 
 - Allowed paths that are not executables in the image. These paths are stale
-  after an image update, or they come from a volume or a foreign root. The
-  tool lists each path.
+  after an image update. The tool lists each path.
 - Executables of the image that the policy does not allow. This is the normal
   case for a learned policy. The tool prints only the count.
 
@@ -651,9 +649,9 @@ that resource exists, `wpgen image` can emit an `ImagePolicy` instead of a
   skips it. The tests found no such program, and monitor mode shows it if it
   exists.
 - The tool downloads full images. A large image takes time and disk space.
-- The tool only sees the image file system. Volumes, runtime-installed files,
-  and foreign roots are missing. A draft policy for such a workload produces
-  violations in monitor mode until the user adds the paths.
+- The tool only sees the image file system. Volumes and runtime-installed
+  files are missing. A draft policy for such a workload produces violations
+  in monitor mode until the user adds the paths.
 - `go.mod` gains stereoscope, which brings the client libraries of
   containerd and Podman. Only `wpgen` links them, but the dependency list of
   the module grows. Tools that scan `go.sum` instead of the binaries report

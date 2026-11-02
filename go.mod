@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/avast/retry-go/v5 v5.0.0
 	github.com/cilium/ebpf v0.22.0
-	github.com/containerd/nri v0.12.3
+	github.com/containerd/nri v0.12.5
 	github.com/go-logr/logr v1.4.4
 	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0

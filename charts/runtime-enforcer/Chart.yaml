@@ -58,5 +58,3 @@ annotations:
       image: ghcr.io/kubewarden/runtime-enforcer/agent:v0.10.1
     - name: debugger
       image: ghcr.io/kubewarden/runtime-enforcer/debugger:v0.10.1
-    - name: otel-collector
-      image: otel/opentelemetry-collector-contrib:0.164.0

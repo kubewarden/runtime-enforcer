@@ -47,6 +47,9 @@ policy allows the programs and the scripts of the image, and skips the
 shared libraries and the other files, unless you use --include-libraries or
 --include-unknown.
 
+The output is a draft. Review the allowed paths of each policy, and remove the
+ones that the workload does not run.
+
 The policy name is the value of the runtimeenforcer.kubewarden.io/policy
 label of the pod template. When the label is not there, the name is
 <short kind>-<workload name>, for example deploy-nginx, as for the
@@ -131,6 +134,7 @@ func runWorkload(
 	for _, w := range drafted {
 		printWorkloadSummary(s.err, s.errPainter, w, scanned, opts.WarnThreshold)
 	}
+	printDraftNotice(s.err, s.errPainter)
 	return nil
 }
 

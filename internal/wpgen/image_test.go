@@ -73,6 +73,8 @@ spec:
 	assert.Contains(t, stderr, "runtimeenforcer.kubewarden.io/policy: api\n")
 	assert.NotContains(t, stderr, "WARNING")
 	assert.NotContains(t, stderr, "--container-name")
+	assert.Equal(t, 1, strings.Count(stderr, draftNotice), "the draft notice is printed once")
+	assert.True(t, strings.HasSuffix(stderr, draftNotice+"\n"), "the draft notice is the last message")
 }
 
 func TestImageCmdDefaults(t *testing.T) {

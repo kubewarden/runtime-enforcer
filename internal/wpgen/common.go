@@ -261,6 +261,15 @@ func printDraftSummary(w io.Writer, p painter, containers []draftedContainer, wa
 	}
 }
 
+// draftNotice tells the user that the policy needs a review. The commands
+// print it once, at the end of their messages, where the user looks first.
+const draftNotice = "The output is a draft. Review the allowed paths, and remove the ones that the workload\n" +
+	"does not run, before you switch a policy to protect mode."
+
+func printDraftNotice(w io.Writer, p painter) {
+	fmt.Fprintf(w, "\n%s\n", p.notice(draftNotice))
+}
+
 // validatePolicyName makes sure that the name is a valid object name, and
 // that it can be the value of the policy label of a pod.
 func validatePolicyName(policyName string) error {

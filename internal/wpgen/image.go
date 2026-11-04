@@ -42,6 +42,9 @@ programs or start with "#!". wpgen skips the shared libraries, and the
 files that are neither programs nor scripts. Use --include-libraries and
 --include-unknown to keep them.
 
+The output is a draft. Review the allowed paths, and remove the ones that the
+workload does not run.
+
 wpgen looks for the image in the sources given by --image-src, in order, and
 uses the first source that has it. A daemon source (docker, podman) pulls the
 image into the daemon when the daemon does not have it.
@@ -140,6 +143,7 @@ func runImage(ctx context.Context, input string, opts *imageOptions, s streams) 
 		fmt.Fprintf(s.err, "Make sure that the container is named %q in the pod, or use --container-name.\n",
 			defaultContainerName)
 	}
+	printDraftNotice(s.err, s.errPainter)
 	return nil
 }
 

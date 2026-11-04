@@ -191,6 +191,8 @@ spec:
 	)
 	assert.Contains(t, stderr, "CronJob backup (namespace <none>), policy cronjob-backup\n")
 	assert.Contains(t, stderr, "WARNING: container backup allows 2 executables.")
+	assert.Equal(t, 1, strings.Count(stderr, draftNotice), "two workloads, and the draft notice is printed once")
+	assert.NotContains(t, stdout, "draft", "the notice goes to standard error")
 }
 
 func TestWorkloadCmdJSON(t *testing.T) {

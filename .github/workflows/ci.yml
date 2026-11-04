@@ -30,6 +30,8 @@ jobs:
             libbpf-dev
       - name: test kubectl plugin build for all platforms
         run: make kubectl-plugin-cross
+      - name: test wpgen build for all platforms
+        run: make wpgen-cross
       - run: make test
       # TODO: replace static threshold check with github-action-benchmark.
       # See https://github.com/benchmark-action/github-action-benchmark

@@ -43,8 +43,8 @@ The repository has the following layout:
   CRDs (custom resource definitions).
 - `bpf`: the C source code of the eBPF programs.
 - `charts`: contains the Helm chart for managing deployments.
-- `cmd`: main entry points for the `agent`, `controller`, `debugger` and
-  `kubectl-plugin` executables.
+- `cmd`: main entry points for the `agent`, `controller`, `debugger`,
+  `kubectl-plugin` and `wpgen` executables.
 - `docs`: developer-focused documentation, the generated CRD reference and the RFCs.
 - `hack`: helper scripts and the Dockerfiles used by Tilt.
 - `internal`: the private Go implementation packages used by the executables.
@@ -145,6 +145,21 @@ Build the plugin for all the supported platforms:
 make kubectl-plugin-cross
 ```
 
+### Build wpgen
+
+Build `wpgen` for your platform:
+
+```console
+make wpgen
+```
+
+Build `wpgen` for all the supported platforms. Make writes the binaries to
+`bin/wpgen-dist/`:
+
+```console
+make wpgen-cross
+```
+
 ### Build Container Images
 
 Build Docker images for each component:
@@ -230,8 +245,9 @@ for the kernel and runtime requirements.
 
 ## Changes to CRDs and other generated code
 
-After changing a CRD, a `.proto` file, an eBPF program, a kubectl plugin command
-or the Helm chart `values.yaml`, run the following command:
+After changing a CRD, a `.proto` file, an eBPF program, a kubectl plugin
+command, a `wpgen` command or the Helm chart `values.yaml`, run the following
+command:
 
 ```console
 make generate
@@ -247,6 +263,7 @@ This will:
 - Update the clientset, informers and listers in `pkg/generated`
 - Update the `values.schema.json` of the Helm chart
 - Update the kubectl plugin reference in `docs/kubectl-plugin/cli-docs.adoc`
+- Update the `wpgen` reference in `docs/wpgen/cli-docs.adoc`
 
 CI runs `make generate` on each pull request. If the generated files are not up
 to date, CI fails.
@@ -363,6 +380,65 @@ To run the same tests on your machine:
    bpfvalidator --config "./bpfvalidator-$(go env GOARCH)-config.yaml" --cmd="./tester -test.v"
    ```
 
+### Testing wpgen
+
+`wpgen` reads container images and produces policies, tables and JSON. Its
+tests are split in three layers, so that most of them run without images and
+without the network.
+
+**Unit tests on the rules.** The functions that compare a policy with the
+executables of an image, such as `compare` and `matchContainers` in
+`internal/wpgen`, take plain Go values and return plain Go values. Their tests
+build these values by hand, or load them from the scan fixture described
+below, and check the fields of the result. These tests do not render
+anything.
+
+**Golden files for the rendered output.** The tables, the JSON report and the
+summaries are rendered from a result value. Their tests render a fixed result
+and compare the output with a file in `internal/wpgen/testdata/*.golden`.
+When you change the layout on purpose, rewrite the golden files and review
+the diff:
+
+```console
+go test ./internal/wpgen -update
+```
+
+**Scan fixture of a real image.** The file
+`internal/wpgen/testdata/golang-1.12-alpine-amd64.scan.json` holds the result
+of `imagescan.Scan`, the function that `wpgen` uses to scan an image, for a
+real image. The result has the executables of the image with their kind
+(program, library, script or unknown), and the real path of each lookup path
+that goes through a symbolic link. The image is
+`ghcr.io/kubewarden/sbomscanner/test-assets/golang@sha256:1782cafde43390b032f960c0fad3def745fac18994ced169003cb56e9a93c028`,
+the same digest-pinned image that
+[sbomscanner](https://github.com/kubewarden/sbomscanner) uses for its
+fixtures. The tests read this file instead of scanning the image, so they do
+not need the network.
+
+The lookup paths are the paths that the tests ask about, and they are stored
+in the `lookup` field of the fixture. A test that asks about another path
+fails with a message that tells you to add it. To add a path, add it to the
+`lookup` field and regenerate the fixture.
+
+The fixture also changes when the classification rules in
+`internal/imagescan` change. To regenerate it, run:
+
+```console
+make generate-wpgen-fixtures
+```
+
+The target scans the pinned image with the production code and rewrites the
+file. Review the diff: it shows which files of a real image moved from one
+kind to another. Then rewrite the golden files with `-update`, because they
+are rendered from the fixture. The target needs network access, so it is not
+part of `make generate`.
+
+**End-to-end tests.** A few tests run the `wpgen` commands through cobra, with
+small images that `internal/imagescan/imagescantest` builds on the fly. They
+test the wiring: flags, input files, exit codes, and which stream gets the
+output. Keep their number low. Put new tests on the rules or on the layout in
+the first two layers.
+
 ## Commit subjects
 
 The commit messages must follow the [conventional commits
@@ -408,8 +484,9 @@ release process. Open a new issue from that template to track a release. The
 
 - **Developer Documentation**: The `docs/` folder contains the generated CRD
   reference (`crds/CRD-docs-for-docs-repo.adoc`), the kubectl plugin guide
-  (`kubectl_plugin.adoc`) and the kubectl plugin command reference
-  (`kubectl-plugin/cli-docs.adoc`).
+  (`kubectl_plugin.adoc`), the kubectl plugin command reference
+  (`kubectl-plugin/cli-docs.adoc`), the `wpgen` guide (`wpgen.adoc`) and the
+  `wpgen` command reference (`wpgen/cli-docs.adoc`).
 - **RFCs**: The `docs/rfc` folder holds design proposals and architectural
   decisions.
 - **User Documentation**: The user documentation is at

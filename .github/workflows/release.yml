@@ -64,8 +64,50 @@ jobs:
           path: bin/kubectl-plugin/
           if-no-files-found: error
 
+  # wpgen – build binaries for all target platforms via the Makefile.
+  wpgen-build:
+    name: wpgen build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # actions/attest
+      attestations: write # actions/attest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: "go.mod"
+          cache: false
+      - name: Build wpgen for all platforms
+        run: make wpgen-cross WPGEN_VERSION="${GITHUB_REF_NAME}"
+      - name: Generate checksums
+        run: |
+          cd bin/wpgen-dist
+          for f in wpgen-*; do
+            sha256sum "$f" > "$f.sha256"
+          done
+      # Signed build provenance for each wpgen binary. GitHub stores it in
+      # this repository. Verify with:
+      #   gh attestation verify wpgen-linux-amd64 --repo kubewarden/runtime-enforcer
+      - name: Attest build provenance of the wpgen binaries
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            bin/wpgen-dist/wpgen-linux-amd64
+            bin/wpgen-dist/wpgen-linux-arm64
+            bin/wpgen-dist/wpgen-darwin-amd64
+            bin/wpgen-dist/wpgen-darwin-arm64
+      - name: Upload wpgen artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wpgen
+          path: bin/wpgen-dist/
+          if-no-files-found: error
+
   create-release:
-    needs: [build, plugin-build]
+    needs: [build, plugin-build, wpgen-build]
     permissions:
       contents: write # Creating a release
     runs-on: ubuntu-latest
@@ -99,6 +141,11 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: kubectl-plugin
+          merge-multiple: true
+      - name: Download wpgen artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: wpgen
           merge-multiple: true
       - name: Display structure of downloaded files
         run: ls -R
@@ -145,6 +192,15 @@ jobs:
                 'kubectl-runtime_enforcer-darwin-amd64.sha256',
                 'kubectl-runtime_enforcer-darwin-arm64',
                 'kubectl-runtime_enforcer-darwin-arm64.sha256',
+
+                'wpgen-linux-amd64',
+                'wpgen-linux-amd64.sha256',
+                'wpgen-linux-arm64',
+                'wpgen-linux-arm64.sha256',
+                'wpgen-darwin-amd64',
+                'wpgen-darwin-amd64.sha256',
+                'wpgen-darwin-arm64',
+                'wpgen-darwin-arm64.sha256',
                 ]
             const {RELEASE_ID} = process.env
             for (const file of files) {

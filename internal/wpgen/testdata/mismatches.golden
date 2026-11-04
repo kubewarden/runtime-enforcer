@@ -1,0 +1,3 @@
+The policy has no rules for container "sidecar" of Deployment "api".
+The policy has rules for container "removed", which is not in Deployment "api".
+

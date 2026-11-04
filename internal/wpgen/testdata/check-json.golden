@@ -1,0 +1,56 @@
+{
+  "policy": {
+    "name": "deploy-web",
+    "namespace": "prod"
+  },
+  "containers": [
+    {
+      "name": "main",
+      "init": false,
+      "image": "ghcr.io/kubewarden/sbomscanner/test-assets/golang@sha256:1782cafde43390b032f960c0fad3def745fac18994ced169003cb56e9a93c028",
+      "allowed": [
+        "/bin/sh",
+        "/lib/libz.so.1.2.11",
+        "/usr/local/bin/wait-for-it.sh",
+        "/usr/local/go/bin/go",
+        "/usr/local/go/bin/gofmt"
+      ],
+      "executables": [
+        "/usr/local/go/bin/go",
+        "/usr/local/go/bin/gofmt"
+      ],
+      "stale": [
+        {
+          "path": "/bin/sh",
+          "linkTarget": "/bin/busybox"
+        },
+        {
+          "path": "/usr/local/bin/wait-for-it.sh"
+        }
+      ],
+      "skipped": [
+        {
+          "path": "/lib/libz.so.1.2.11",
+          "kind": "library"
+        }
+      ],
+      "notAllowedCount": 95
+    },
+    {
+      "name": "setup",
+      "init": true,
+      "image": "ghcr.io/kubewarden/sbomscanner/test-assets/golang@sha256:1782cafde43390b032f960c0fad3def745fac18994ced169003cb56e9a93c028",
+      "allowed": [
+        "/bin/busybox"
+      ],
+      "executables": [
+        "/bin/busybox"
+      ],
+      "stale": [],
+      "skipped": [],
+      "notAllowedCount": 96
+    }
+  ],
+  "containersOnlyInPolicy": [],
+  "containersOnlyInWorkload": []
+}

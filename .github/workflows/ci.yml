@@ -137,8 +137,7 @@ jobs:
             libelf-dev \
             clang \
             llvm \
-            libbpf-dev \
-            protobuf-compiler
+            libbpf-dev
 
       - name: Generate files
         run: make generate

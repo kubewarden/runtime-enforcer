@@ -17,8 +17,6 @@ You need the following tools to build and run this project:
   `bpf/`. eBPF programs run inside the Linux kernel. On Debian and Ubuntu,
   install the `clang`, `llvm`, `libbpf-dev`, `libelf-dev` and `build-essential`
   packages.
-- **[protoc](https://grpc.io/docs/protoc-installation/)**: required to
-  regenerate the gRPC code in `proto/`.
 - **Make**: the build tool controlling various build tasks.
 - **[Tilt](https://docs.tilt.dev/)**: a development tool for multi-service applications.
 - **Kubernetes cluster**: a running Kubernetes cluster, used for development. [kind](https://kind.sigs.k8s.io/)
@@ -115,6 +113,21 @@ Lint the `.proto` files with [protolint](https://github.com/yoheimuta/protolint)
 
 ```console
 pre-commit run protolint --all-files
+```
+
+[buf](https://buf.build/) generates the Go code in `proto/`. The Makefile
+installs buf, so you do not have to install it. To generate the code again,
+run:
+
+```console
+make generate-proto
+```
+
+After you change a `.proto` file, make sure that the change does not break
+the API of the `main` branch:
+
+```console
+make proto-breaking
 ```
 
 ## Building

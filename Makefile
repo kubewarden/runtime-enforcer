@@ -33,7 +33,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=controller-role crd webhook paths="./api/v1alpha1" paths="./internal/controller" output:crd:artifacts:config=charts/runtime-enforcer/templates/crd output:rbac:artifacts:config=charts/runtime-enforcer/templates/controller output:webhook:none
 	$(CONTROLLER_GEN) rbac:roleName=agent-role paths="./cmd/agent" paths="./internal/eventhandler" paths="./internal/workloadpolicyhandler" output:rbac:artifacts:config=charts/runtime-enforcer/templates/agent
 	$(CONTROLLER_GEN) rbac:roleName=debugger-role paths="./cmd/debugger" output:rbac:artifacts:config=charts/runtime-enforcer/templates/debugger
@@ -188,13 +188,6 @@ LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 
-## Tool Binaries
-CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
-ENVTEST ?= $(LOCALBIN)/setup-envtest
-PROTOC_GEN_GO ?= $(LOCALBIN)/protoc-gen-go
-PROTOC_GEN_GO_GRPC ?= $(LOCALBIN)/protoc-gen-go-grpc
-HELM_VALUES_SCHEMA_JSON ?= $(LOCALBIN)/helm-values-schema-json
-
 ## Tool Versions
 # renovate: datasource=go depName=sigs.k8s.io/controller-tools
 CONTROLLER_TOOLS_VERSION ?= v0.23.0
@@ -204,58 +197,49 @@ ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 # renovate: datasource=go depName=github.com/losisin/helm-values-schema-json/v2
 HELM_VALUES_SCHEMA_JSON_VERSION ?= v2.6.0
-# renovate: datasource=go depName=google.golang.org/protobuf
-PROTOC_GEN_GO_VERSION ?= v1.36.12
-# renovate: datasource=go depName=google.golang.org/grpc/cmd/protoc-gen-go-grpc
-PROTOC_GEN_GO_GRPC_VERSION ?= v1.6.2
+# renovate: datasource=go depName=github.com/bufbuild/buf
+BUF_VERSION ?= v1.75.0
 
-.PHONY: tools
-tools: controller-gen envtest protoc-gen-go protoc-gen-go-grpc helm-values-schema-json
-
-.PHONY: controller-gen
-controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
-$(CONTROLLER_GEN): $(LOCALBIN)
-	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
+## Tool Binaries
+# go run builds the pinned version when needed and caches it. As a result, a
+# version change always takes effect.
+CONTROLLER_GEN ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
+ENVTEST ?= go run sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
+HELM_VALUES_SCHEMA_JSON ?= go run github.com/losisin/helm-values-schema-json/v2@$(HELM_VALUES_SCHEMA_JSON_VERSION)
+# The version is part of the file name, so make installs buf again after a
+# version change.
+BUF ?= $(LOCALBIN)/buf-$(BUF_VERSION)
 
 .PHONY: setup-envtest
-setup-envtest: envtest ## Download the binaries required for ENVTEST in the local bin directory.
+setup-envtest: $(LOCALBIN) ## Download the binaries required for ENVTEST in the local bin directory.
 	@echo "Setting up envtest binaries for Kubernetes version $(ENVTEST_K8S_VERSION)..."
 	@$(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path || { \
 		echo "Error: Failed to set up envtest binaries for version $(ENVTEST_K8S_VERSION)."; \
 		exit 1; \
 	}
 
-.PHONY: envtest
-envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
-$(ENVTEST): $(LOCALBIN)
-	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
+.PHONY: buf
+buf: $(BUF) ## Download buf locally if necessary.
+$(BUF): | $(LOCALBIN)
+	$(call go-install-tool,$(BUF),github.com/bufbuild/buf/cmd/buf,$(BUF_VERSION))
 
-.PHONY: protoc-gen-go
-protoc-gen-go: $(PROTOC_GEN_GO)
-$(PROTOC_GEN_GO): | $(LOCALBIN)
-	$(call go-install-tool,$(PROTOC_GEN_GO),google.golang.org/protobuf/cmd/protoc-gen-go,$(PROTOC_GEN_GO_VERSION))
-
-.PHONY: protoc-gen-go-grpc
-protoc-gen-go-grpc: $(PROTOC_GEN_GO_GRPC)
-$(PROTOC_GEN_GO_GRPC): | $(LOCALBIN)
-	$(call go-install-tool,$(PROTOC_GEN_GO_GRPC),google.golang.org/grpc/cmd/protoc-gen-go-grpc,$(PROTOC_GEN_GO_GRPC_VERSION))
-
+# buf runs the protoc-gen-go and protoc-gen-go-grpc plugins with "go tool", so
+# their versions come from go.mod.
 .PHONY: generate-proto
-generate-proto: $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC)
-	PATH=$(LOCALBIN):$(PATH) protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./proto/agent/v1/agent.proto
+generate-proto: $(BUF) ## Generate the gRPC code in proto/.
+	$(BUF) generate --path proto
+
+.PHONY: proto-breaking
+proto-breaking: $(BUF) ## Check the gRPC API for breaking changes against main. Needs the full git history.
+	$(BUF) breaking --path proto --against '.git#branch=main'
 
 .PHONY: generate-api
 generate-api:
 	go install ./hack/tools.go
 	API_KNOWN_VIOLATIONS_DIR=. UPDATE_API_KNOWN_VIOLATIONS=true ./hack/update-codegen.sh
 
-.PHONY: helm-values-schema-json
-helm-values-schema-json: $(HELM_VALUES_SCHEMA_JSON)
-$(HELM_VALUES_SCHEMA_JSON): | $(LOCALBIN)
-	$(call go-install-tool,$(HELM_VALUES_SCHEMA_JSON),github.com/losisin/helm-values-schema-json/v2,$(HELM_VALUES_SCHEMA_JSON_VERSION))
-
 .PHONY: generate-chart
-generate-chart: $(HELM_VALUES_SCHEMA_JSON) ## Generate Helm chart values schema.
+generate-chart: ## Generate Helm chart values schema.
 	$(HELM_VALUES_SCHEMA_JSON) --no-additional-properties \
 		--k8s-schema-version v1.31.0 \
 		--bundle --bundle-without-id --bundle-cache-min 24h \
@@ -263,17 +247,15 @@ generate-chart: $(HELM_VALUES_SCHEMA_JSON) ## Generate Helm chart values schema.
 		--output charts/runtime-enforcer/values.schema.json
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
-# $1 - target path with name of binary
+# $1 - target path with name of binary, including the version
 # $2 - package url which can be installed
 # $3 - specific version of package
 define go-install-tool
-@[ -f "$(1)-$(3)" ] || { \
+@[ -f "$(1)" ] || { \
 set -e; \
 package=$(2)@$(3) ;\
 echo "Downloading $${package}" ;\
-rm -f $(1) || true ;\
 GOBIN=$(LOCALBIN) go install $${package} ;\
-mv $(1) $(1)-$(3) ;\
-} ;\
-ln -sf $(1)-$(3) $(1)
+mv "$$(echo "$(1)" | sed "s/-$(3)$$//")" "$(1)" ;\
+}
 endef

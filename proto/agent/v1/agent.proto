@@ -5,7 +5,7 @@ package runtimeenforcer.agent.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/neuvector/runtime-enforcer/proto/agent/v1;agentv1";
+option go_package = "github.com/kubewarden/runtime-enforcer/proto/agent/v1;agentv1";
 
 // AgentObserver exposes agent internal state for external components.
 service AgentObserver {

@@ -197,10 +197,8 @@ ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 # renovate: datasource=go depName=github.com/losisin/helm-values-schema-json/v2
 HELM_VALUES_SCHEMA_JSON_VERSION ?= v2.6.0
-# renovate: datasource=go depName=google.golang.org/protobuf
-PROTOC_GEN_GO_VERSION ?= v1.36.12
-# renovate: datasource=go depName=google.golang.org/grpc/cmd/protoc-gen-go-grpc
-PROTOC_GEN_GO_GRPC_VERSION ?= v1.6.2
+# renovate: datasource=go depName=github.com/bufbuild/buf
+BUF_VERSION ?= v1.75.0
 
 ## Tool Binaries
 # go run builds the pinned version when needed and caches it. As a result, a
@@ -208,8 +206,9 @@ PROTOC_GEN_GO_GRPC_VERSION ?= v1.6.2
 CONTROLLER_GEN ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
 ENVTEST ?= go run sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
 HELM_VALUES_SCHEMA_JSON ?= go run github.com/losisin/helm-values-schema-json/v2@$(HELM_VALUES_SCHEMA_JSON_VERSION)
-PROTOC_GEN_GO ?= $(LOCALBIN)/protoc-gen-go
-PROTOC_GEN_GO_GRPC ?= $(LOCALBIN)/protoc-gen-go-grpc
+# The version is part of the file name, so make installs buf again after a
+# version change.
+BUF ?= $(LOCALBIN)/buf-$(BUF_VERSION)
 
 .PHONY: setup-envtest
 setup-envtest: $(LOCALBIN) ## Download the binaries required for ENVTEST in the local bin directory.
@@ -219,19 +218,20 @@ setup-envtest: $(LOCALBIN) ## Download the binaries required for ENVTEST in the 
 		exit 1; \
 	}
 
-.PHONY: protoc-gen-go
-protoc-gen-go: $(PROTOC_GEN_GO)
-$(PROTOC_GEN_GO): | $(LOCALBIN)
-	$(call go-install-tool,$(PROTOC_GEN_GO),google.golang.org/protobuf/cmd/protoc-gen-go,$(PROTOC_GEN_GO_VERSION))
+.PHONY: buf
+buf: $(BUF) ## Download buf locally if necessary.
+$(BUF): | $(LOCALBIN)
+	$(call go-install-tool,$(BUF),github.com/bufbuild/buf/cmd/buf,$(BUF_VERSION))
 
-.PHONY: protoc-gen-go-grpc
-protoc-gen-go-grpc: $(PROTOC_GEN_GO_GRPC)
-$(PROTOC_GEN_GO_GRPC): | $(LOCALBIN)
-	$(call go-install-tool,$(PROTOC_GEN_GO_GRPC),google.golang.org/grpc/cmd/protoc-gen-go-grpc,$(PROTOC_GEN_GO_GRPC_VERSION))
-
+# buf runs the protoc-gen-go and protoc-gen-go-grpc plugins with "go tool", so
+# their versions come from go.mod.
 .PHONY: generate-proto
-generate-proto: $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC)
-	PATH=$(LOCALBIN):$(PATH) protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./proto/agent/v1/agent.proto
+generate-proto: $(BUF) ## Generate the gRPC code in proto/.
+	$(BUF) generate --path proto
+
+.PHONY: proto-breaking
+proto-breaking: $(BUF) ## Check the gRPC API for breaking changes against main. Needs the full git history.
+	$(BUF) breaking --path proto --against '.git#branch=main'
 
 .PHONY: generate-api
 generate-api:
@@ -247,17 +247,15 @@ generate-chart: ## Generate Helm chart values schema.
 		--output charts/runtime-enforcer/values.schema.json
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
-# $1 - target path with name of binary
+# $1 - target path with name of binary, including the version
 # $2 - package url which can be installed
 # $3 - specific version of package
 define go-install-tool
-@[ -f "$(1)-$(3)" ] || { \
+@[ -f "$(1)" ] || { \
 set -e; \
 package=$(2)@$(3) ;\
 echo "Downloading $${package}" ;\
-rm -f $(1) || true ;\
 GOBIN=$(LOCALBIN) go install $${package} ;\
-mv $(1) $(1)-$(3) ;\
-} ;\
-ln -sf $(1)-$(3) $(1)
+mv "$$(echo "$(1)" | sed "s/-$(3)$$//")" "$(1)" ;\
+}
 endef

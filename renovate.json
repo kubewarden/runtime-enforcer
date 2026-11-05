@@ -35,7 +35,7 @@
       "matchPackageNames": [
         "kubewarden/runtime-enforcer/**"
       ],
-      "matchPaths": [
+      "matchFileNames": [
         "charts/runtime-enforcer/values.yaml"
       ]
     },
@@ -48,7 +48,7 @@
       "matchPackageNames": [
         "otel/opentelemetry-collector-contrib"
       ],
-      "matchPaths": [
+      "matchFileNames": [
         "charts/runtime-enforcer/values.yaml"
       ]
     }

@@ -18,10 +18,12 @@
     {
       "groupName": "kubernetes",
       "matchPackageNames": [
-        "/^k8s\\.io/api/",
-        "/^k8s\\.io/apimachinery/",
-        "/^k8s\\.io/client-go/",
-        "/^sigs\\.k8s\\.io/controller-runtime/"
+        "k8s.io/**",
+        "!k8s.io/klog/v2",
+        "!k8s.io/kube-openapi",
+        "!k8s.io/utils",
+        "!k8s.io/gengo/v2",
+        "sigs.k8s.io/controller-runtime"
       ]
     },
     {
@@ -33,7 +35,7 @@
       "matchPackageNames": [
         "kubewarden/runtime-enforcer/**"
       ],
-      "matchPaths": [
+      "matchFileNames": [
         "charts/runtime-enforcer/values.yaml"
       ]
     },
@@ -46,7 +48,7 @@
       "matchPackageNames": [
         "otel/opentelemetry-collector-contrib"
       ],
-      "matchPaths": [
+      "matchFileNames": [
         "charts/runtime-enforcer/values.yaml"
       ]
     }

@@ -260,6 +260,35 @@ To download one file, use the digest of its layer:
 crane blob ghcr.io/kubewarden/runtime-enforcer/controller@sha256:<LAYER DIGEST>
 ```
 
+## Provenance of the kubectl plugin and wpgen binaries
+
+The release assets include the `kubectl-runtime_enforcer` and `wpgen` binaries.
+Each binary has SLSA Build L3 provenance. The release workflow calls the
+reusable workflow `go-binary-release.yml` in this repository. That workflow
+builds the binaries in one job and attests them in a second job. The build job
+cannot sign, because it has no OIDC token. The attest job runs no code from the
+repository.
+
+To verify a binary that you downloaded from the release assets, run:
+
+```shell
+gh attestation verify kubectl-runtime_enforcer-linux-amd64 \
+    --repo kubewarden/runtime-enforcer \
+    --signer-workflow kubewarden/runtime-enforcer/.github/workflows/go-binary-release.yml
+```
+
+To verify a `wpgen` binary, use the same command with the name of that binary:
+
+```shell
+gh attestation verify wpgen-linux-amd64 \
+    --repo kubewarden/runtime-enforcer \
+    --signer-workflow kubewarden/runtime-enforcer/.github/workflows/go-binary-release.yml
+```
+
+The `.sha256` files in the release assets only help you to detect a corrupt
+download. They do not prove where the binary came from. Use `gh attestation
+verify` for that.
+
 ## Security disclosure
 
 See the [Kubewarden security policy](https://github.com/kubewarden/community/security/policy).

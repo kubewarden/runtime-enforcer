@@ -1,0 +1,117 @@
+name: Build and attest the Go binaries (kubectl plugin and wpgen)
+
+# This workflow gives the binaries SLSA Build L3.
+#
+# `actions/attest` signs with the OIDC token of the job that runs it. Any step
+# in that job can ask for the same token. If the compiler and `actions/attest`
+# run in one job, a build step can forge the provenance.
+#
+# This workflow uses two jobs to prevent that:
+#   - The `build` job runs the compiler. It has no `id-token` permission, so
+#     it cannot sign.
+#   - The `attest` job signs. It does not check out the repository, so it runs
+#     no code from the repository.
+#
+# The OIDC token names this file in `job_workflow_ref`. A verifier pins this
+# file with `--signer-workflow`.
+
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version that the build puts in the binaries. Use the git tag.
+        type: string
+        required: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # Checkout the source. This job must not get id-token.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: "go.mod"
+          cache: false
+      - name: Build kubectl plugin for all platforms
+        env:
+          VERSION: ${{ inputs.version }}
+        run: make kubectl-plugin-cross KUBECTL_PLUGIN_VERSION="${VERSION}"
+      - name: Build wpgen for all platforms
+        env:
+          VERSION: ${{ inputs.version }}
+        run: make wpgen-cross WPGEN_VERSION="${VERSION}"
+      - name: Generate checksums
+        run: |
+          (cd bin/kubectl-plugin && for f in kubectl-runtime_enforcer-*; do sha256sum "$f" > "$f.sha256"; done)
+          (cd bin/wpgen-dist && for f in wpgen-*; do sha256sum "$f" > "$f.sha256"; done)
+      - name: Upload plugin artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kubectl-plugin
+          path: bin/kubectl-plugin/
+          if-no-files-found: error
+      - name: Upload wpgen artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wpgen
+          path: bin/wpgen-dist/
+          if-no-files-found: error
+
+  attest:
+    name: Attest
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # actions/attest
+      attestations: write # actions/attest
+    steps:
+      # This job has no checkout on purpose. The download steps use exact
+      # artifact names, without a pattern and without a merge. A look-alike
+      # artifact from another job cannot be selected.
+      - name: Download plugin artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: kubectl-plugin
+          path: ${{ runner.temp }}/kubectl-plugin
+      - name: Download wpgen artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: wpgen
+          path: ${{ runner.temp }}/wpgen
+      - name: Make sure that the checksums match
+        run: |
+          (cd "${RUNNER_TEMP}/kubectl-plugin" && sha256sum -c -- *.sha256)
+          (cd "${RUNNER_TEMP}/wpgen" && sha256sum -c -- *.sha256)
+      # Signed build provenance for each plugin binary. GitHub stores it in
+      # the calling repository. To verify a binary, run:
+      #   gh attestation verify kubectl-runtime_enforcer-linux-amd64 \
+      #     --repo kubewarden/runtime-enforcer \
+      #     --signer-workflow kubewarden/runtime-enforcer/.github/workflows/go-binary-release.yml
+      - name: Attest build provenance of the plugin binaries
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            ${{ runner.temp }}/kubectl-plugin/kubectl-runtime_enforcer-linux-amd64
+            ${{ runner.temp }}/kubectl-plugin/kubectl-runtime_enforcer-linux-arm64
+            ${{ runner.temp }}/kubectl-plugin/kubectl-runtime_enforcer-darwin-amd64
+            ${{ runner.temp }}/kubectl-plugin/kubectl-runtime_enforcer-darwin-arm64
+      # Signed build provenance for each wpgen binary. To verify a binary, run:
+      #   gh attestation verify wpgen-linux-amd64 \
+      #     --repo kubewarden/runtime-enforcer \
+      #     --signer-workflow kubewarden/runtime-enforcer/.github/workflows/go-binary-release.yml
+      - name: Attest build provenance of the wpgen binaries
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            ${{ runner.temp }}/wpgen/wpgen-linux-amd64
+            ${{ runner.temp }}/wpgen/wpgen-linux-arm64
+            ${{ runner.temp }}/wpgen/wpgen-darwin-amd64
+            ${{ runner.temp }}/wpgen/wpgen-darwin-arm64

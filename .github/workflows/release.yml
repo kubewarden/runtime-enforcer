@@ -65,16 +65,24 @@ jobs:
         with:
           pattern: attestation-RuntimeEnforcer-*
           merge-multiple: true
+      # The four downloads for the binaries use exact artifact names. They do
+      # not use a pattern, unlike the download of the image attestations above.
       - name: Download plugin artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: kubectl-plugin
-          merge-multiple: true
+      - name: Download plugin signatures
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: signatures-kubectl-runtime_enforcer
       - name: Download wpgen artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: wpgen
-          merge-multiple: true
+      - name: Download wpgen signatures
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: signatures-wpgen
       - name: Display structure of downloaded files
         run: ls -R
 
@@ -114,21 +122,45 @@ jobs:
 
                 'kubectl-runtime_enforcer-linux-amd64',
                 'kubectl-runtime_enforcer-linux-amd64.sha256',
+                'kubectl-runtime_enforcer-linux-amd64.bundle.sigstore',
+                'kubectl-runtime_enforcer-linux-amd64-sbom.spdx.json',
+                'kubectl-runtime_enforcer-linux-amd64-sbom.spdx.json.bundle.sigstore',
                 'kubectl-runtime_enforcer-linux-arm64',
                 'kubectl-runtime_enforcer-linux-arm64.sha256',
+                'kubectl-runtime_enforcer-linux-arm64.bundle.sigstore',
+                'kubectl-runtime_enforcer-linux-arm64-sbom.spdx.json',
+                'kubectl-runtime_enforcer-linux-arm64-sbom.spdx.json.bundle.sigstore',
                 'kubectl-runtime_enforcer-darwin-amd64',
                 'kubectl-runtime_enforcer-darwin-amd64.sha256',
+                'kubectl-runtime_enforcer-darwin-amd64.bundle.sigstore',
+                'kubectl-runtime_enforcer-darwin-amd64-sbom.spdx.json',
+                'kubectl-runtime_enforcer-darwin-amd64-sbom.spdx.json.bundle.sigstore',
                 'kubectl-runtime_enforcer-darwin-arm64',
                 'kubectl-runtime_enforcer-darwin-arm64.sha256',
+                'kubectl-runtime_enforcer-darwin-arm64.bundle.sigstore',
+                'kubectl-runtime_enforcer-darwin-arm64-sbom.spdx.json',
+                'kubectl-runtime_enforcer-darwin-arm64-sbom.spdx.json.bundle.sigstore',
 
                 'wpgen-linux-amd64',
                 'wpgen-linux-amd64.sha256',
+                'wpgen-linux-amd64.bundle.sigstore',
+                'wpgen-linux-amd64-sbom.spdx.json',
+                'wpgen-linux-amd64-sbom.spdx.json.bundle.sigstore',
                 'wpgen-linux-arm64',
                 'wpgen-linux-arm64.sha256',
+                'wpgen-linux-arm64.bundle.sigstore',
+                'wpgen-linux-arm64-sbom.spdx.json',
+                'wpgen-linux-arm64-sbom.spdx.json.bundle.sigstore',
                 'wpgen-darwin-amd64',
                 'wpgen-darwin-amd64.sha256',
+                'wpgen-darwin-amd64.bundle.sigstore',
+                'wpgen-darwin-amd64-sbom.spdx.json',
+                'wpgen-darwin-amd64-sbom.spdx.json.bundle.sigstore',
                 'wpgen-darwin-arm64',
                 'wpgen-darwin-arm64.sha256',
+                'wpgen-darwin-arm64.bundle.sigstore',
+                'wpgen-darwin-arm64-sbom.spdx.json',
+                'wpgen-darwin-arm64-sbom.spdx.json.bundle.sigstore',
                 ]
             const {RELEASE_ID} = process.env
             for (const file of files) {

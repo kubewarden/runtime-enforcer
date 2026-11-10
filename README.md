@@ -260,16 +260,26 @@ To download one file, use the digest of its layer:
 crane blob ghcr.io/kubewarden/runtime-enforcer/controller@sha256:<LAYER DIGEST>
 ```
 
-## Provenance of the kubectl plugin and wpgen binaries
+## Provenance, SBOM and signatures of the kubectl plugin and wpgen binaries
 
-The release assets include the `kubectl-runtime_enforcer` and `wpgen` binaries.
-Each binary has SLSA Build L3 provenance. The release workflow calls the
-reusable workflow `go-binary-release.yml` in this repository. That workflow
-builds the binaries in one job and attests them in a second job. The build job
-cannot sign, because it has no OIDC token. The attest job runs no code from the
-repository.
+The release assets include the `kubectl-runtime_enforcer` and `wpgen` binaries
+for `linux` and `darwin`, on `amd64` and `arm64`. Each binary has SLSA Build L3
+provenance, an SBOM, and a keyless cosign signature.
 
-To verify a binary that you downloaded from the release assets, run:
+The release workflow calls the reusable workflow `go-binary-release.yml` in
+this repository. That workflow builds the binaries and creates the SBOM files
+in one job. A second job signs and attests them. The build job cannot sign,
+because it has no OIDC token. The second job runs no code from the repository.
+
+Each binary has these release assets, where `<binary>` is the name of the file,
+for example `wpgen-linux-amd64`:
+
+- `<binary>.sha256`: the checksum of the binary.
+- `<binary>.bundle.sigstore`: the cosign signature of the binary.
+- `<binary>-sbom.spdx.json`: the SBOM of the binary, in the SPDX format.
+- `<binary>-sbom.spdx.json.bundle.sigstore`: the cosign signature of the SBOM.
+
+To verify the provenance of a binary that you downloaded, run:
 
 ```shell
 gh attestation verify kubectl-runtime_enforcer-linux-amd64 \
@@ -277,17 +287,36 @@ gh attestation verify kubectl-runtime_enforcer-linux-amd64 \
     --signer-workflow kubewarden/runtime-enforcer/.github/workflows/go-binary-release.yml
 ```
 
-To verify a `wpgen` binary, use the same command with the name of that binary:
+To verify the SBOM attestation of the same binary, add the SBOM predicate type:
 
 ```shell
-gh attestation verify wpgen-linux-amd64 \
+gh attestation verify kubectl-runtime_enforcer-linux-amd64 \
     --repo kubewarden/runtime-enforcer \
-    --signer-workflow kubewarden/runtime-enforcer/.github/workflows/go-binary-release.yml
+    --signer-workflow kubewarden/runtime-enforcer/.github/workflows/go-binary-release.yml \
+    --predicate-type https://spdx.dev/Document/v2.3
 ```
 
-The `.sha256` files in the release assets only help you to detect a corrupt
-download. They do not prove where the binary came from. Use `gh attestation
-verify` for that.
+To verify the cosign signature of a binary, run:
+
+```shell
+cosign verify-blob --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+    --certificate-identity='https://github.com/kubewarden/runtime-enforcer/.github/workflows/go-binary-release.yml@refs/tags/<TAG TO VERIFY>' \
+    --bundle kubectl-runtime_enforcer-linux-amd64.bundle.sigstore \
+    kubectl-runtime_enforcer-linux-amd64
+```
+
+To verify the SBOM file, use the same command with the `-sbom.spdx.json` files.
+
+> [!NOTE]
+> The commands in this section use the `kubectl-runtime_enforcer-linux-amd64`
+> binary. The same commands work for the other binaries and for `wpgen`.
+
+The signer identity names a workflow file in this repository. A verifier that
+pins this identity trusts every commit of that file. The same repository holds
+the workflow and the source code that the workflow builds.
+
+The `.sha256` files only help you to detect a corrupt download. They do not
+prove where the binary came from. Use the provenance or the signature for that.
 
 ## Security disclosure
 

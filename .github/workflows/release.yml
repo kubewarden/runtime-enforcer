@@ -65,24 +65,47 @@ jobs:
         with:
           pattern: attestation-RuntimeEnforcer-*
           merge-multiple: true
-      # The four downloads for the binaries use exact artifact names. They do
-      # not use a pattern, unlike the download of the image attestations above.
+      # The four downloads for the binaries use the artifact IDs that the
+      # `binaries` job gives. They do not use a name or a pattern, unlike the
+      # download of the image attestations above. Another job of this run can
+      # overwrite an artifact, but the overwrite creates a new ID, and then the
+      # download fails. The IDs of the binaries are the same IDs that the
+      # signing job used, so the release assets are the files that it signed.
+      #
+      # If `artifact-ids` is empty, the download step gets every artifact of
+      # the run. Stop here if an ID is not a number.
+      - name: Make sure that the artifact IDs of the binaries are numbers
+        env:
+          KUBECTL_PLUGIN_ID: ${{ needs.binaries.outputs.kubectl-plugin-artifact-id }}
+          KUBECTL_PLUGIN_SIGNATURES_ID: ${{ needs.binaries.outputs.kubectl-plugin-signatures-artifact-id }}
+          WPGEN_ID: ${{ needs.binaries.outputs.wpgen-artifact-id }}
+          WPGEN_SIGNATURES_ID: ${{ needs.binaries.outputs.wpgen-signatures-artifact-id }}
+        run: |
+          set -euo pipefail
+          for id in "${KUBECTL_PLUGIN_ID}" "${KUBECTL_PLUGIN_SIGNATURES_ID}" "${WPGEN_ID}" "${WPGEN_SIGNATURES_ID}"; do
+            if [[ ! "${id}" =~ ^[0-9]+$ ]]; then
+              echo "Error: the artifact ID '${id}' is not a number"
+              exit 1
+            fi
+          done
+      # Each step downloads one ID. With more than one ID, the step puts each
+      # artifact in its own directory and only warns about a missing ID.
       - name: Download plugin artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: kubectl-plugin
+          artifact-ids: ${{ needs.binaries.outputs.kubectl-plugin-artifact-id }}
       - name: Download plugin signatures
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: signatures-kubectl-runtime_enforcer
+          artifact-ids: ${{ needs.binaries.outputs.kubectl-plugin-signatures-artifact-id }}
       - name: Download wpgen artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: wpgen
+          artifact-ids: ${{ needs.binaries.outputs.wpgen-artifact-id }}
       - name: Download wpgen signatures
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: signatures-wpgen
+          artifact-ids: ${{ needs.binaries.outputs.wpgen-signatures-artifact-id }}
       - name: Display structure of downloaded files
         run: ls -R
 

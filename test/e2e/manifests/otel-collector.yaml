@@ -1,7 +1,75 @@
 # OpenTelemetry collector for the e2e tests.
 # The chart does not deploy a collector. The e2e suite applies this manifest
-# in the runtime enforcer namespace before it installs the chart.
-# The receiver is plaintext gRPC, so the chart endpoint uses http://.
+# in the runtime enforcer namespace after it installs cert-manager
+# and before it installs the chart.
+# The receiver uses TLS and requires a client certificate,
+# so the exporters of the controller and the agent use mTLS.
+# cert-manager issues the collector and client certificates from a new CA.
+# The chart endpoint uses the Service name otel-collector,
+# because the collector and the runtime enforcer are in the same namespace.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: otel-collector-selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: otel-collector-ca
+spec:
+  isCA: true
+  commonName: runtime-enforcer-e2e-otel-ca
+  secretName: otel-collector-ca
+  issuerRef:
+    name: otel-collector-selfsigned
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: otel-collector-ca
+spec:
+  ca:
+    secretName: otel-collector-ca
+---
+# Server certificate of the collector.
+# The Secret also has ca.crt, which the collector uses to check client certificates.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: otel-collector-tls
+spec:
+  commonName: otel-collector
+  dnsNames:
+  - otel-collector
+  usages:
+  - digital signature
+  - key encipherment
+  - server auth
+  secretName: otel-collector-tls
+  issuerRef:
+    name: otel-collector-ca
+    kind: Issuer
+---
+# Client certificate of the controller and the agent.
+# The Secret also has ca.crt, which the exporters use to check the collector.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: otel-collector-client-tls
+spec:
+  commonName: runtime-enforcer
+  usages:
+  - digital signature
+  - key encipherment
+  - client auth
+  secretName: otel-collector-client-tls
+  issuerRef:
+    name: otel-collector-ca
+    kind: Issuer
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,6 +84,10 @@ data:
         protocols:
           grpc:
             endpoint: 0.0.0.0:4317
+            tls:
+              cert_file: /etc/otel-tls/tls.crt
+              key_file: /etc/otel-tls/tls.key
+              client_ca_file: /etc/otel-tls/ca.crt
     connectors:
       count:
         logs:
@@ -118,6 +190,9 @@ spec:
         - name: otel-collector-config
           mountPath: /etc/otel
           readOnly: true
+        - name: otel-collector-tls
+          mountPath: /etc/otel-tls
+          readOnly: true
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -125,6 +200,9 @@ spec:
       - name: otel-collector-config
         configMap:
           name: otel-collector
+      - name: otel-collector-tls
+        secret:
+          secretName: otel-collector-tls
 ---
 apiVersion: v1
 kind: Service

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"slices"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/e2e-framework/klient/conf"
 	"sigs.k8s.io/e2e-framework/klient/decoder"
@@ -57,12 +59,20 @@ const (
 	otelCollectorPodSelector = "app.kubernetes.io/name=otel-collector,app.kubernetes.io/component=otel-collector"
 	otelCollectorDeleteWait  = 2 * time.Minute
 	otelCollectorReadyWait   = 3 * time.Minute
+
+	// cert-manager writes these Secrets from the Certificates of the collector manifest.
+	// It does not delete them with the Certificates, so the suite deletes them.
+	otelCollectorCASecretName     = "otel-collector-ca"
+	otelCollectorTLSSecretName    = "otel-collector-tls"
+	otelCollectorClientSecretName = "otel-collector-client-tls"
+	otelCollectorCertificateWait  = 2 * time.Minute
 )
 
-// otelCollectorEndpoint is the plaintext gRPC endpoint of the e2e collector.
-// The http:// scheme turns off TLS in the exporters.
+// otelCollectorEndpoint is the gRPC endpoint of the e2e collector.
+// The https:// scheme turns on TLS in the exporters.
+// The Service name is enough, because the collector runs in the runtime enforcer namespace.
 func otelCollectorEndpoint() string {
-	return fmt.Sprintf("http://%s.%s.svc.cluster.local:4317", otelCollectorDeploymentName, runtimeEnforcerNamespace)
+	return "https://" + net.JoinHostPort(otelCollectorDeploymentName, "4317")
 }
 
 func useExistingCluster() bool {
@@ -153,7 +163,10 @@ func getCharts() []helmChart {
 			// we need to reduce the timeout to see the wp status controller working properly in e2e tests
 			helm.WithArgs("--set", "controller.wpStatusUpdateInterval=2s"),
 			// The suite deploys this collector before it installs the chart.
+			// The client certificate Secret also holds ca.crt, the CA of the collector certificate.
 			helm.WithArgs("--set", "global.otel.endpoint="+otelCollectorEndpoint()),
+			helm.WithArgs("--set", "global.otel.caSecretName="+otelCollectorClientSecretName),
+			helm.WithArgs("--set", "global.otel.clientCertificateSecretName="+otelCollectorClientSecretName),
 			// All test namespaces will be created with these labels, so that if we want to disable the learning
 			// it is enough to not put the label on the namespace.
 			helm.WithArgs("--set-json", testLearningSelector),
@@ -166,18 +179,25 @@ func TestMain(m *testing.M) {
 
 	charts := getCharts()
 
+	// getCharts puts the runtime enforcer last, after its optional dependencies.
+	dependencies, runtimeEnforcer := charts[:len(charts)-1], charts[len(charts)-1:]
+
 	commonSetupFuncs := []env.Func{
 		// we uninstall here as a defensive check but nothing should be left behind
 		uninstallHelmRepos(charts),
-		// The collector must be ready before the runtime enforcer starts,
+		installHelmRepos(dependencies),
+		// The collector needs cert-manager for its certificates.
+		// It must be ready before the runtime enforcer starts,
 		// so that the exporters see no connection errors at startup.
 		setupOtelCollector(),
-		installHelmRepos(charts),
+		installHelmRepos(runtimeEnforcer),
 	}
 
 	commonFinishFuncs := []env.Func{
-		uninstallHelmRepos(charts),
+		uninstallHelmRepos(runtimeEnforcer),
+		// Delete the collector while cert-manager is still installed.
 		teardownOtelCollector(),
+		uninstallHelmRepos(dependencies),
 	}
 
 	if useExistingCluster() {
@@ -338,7 +358,14 @@ func otelCollectorPods(ctx context.Context, r *resources.Resources) ([]corev1.Po
 	return pods.Items, nil
 }
 
-// deleteOtelCollector deletes the collector objects, if they exist,
+// otelCollectorObjectGone reports whether err means that a collector object does not exist.
+// A kind without its CRD has no objects, for example the cert-manager kinds
+// when the cert-manager install failed before it created its CRDs.
+func otelCollectorObjectGone(err error) bool {
+	return apierrors.IsNotFound(err) || meta.IsNoMatchError(err)
+}
+
+// deleteOtelCollector deletes the collector objects and its TLS Secrets, if they exist,
 // and waits until the objects and every collector pod are gone.
 func deleteOtelCollector(ctx context.Context, cfg *envconf.Config) error {
 	client, err := cfg.NewClient()
@@ -351,10 +378,17 @@ func deleteOtelCollector(ctx context.Context, cfg *envconf.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to decode the otel collector manifest: %w", err)
 	}
+	for _, name := range []string{
+		otelCollectorTLSSecretName,
+		otelCollectorCASecretName,
+		otelCollectorClientSecretName,
+	} {
+		objects = append(objects, &corev1.Secret{Name: name, Namespace: runtimeEnforcerNamespace})
+	}
 
 	for _, obj := range objects {
 		err = r.Delete(ctx, obj, resources.WithDeletePropagation(string(metav1.DeletePropagationForeground)))
-		if err != nil && !apierrors.IsNotFound(err) {
+		if err != nil && !otelCollectorObjectGone(err) {
 			return fmt.Errorf("failed to delete %T %s: %w", obj, obj.GetName(), err)
 		}
 	}
@@ -365,7 +399,7 @@ func deleteOtelCollector(ctx context.Context, cfg *envconf.Config) error {
 			if getErr == nil {
 				return false, nil
 			}
-			if !apierrors.IsNotFound(getErr) {
+			if !otelCollectorObjectGone(getErr) {
 				return false, getErr
 			}
 		}
@@ -420,16 +454,44 @@ func setupOtelCollector() env.Func {
 	}
 }
 
-// createOtelCollector creates the objects of the collector manifest.
+// createOtelCollector creates the objects of the collector manifest
+// and waits until cert-manager has issued the collector and client certificates.
+// It retries a failed create, because the cert-manager webhook
+// can need a moment to serve requests after its chart is installed.
 func createOtelCollector(ctx context.Context, r *resources.Resources) error {
 	objects, err := otelCollectorObjects(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to decode the otel collector manifest: %w", err)
 	}
 	for _, obj := range objects {
-		if err = r.Create(ctx, obj); err != nil {
-			return fmt.Errorf("failed to create %T %s: %w", obj, obj.GetName(), err)
+		var createErr error
+		err = wait.For(func(ctx context.Context) (bool, error) {
+			createErr = r.Create(ctx, obj)
+			return createErr == nil || apierrors.IsAlreadyExists(createErr), nil
+		}, wait.WithContext(ctx), wait.WithTimeout(otelCollectorCertificateWait))
+		if err != nil {
+			return fmt.Errorf("failed to create %T %s: %w (last error: %w)", obj, obj.GetName(), err, createErr)
 		}
+	}
+
+	err = wait.For(func(ctx context.Context) (bool, error) {
+		for _, name := range []string{otelCollectorTLSSecretName, otelCollectorClientSecretName} {
+			var secret corev1.Secret
+			getErr := r.Get(ctx, name, runtimeEnforcerNamespace, &secret)
+			if apierrors.IsNotFound(getErr) {
+				return false, nil
+			}
+			if getErr != nil {
+				return false, getErr
+			}
+			if len(secret.Data[corev1.TLSCertKey]) == 0 {
+				return false, nil
+			}
+		}
+		return true, nil
+	}, wait.WithContext(ctx), wait.WithTimeout(otelCollectorCertificateWait))
+	if err != nil {
+		return fmt.Errorf("cert-manager did not issue the otel collector certificates: %w", err)
 	}
 	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -12,9 +11,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
-	"google.golang.org/grpc/credentials"
 
-	"github.com/kubewarden/runtime-enforcer/internal/tlsutil"
 	"github.com/kubewarden/runtime-enforcer/internal/types/otlp"
 )
 
@@ -32,64 +29,18 @@ func gaugeDeltaTemporality(kind sdkmetric.InstrumentKind) metricdata.Temporality
 	return sdkmetric.DefaultTemporalitySelector(kind)
 }
 
-func createMetricGRPCExporter(ctx context.Context,
-	endpoint, caCertPath, clientCertPath, clientKeyPath string,
-) (sdkmetric.Exporter, error) {
-	// if the user specified the correct path we shouldn't receive the http prefix here, but just to be sure.
-	gRPCEndpoint := strings.TrimPrefix(strings.TrimPrefix(endpoint, "https://"), "http://")
-	insecure := caCertPath == ""
-	opts := []otlpmetricgrpc.Option{
-		otlpmetricgrpc.WithEndpoint(gRPCEndpoint),
-		otlpmetricgrpc.WithTemporalitySelector(gaugeDeltaTemporality),
-	}
-	if insecure {
-		opts = append(opts, otlpmetricgrpc.WithInsecure())
-	} else {
-		tlsConfig, err := tlsutil.BuildTLSConfig(caCertPath, clientCertPath, clientKeyPath)
-		if err != nil {
-			return nil, err
-		}
-		opts = append(opts, otlpmetricgrpc.WithTLSCredentials(credentials.NewTLS(tlsConfig)))
-	}
-	return otlpmetricgrpc.New(ctx, opts...)
-}
-
-func createMetricHTTPExporter(ctx context.Context,
-	endpoint, caCertPath, clientCertPath, clientKeyPath string,
-) (sdkmetric.Exporter, error) {
-	// first we check if we are in insecure mode
-	insecure := strings.HasPrefix(endpoint, "http://")
-	// Strip the scheme from the endpoint: WithEndpoint expects "host:port".
-	httpEndpoint := strings.TrimPrefix(strings.TrimPrefix(endpoint, "https://"), "http://")
-
-	opts := []otlpmetrichttp.Option{
-		otlpmetrichttp.WithEndpoint(httpEndpoint),
-		otlpmetrichttp.WithTemporalitySelector(gaugeDeltaTemporality),
-	}
-
-	if insecure {
-		opts = append(opts, otlpmetrichttp.WithInsecure())
-	} else if caCertPath != "" {
-		tlsConfig, err := tlsutil.BuildTLSConfig(caCertPath, clientCertPath, clientKeyPath)
-		if err != nil {
-			return nil, err
-		}
-		opts = append(opts, otlpmetrichttp.WithTLSClientConfig(tlsConfig))
-	}
-	return otlpmetrichttp.New(ctx, opts...)
-}
-
-// Init creates an OTEL meter provider that pushes controller metrics to the
-// given OTLP endpoint and registers the active-violations gauge. The protocol
-// can be either "grpc" or "http/protobuf". When caCertPath is non-empty, the
-// connection verifies the collector's certificate against the provided CA;
-// otherwise insecure mode is used. When clientCertPath and clientKeyPath are
-// both non-empty, the client presents a TLS certificate for mTLS authentication.
+// Init creates an OTEL meter provider that pushes controller metrics to an
+// OTLP collector and registers the active-violations gauge. The protocol
+// can be "grpc" or "http/protobuf". An empty protocol means "grpc".
+//
+// The exporter reads its connection settings
+// from the OTEL_EXPORTER_OTLP_* environment variables.
+//
 // exportInterval controls how often the PeriodicReader pushes recorded gauges
 // to the collector (typically the same as the status-sync update interval).
 func Init(
 	ctx context.Context,
-	endpoint, caCertPath, clientCertPath, clientKeyPath, protocol string,
+	protocol string,
 	exportInterval time.Duration,
 ) (metric.Int64Gauge, func(context.Context) error, error) {
 	if exportInterval <= 0 {
@@ -103,9 +54,9 @@ func Init(
 	}
 	switch proto {
 	case otlp.GRPC:
-		exporter, err = createMetricGRPCExporter(ctx, endpoint, caCertPath, clientCertPath, clientKeyPath)
+		exporter, err = otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithTemporalitySelector(gaugeDeltaTemporality))
 	case otlp.HTTPProtobuf:
-		exporter, err = createMetricHTTPExporter(ctx, endpoint, caCertPath, clientCertPath, clientKeyPath)
+		exporter, err = otlpmetrichttp.New(ctx, otlpmetrichttp.WithTemporalitySelector(gaugeDeltaTemporality))
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create OTLP metric exporter: %w", err)

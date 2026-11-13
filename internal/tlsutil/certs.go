@@ -45,46 +45,6 @@ func LoadKeyPair(certPath, keyPath string) (tls.Certificate, error) {
 	return cert, nil
 }
 
-func BuildTLSConfig(caCertPath, clientCertPath, clientKeyPath string) (*tls.Config, error) {
-	// Validate that the CA certificate is readable at startup.
-	if _, err := LoadCACertPool(caCertPath); err != nil {
-		return nil, err
-	}
-	cfg := &tls.Config{
-		MinVersion: tls.VersionTLS13,
-		// Skip the default verification (static RootCAs) so we can
-		// re-read the CA file on every handshake to handle rotation.
-		InsecureSkipVerify: true, //nolint:gosec // verification is done in VerifyConnection
-		VerifyConnection: func(cs tls.ConnectionState) error {
-			certPool, err := LoadCACertPool(caCertPath)
-			if err != nil {
-				return err
-			}
-			if len(cs.PeerCertificates) == 0 {
-				return errors.New("no peer certificates presented by server")
-			}
-			opts := x509.VerifyOptions{
-				Roots:         certPool,
-				DNSName:       cs.ServerName,
-				Intermediates: x509.NewCertPool(),
-			}
-			for _, cert := range cs.PeerCertificates[1:] {
-				opts.Intermediates.AddCert(cert)
-			}
-			_, err = cs.PeerCertificates[0].Verify(opts)
-			return err
-		},
-	}
-	if clientCertPath != "" && clientKeyPath != "" {
-		clientCert, err := LoadKeyPair(clientCertPath, clientKeyPath)
-		if err != nil {
-			return nil, err
-		}
-		cfg.Certificates = []tls.Certificate{clientCert}
-	}
-	return cfg, nil
-}
-
 // ValidateCertDir checks that dirPath exists and contains a loadable TLS key
 // pair (tls.crt + tls.key). It is intended for fail-fast validation at
 // startup before any connections are attempted.

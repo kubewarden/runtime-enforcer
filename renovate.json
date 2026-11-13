@@ -49,7 +49,7 @@
         "otel/opentelemetry-collector-contrib"
       ],
       "matchFileNames": [
-        "charts/runtime-enforcer/values.yaml"
+        "test/e2e/manifests/otel-collector.yaml"
       ]
     }
   ]

@@ -240,7 +240,7 @@ generate-api:
 
 .PHONY: generate-chart
 generate-chart: ## Generate Helm chart values schema.
-	$(HELM_VALUES_SCHEMA_JSON) --no-additional-properties \
+	$(HELM_VALUES_SCHEMA_JSON) \
 		--k8s-schema-version v1.31.0 \
 		--bundle --bundle-without-id --bundle-cache-min 24h \
 		--values charts/runtime-enforcer/values.yaml \

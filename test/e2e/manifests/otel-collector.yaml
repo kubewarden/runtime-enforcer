@@ -151,7 +151,7 @@ spec:
     spec:
       containers:
       - name: otel-collector
-        image: otel/opentelemetry-collector-contrib:0.164.0
+        image: otel/opentelemetry-collector-contrib:0.165.0
         imagePullPolicy: IfNotPresent
         command:
         - /otelcol-contrib

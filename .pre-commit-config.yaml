@@ -6,13 +6,13 @@ repos:
     rev: 25c5369a93aacb8cccea0d46e1569ca4a194564d # v2.15.0
     hooks:
       - id: golangci-lint-full
-        language_version: 1.27.3
+        language_version: 1.27.4
         stages: [pre-commit]
       - id: golangci-lint-fmt
-        language_version: 1.27.3
+        language_version: 1.27.4
         stages: [pre-commit]
   - repo: https://github.com/cpp-linter/cpp-linter-hooks
-    rev: 85389ec4903aa23ebe6e650730e6f7c558a38648 # v1.6.1
+    rev: d1b8451a0dd225bea665bf6cfca11b67038956ad # v1.9.0
     hooks:
       - id: clang-format
         args:
@@ -20,7 +20,8 @@ repos:
       - id: clang-tidy
         args:
           - --version=19
-          - --checks=.clang-tidy
+          - --no-compile-commands
+          - --all-lines
         files: ^bpf/.*\.c$
   - repo: https://github.com/yoheimuta/protolint
     rev: c5433e2d6826441fc6150e7eb0ff5ad568100ad5 # v0.58.0

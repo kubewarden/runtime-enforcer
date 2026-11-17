@@ -30,6 +30,8 @@ jobs:
             libbpf-dev
       - name: test kubectl plugin build for all platforms
         run: make kubectl-plugin-cross
+      - name: test wpgen build for all platforms
+        run: make wpgen-cross
       - run: make test
       # TODO: replace static threshold check with github-action-benchmark.
       # See https://github.com/benchmark-action/github-action-benchmark
@@ -50,9 +52,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
-          version: v4.3.0
+          version: v4.3.1
       - name: Install Helm-unittest
         run: |
           curl -SsL https://github.com/helm-unittest/helm-unittest/raw/refs/heads/main/public-key.asc | gpg --import
@@ -115,7 +117,7 @@ jobs:
       - name: Validate PR commits with commitlint
         run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
   verify-generated-code:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -135,8 +137,7 @@ jobs:
             libelf-dev \
             clang \
             llvm \
-            libbpf-dev \
-            protobuf-compiler
+            libbpf-dev
 
       - name: Generate files
         run: make generate

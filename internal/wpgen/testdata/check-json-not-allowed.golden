@@ -1,0 +1,37 @@
+{
+  "policy": {
+    "name": "api"
+  },
+  "containers": [
+    {
+      "name": "main",
+      "init": false,
+      "image": "tiny:1",
+      "allowed": [
+        "/bin/busybox",
+        "/etc/ca.crt"
+      ],
+      "executables": [
+        "/bin/busybox"
+      ],
+      "stale": [],
+      "skipped": [
+        {
+          "path": "/etc/ca.crt",
+          "kind": "unknown"
+        }
+      ],
+      "notAllowedCount": 2,
+      "notAllowed": [
+        "/bin/tool",
+        "/entrypoint.sh"
+      ]
+    }
+  ],
+  "containersOnlyInPolicy": [
+    "removed"
+  ],
+  "containersOnlyInWorkload": [
+    "sidecar"
+  ]
+}

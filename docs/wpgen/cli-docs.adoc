@@ -31,9 +31,9 @@ over both.
 === Options
 
 ....
-      --color string   When to use colors: auto, always or never. auto follows NO_COLOR and CLICOLOR_FORCE (default "auto")
-  -h, --help           help for wpgen
-  -v, --version        version for wpgen
+      --color string           When to use colors: auto, always or never. auto follows NO_COLOR and CLICOLOR_FORCE (default "auto")
+  -h, --help[=true|false]      help for wpgen
+  -v, --version[=true|false]   version for wpgen
 ....
 
 === SEE ALSO
@@ -90,16 +90,16 @@ policy that it did not check.
 === Options
 
 ....
-      --container-name string   Container of the policy that runs --image (default: the only container of the policy)
-  -h, --help                    help for check
-      --image string            Image of one container of the policy
-      --image-src strings       Image sources to try, in order. Valid values: containerd, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
-      --include-libraries       Count ELF shared libraries as executables. Programs load them, but do not run them
-      --include-unknown         Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
-      --list-not-allowed        List the executables of the image that the policy does not allow, not only their number
-  -o, --output string           Report format (table or json) (default "table")
-      --platform string         Platform to select from a multi-platform image (default: linux/<host architecture>)
-      --workload string         File with the workload that uses the policy ("-" for standard input)
+      --container-name string            Container of the policy that runs --image (default: the only container of the policy)
+  -h, --help[=true|false]                help for check
+      --image string                     Image of one container of the policy
+      --image-src strings                Image sources to try, in order. Valid values: containerd, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
+      --include-libraries[=true|false]   Count ELF shared libraries as executables. Programs load them, but do not run them
+      --include-unknown[=true|false]     Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
+      --list-not-allowed[=true|false]    List the executables of the image that the policy does not allow, not only their number
+  -o, --output string                    Report format (table or json) (default "table")
+      --platform string                  Platform to select from a multi-platform image (default: linux/<host architecture>)
+      --workload string                  File with the workload that uses the policy ("-" for standard input)
 ....
 
 === Options inherited from parent commands
@@ -151,17 +151,17 @@ The policy goes to standard output. Messages go to standard error.
 === Options
 
 ....
-      --container-name string   Name of the container in spec.rulesByContainer (default "main")
-  -h, --help                    help for image
-      --image-src strings       Image sources to try, in order. Valid values: containerd, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
-      --include-libraries       Count ELF shared libraries as executables. Programs load them, but do not run them
-      --include-unknown         Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
-      --mode string             Policy mode (monitor or protect) (default "monitor")
-      --name string             Name of the policy (default: last path element of the image repository, or "todo" when wpgen cannot derive it)
-      --namespace string        Namespace of the policy (default "default")
-  -o, --output string           Output format (yaml or json) (default "yaml")
-      --platform string         Platform to select from a multi-platform image (default: linux/<host architecture>)
-      --warn-threshold int      Print a warning when a container allows more executables than this value (0 disables the warning) (default 50)
+      --container-name string            Name of the container in spec.rulesByContainer (default "main")
+  -h, --help[=true|false]                help for image
+      --image-src strings                Image sources to try, in order. Valid values: containerd, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
+      --include-libraries[=true|false]   Count ELF shared libraries as executables. Programs load them, but do not run them
+      --include-unknown[=true|false]     Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
+      --mode string                      Policy mode (monitor or protect) (default "monitor")
+      --name string                      Name of the policy (default: last path element of the image repository, or "todo" when wpgen cannot derive it)
+      --namespace string                 Namespace of the policy (default "default")
+  -o, --output string                    Output format (yaml or json) (default "yaml")
+      --platform string                  Platform to select from a multi-platform image (default: linux/<host architecture>)
+      --warn-threshold int               Print a warning when a container allows more executables than this value (0 disables the warning) (default 50)
 ....
 
 === Options inherited from parent commands
@@ -221,14 +221,14 @@ The policies go to standard output. Messages go to standard error.
 === Options
 
 ....
-  -h, --help                 help for workload
-      --image-src strings    Image sources to try, in order. Valid values: containerd, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
-      --include-libraries    Count ELF shared libraries as executables. Programs load them, but do not run them
-      --include-unknown      Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
-      --mode string          Policy mode (monitor or protect) (default "monitor")
-  -o, --output string        Output format (yaml or json) (default "yaml")
-      --platform string      Platform to select from a multi-platform image (default: linux/<host architecture>)
-      --warn-threshold int   Print a warning when a container allows more executables than this value (0 disables the warning) (default 50)
+  -h, --help[=true|false]                help for workload
+      --image-src strings                Image sources to try, in order. Valid values: containerd, daemon, dir, docker, docker-archive, file, oci-archive, oci-dir, oci-registry, podman, pull, registry, singularity (default [file,docker,podman,registry])
+      --include-libraries[=true|false]   Count ELF shared libraries as executables. Programs load them, but do not run them
+      --include-unknown[=true|false]     Count files that are neither ELF programs nor scripts as executables, for example data files with an execute bit
+      --mode string                      Policy mode (monitor or protect) (default "monitor")
+  -o, --output string                    Output format (yaml or json) (default "yaml")
+      --platform string                  Platform to select from a multi-platform image (default: linux/<host architecture>)
+      --warn-threshold int               Print a warning when a container allows more executables than this value (0 disables the warning) (default 50)
 ....
 
 === Options inherited from parent commands

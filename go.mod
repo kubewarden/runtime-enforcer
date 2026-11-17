@@ -1,6 +1,6 @@
 module github.com/kubewarden/runtime-enforcer
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/anchore/go-collections v0.1.1
@@ -42,7 +42,6 @@ require (
 	sigs.k8s.io/controller-runtime v0.25.2
 	sigs.k8s.io/e2e-framework v0.7.0
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2
-	sigs.k8s.io/structured-merge-diff/v7 v7.0.1
 	sigs.k8s.io/yaml v1.6.0
 )
 

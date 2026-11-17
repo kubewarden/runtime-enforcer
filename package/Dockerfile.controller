@@ -14,7 +14,7 @@ COPY go.mod go.sum /src/
 COPY Makefile /src/
 RUN make controller
 
-FROM scratch
+FROM gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /src/bin/controller /controller
 

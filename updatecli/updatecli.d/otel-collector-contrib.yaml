@@ -13,23 +13,15 @@ sources:
         prerelease: false
 
 targets:
-  otelCollectorValues:
+  # The chart does not deploy a collector. The e2e tests deploy one from
+  # this manifest.
+  otelCollectorE2EManifest:
     name: 'deps(otel): update otel-collector-contrib to {{ source "otelCollectorContrib" }}'
-    kind: yaml
-    sourceid: otelCollectorContrib
-    scmid: default
-    spec:
-      file: charts/runtime-enforcer/values.yaml
-      key: $.telemetry.defaultCollector.image.tag
-  # Keep the artifacthub.io/images annotation in Chart.yaml in sync with
-  # the otel-collector-contrib image tag in values.yaml.
-  otelCollectorArtifactHubAnnotation:
-    name: 'deps(otel): update otel-collector-contrib in artifacthub.io/images annotation'
     kind: file
     sourceid: otelCollectorContrib
     scmid: default
     spec:
-      file: charts/runtime-enforcer/Chart.yaml
+      file: test/e2e/manifests/otel-collector.yaml
       matchpattern: 'image: otel/opentelemetry-collector-contrib:(\S+)'
       replacepattern: 'image: otel/opentelemetry-collector-contrib:{{ source "otelCollectorContrib" }}'
 
@@ -43,7 +35,7 @@ actions:
       mergemethod: squash
       description: |
         Automatic otel/opentelemetry-collector-contrib image {{ source "otelCollectorContrib" }} update.
-        This PR has been created by automation to keep the otel-collector-contrib image in the runtime-enforcer Helm chart up to date.
+        This PR has been created by automation to keep the otel-collector-contrib image of the e2e tests up to date.
       draft: false
       labels:
         - "chore"

@@ -225,8 +225,8 @@ func TestWorkloadPolicyProposalSetAllowForeignRootExec(t *testing.T) {
 
 			require.Contains(t, p.Spec.RulesByContainer, "container1")
 			require.True(t, p.Spec.RulesByContainer["container1"].AllowForeignRootExec())
-			require.Equal(t, "1",
-				p.Spec.RulesByContainer["container1"].Options[OptionAllowForeignRootExec])
+			require.Equal(t, ForeignRootAllow,
+				p.Spec.RulesByContainer["container1"].Executables.ForeignRoot)
 		})
 	}
 }

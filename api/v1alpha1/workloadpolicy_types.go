@@ -24,27 +24,41 @@ const (
 	Ready Phase = "Ready"
 )
 
+// ForeignRootPolicy defines whether a container can run binaries on a foreign
+// root file system.
+// +kubebuilder:validation:Enum=Allow;Deny
+type ForeignRootPolicy string
+
+const (
+	// ForeignRootAllow lets the container run binaries on a foreign root file system.
+	ForeignRootAllow ForeignRootPolicy = "Allow"
+	// ForeignRootDeny denies binaries on a foreign root file system.
+	ForeignRootDeny ForeignRootPolicy = "Deny"
+)
+
 type WorkloadPolicyExecutables struct {
 	// allowed defines a list of executables that are allowed to run
 	// +kubebuilder:validation:items:Pattern=`^/.*$`
 	// +optional
 	Allowed []string `json:"allowed,omitempty"`
+
+	// foreignRoot defines if the container can run binaries on a foreign root
+	// file system. The default value is "Deny".
+	// +kubebuilder:default=Deny
+	// +optional
+	ForeignRoot ForeignRootPolicy `json:"foreignRoot,omitempty"`
 }
 
 type WorkloadPolicyRules struct {
 	// executables defines a security policy for executables.
 	// +optional
 	Executables WorkloadPolicyExecutables `json:"executables,omitempty"`
+}
 
-	// options is a free-form map of behavior flags for this container. Each key
-	// selects one behavior. The value is a string, like an environment variable.
-	// A value of "1" or "true" turns the behavior on. Any other value, or an
-	// absent key, leaves the behavior off. The enforcer ignores keys that it does
-	// not recognize. It logs a warning for each one. The set of recognized keys
-	// depends on the enforcer version. See the runtime-enforcer documentation for
-	// the keys that your version supports.
-	// +optional
-	Options map[string]string `json:"options,omitempty"`
+// AllowForeignRootExec reports whether the container can run binaries on a
+// foreign root file system.
+func (r *WorkloadPolicyRules) AllowForeignRootExec() bool {
+	return r.Executables.ForeignRoot == ForeignRootAllow
 }
 
 type WorkloadPolicySpec struct {

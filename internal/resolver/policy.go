@@ -175,12 +175,6 @@ func (r *Resolver) syncWorkloadPolicy(wp *v1alpha1.WorkloadPolicy) (policyByCont
 				"container", containerName)
 			op = bpf.AddValuesToPolicy
 		}
-		if unknown := v1alpha1.UnknownOptionKeys(containerRules.Options); len(unknown) > 0 {
-			r.logger.Warn("ignoring unknown policy options",
-				"wp", wpKey,
-				"container", containerName,
-				"keys", unknown)
-		}
 		if err := r.upsertPolicyIDInBPF(
 			polID,
 			containerRules.Executables.Allowed,

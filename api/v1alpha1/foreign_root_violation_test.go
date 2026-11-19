@@ -54,7 +54,7 @@ func TestRecomputeStatusForeignRootViolations(t *testing.T) {
 
 			// The opt-out resolves foreign violations independently of the
 			// allow-list, but must not resolve a now-disallowed local exec.
-			rules.Options = map[string]string{OptionAllowForeignRootExec: "1"}
+			rules.Executables.ForeignRoot = ForeignRootAllow
 			rules.Executables.Allowed = nil
 			now = now.Add(time.Minute)
 			local.LastObservedTimestamp = metav1.NewTime(now)

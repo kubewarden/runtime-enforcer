@@ -138,6 +138,9 @@ var schemaYAML = typed.YAMLObject(`types:
           elementType:
             scalar: string
           elementRelationship: atomic
+    - name: foreignRoot
+      type:
+        scalar: string
 - name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyProposal
   map:
     fields:
@@ -170,11 +173,6 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         namedType: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicyExecutables
       default: {}
-    - name: options
-      type:
-        map:
-          elementType:
-            scalar: string
 - name: com.github.kubewarden.runtime-enforcer.api.v1alpha1.WorkloadPolicySpec
   map:
     fields:

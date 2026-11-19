@@ -41,12 +41,16 @@ func TestReconcileWP_AllowForeignRootExec(t *testing.T) {
 			Mode: "protect",
 			RulesByContainer: map[string]*v1alpha1.WorkloadPolicyRules{
 				c1: {
-					Executables: v1alpha1.WorkloadPolicyExecutables{Allowed: []string{"/service"}},
-					Options:     map[string]string{v1alpha1.OptionAllowForeignRootExec: "1"},
+					Executables: v1alpha1.WorkloadPolicyExecutables{
+						Allowed:     []string{"/service"},
+						ForeignRoot: v1alpha1.ForeignRootAllow,
+					},
 				},
 				c2: {
-					Executables: v1alpha1.WorkloadPolicyExecutables{Allowed: []string{"/bin/cat"}},
-					Options:     map[string]string{"SOME_REMOVED_FLAG": "1"},
+					Executables: v1alpha1.WorkloadPolicyExecutables{
+						Allowed:     []string{"/bin/cat"},
+						ForeignRoot: v1alpha1.ForeignRootDeny,
+					},
 				},
 			},
 		},

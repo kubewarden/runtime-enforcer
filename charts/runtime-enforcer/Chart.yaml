@@ -53,7 +53,7 @@ annotations:
   # Reference: https://artifacthub.io/docs/topics/annotations/helm/
   artifacthub.io/images: |
     - name: controller
-      image: ghcr.io/kubewarden/runtime-enforcer/controller:v0.10.1
+      image: ghcr.io/kubewarden/runtime-enforcer/controller:v0.11.0
     - name: agent
       image: ghcr.io/kubewarden/runtime-enforcer/agent:v0.11.0
     - name: debugger

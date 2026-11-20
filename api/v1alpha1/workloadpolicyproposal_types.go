@@ -136,15 +136,14 @@ func (p *WorkloadPolicyProposal) SetAllowForeignRootExec(containerName string) {
 	rules, ok := p.Spec.RulesByContainer[containerName]
 	if !ok {
 		p.Spec.RulesByContainer[containerName] = &WorkloadPolicyRules{
-			Options: map[string]string{OptionAllowForeignRootExec: "1"},
+			Executables: WorkloadPolicyExecutables{
+				ForeignRoot: ForeignRootAllow,
+			},
 		}
 		return
 	}
 
-	if rules.Options == nil {
-		rules.Options = make(map[string]string)
-	}
-	rules.Options[OptionAllowForeignRootExec] = "1"
+	rules.Executables.ForeignRoot = ForeignRootAllow
 }
 
 func (p *WorkloadPolicyProposal) AddPartialOwnerReferenceDetails(workloadKind string, workload string) {

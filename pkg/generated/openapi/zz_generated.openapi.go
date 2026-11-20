@@ -368,6 +368,13 @@ func schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyExecutables(r
 							},
 						},
 					},
+					"foreignRoot": {
+						SchemaProps: spec.SchemaProps{
+							Description: "foreignRoot defines if the container can run binaries on a foreign root file system. The default value is \"Deny\".",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},
@@ -551,21 +558,6 @@ func schema_kubewarden_runtime_enforcer_api_v1alpha1_WorkloadPolicyRules(ref com
 							Description: "executables defines a security policy for executables.",
 							Default:     map[string]interface{}{},
 							Ref:         ref(v1alpha1.WorkloadPolicyExecutables{}.OpenAPIModelName()),
-						},
-					},
-					"options": {
-						SchemaProps: spec.SchemaProps{
-							Description: "options is a free-form map of behavior flags for this container. Each key selects one behavior. The value is a string, like an environment variable. A value of \"1\" or \"true\" turns the behavior on. Any other value, or an absent key, leaves the behavior off. The enforcer ignores keys that it does not recognize. It logs a warning for each one. The set of recognized keys depends on the enforcer version. See the runtime-enforcer documentation for the keys that your version supports.",
-							Type:        []string{"object"},
-							AdditionalProperties: &spec.SchemaOrBool{
-								Allows: true,
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Type:   []string{"string"},
-										Format: "",
-									},
-								},
-							},
 						},
 					},
 				},

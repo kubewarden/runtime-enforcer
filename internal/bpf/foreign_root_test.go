@@ -28,7 +28,7 @@ import (
 // the ptrace access check.
 //
 // The resolver test resolver.TestReconcileWP_AllowForeignRootExec covers the Go
-// wiring of the ALLOW_FOREIGN_ROOT_EXEC option.
+// wiring of the executables.foreignRoot setting.
 func TestForeignRootExec(t *testing.T) {
 	const allowedPath = "/usr/bin/true"
 

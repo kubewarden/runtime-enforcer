@@ -2,11 +2,18 @@
 
 package v1alpha1
 
+import (
+	apiv1alpha1 "github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+)
+
 // WorkloadPolicyExecutablesApplyConfiguration represents a declarative configuration of the WorkloadPolicyExecutables type for use
 // with apply.
 type WorkloadPolicyExecutablesApplyConfiguration struct {
 	// allowed defines a list of executables that are allowed to run
 	Allowed []string `json:"allowed,omitempty"`
+	// foreignRoot defines if the container can run binaries on a foreign root
+	// file system. The default value is "Deny".
+	ForeignRoot *apiv1alpha1.ForeignRootPolicy `json:"foreignRoot,omitempty"`
 }
 
 // WorkloadPolicyExecutablesApplyConfiguration constructs a declarative configuration of the WorkloadPolicyExecutables type for use with
@@ -22,5 +29,13 @@ func (b *WorkloadPolicyExecutablesApplyConfiguration) WithAllowed(values ...stri
 	for i := range values {
 		b.Allowed = append(b.Allowed, values[i])
 	}
+	return b
+}
+
+// WithForeignRoot sets the ForeignRoot field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ForeignRoot field is set to the value of the last call.
+func (b *WorkloadPolicyExecutablesApplyConfiguration) WithForeignRoot(value apiv1alpha1.ForeignRootPolicy) *WorkloadPolicyExecutablesApplyConfiguration {
+	b.ForeignRoot = &value
 	return b
 }

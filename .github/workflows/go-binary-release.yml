@@ -88,7 +88,7 @@ jobs:
             (cd bin/wpgen-dist && sha256sum "wpgen-${platform}" > "wpgen-${platform}.sha256")
           done
       - name: Install the syft command
-        uses: kubewarden/github-actions/syft-installer@4d25ea5d35d22768786526f592b0f9ba27587c9c # v8.0.0
+        uses: kubewarden/github-actions/syft-installer@d12b2b18e1f9dbfe15c79c9ecb7149cf956704a7 # v8.1.0
       # A Go binary contains the list of its Go modules. Syft reads that list
       # from the binary, so the SBOM describes exactly what the binary contains.
       - name: Create SBOM files

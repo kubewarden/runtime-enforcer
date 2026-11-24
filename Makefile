@@ -196,7 +196,7 @@ ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 # renovate: datasource=go depName=github.com/losisin/helm-values-schema-json/v2
-HELM_VALUES_SCHEMA_JSON_VERSION ?= v2.6.0
+HELM_VALUES_SCHEMA_JSON_VERSION ?= v2.6.1
 # renovate: datasource=go depName=github.com/bufbuild/buf
 BUF_VERSION ?= v1.75.0
 

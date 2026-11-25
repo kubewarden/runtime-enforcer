@@ -24,6 +24,6 @@ repos:
           - --all-lines
         files: ^bpf/.*\.c$
   - repo: https://github.com/yoheimuta/protolint
-    rev: c5433e2d6826441fc6150e7eb0ff5ad568100ad5 # v0.58.0
+    rev: ad325e425add756e73a68b9b20598bfb52129566 # v0.59.0
     hooks:
       - id: protolint

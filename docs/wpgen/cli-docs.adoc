@@ -14,19 +14,22 @@ This document contains the help content for the `wpgen` command-line program.
 
 wpgen drafts a WorkloadPolicy from the executables found inside container images.
 
-The output is a starting point, not a final policy. A container image often
-contains many executables that the workload never runs. Run the policy in
-monitor mode first, and prefer the learn phase of runtime-enforcer to build
-a policy from the real behavior of the workload.
+The output should only be considered a starting point for a WorkloadPolicy, as a
+container image often contains many executables that the application never
+calls. Run the policy in monitor mode first, and preferably rely on the learn
+phase of runtime-enforcer to build a policy from the real behavior of the
+application.
 
-wpgen only sees the file system of the image. It does not see files on
+wpgen only inspects the file system of the image. It cannot consider files on
 volumes, or files that the workload creates at runtime.
 
-Colors are used only for the lines that matter: the check verdict, warnings,
-notices and errors. With --color=auto, the default, colors are on only when
-the output is a terminal. The NO_COLOR environment variable turns them off,
-and CLICOLOR_FORCE=1 turns them on. --color=always and --color=never win
-over both.
+Colors are only used for highlighting important information: the check verdict,
+warnings, notices and errors. With --color=auto (default) colors are only
+enabled when the output is a terminal. Setting the environment variable
+CLICOLOR_FORCE to a non-empty value other than "0" enables colors unless
+NO_COLOR is non-empty, in which case colors are disabled. The command line
+settings --color=always and --color=never take precedence over the environment
+variables.
 
 === Options
 

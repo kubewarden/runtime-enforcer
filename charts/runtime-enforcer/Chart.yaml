@@ -55,6 +55,6 @@ annotations:
     - name: controller
       image: ghcr.io/kubewarden/runtime-enforcer/controller:v0.11.0
     - name: agent
-      image: ghcr.io/kubewarden/runtime-enforcer/agent:v0.11.0
+      image: ghcr.io/kubewarden/runtime-enforcer/agent:v0.12.0
     - name: debugger
       image: ghcr.io/kubewarden/runtime-enforcer/debugger:v0.11.0

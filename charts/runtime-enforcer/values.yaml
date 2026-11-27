@@ -238,6 +238,10 @@ agent:
         - ALL
   nriSocketPath: /var/run/nri/
   nriFailopen: false
+  # This value controls only new containers (StartContainer) whose pod refers to a WorkloadPolicy that does not exist.
+  # When it is true, these containers start without enforcement.
+  # When it is false, the agent blocks these containers.
+  policyFailopen: false
 
 # The debugger is off by default.
 # It has no log level and does not export telemetry,

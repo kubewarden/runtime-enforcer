@@ -46,6 +46,9 @@
                     "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.core.v1.PodSecurityContext",
                     "type": "object"
                 },
+                "policyFailopen": {
+                    "type": "boolean"
+                },
                 "resources": {
                     "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.core.v1.ResourceRequirements",
                     "type": "object"

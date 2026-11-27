@@ -44,6 +44,10 @@ spec:
         - name: NRI_FAILOPEN
           value: "true"
         {{- end }}
+        {{- if $w.policyFailopen }}
+        - name: POLICY_FAILOPEN
+          value: "true"
+        {{- end }}
         - name: RUNTIME_ENFORCER_WEBHOOK_ENDPOINT
           value: {{ include "runtime-enforcer.fullname" . }}-controller-webhook.{{ include "runtime-enforcer.namespace" . }}.svc
         {{- with include "runtime-enforcer.otelEnv" $ctx }}{{ . | nindent 8 }}{{ end }}

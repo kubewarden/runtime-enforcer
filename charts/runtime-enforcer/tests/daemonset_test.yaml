@@ -69,3 +69,22 @@ tests:
       - contains:
           path: "spec.template.spec.containers[0].args"
           content: "--log-level=debug"
+
+  - it: "should not render POLICY_FAILOPEN by default"
+    asserts:
+      - notContains:
+          path: "spec.template.spec.containers[0].env"
+          content:
+            name: POLICY_FAILOPEN
+            value: "true"
+
+  - it: "should render POLICY_FAILOPEN when agent.policyFailopen is true"
+    set:
+      agent:
+        policyFailopen: true
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content:
+            name: POLICY_FAILOPEN
+            value: "true"

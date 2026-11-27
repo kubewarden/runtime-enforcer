@@ -166,9 +166,16 @@ func (p *plugin) Synchronize(
 		)
 		err := p.resolver.AddPodContainerFromNri(podData)
 		if errors.Is(err, resolver.ErrWorkloadPolicyNotFound) {
-			// The pod is in the cache. The policy applies to the pod when the policy appears.
-			podLogger.WarnContext(ctx, "pod references a missing WorkloadPolicy, the pod runs without enforcement",
-				"error", err)
+			// At agent startup, NRI can synchronize before the agent reconciles the WorkloadPolicies.
+			// Thus, a policy that exists can look missing for a short time. We log at Info level
+			// and do not block the synchronization. The pod is in the cache. The policy applies
+			// to the pod when the agent reconciles the policy.
+			podLogger.InfoContext(
+				ctx,
+				"pod references a WorkloadPolicy that is not loaded, enforcement starts if the policy is reconciled",
+				"error",
+				err,
+			)
 			continue
 		}
 		if err != nil {

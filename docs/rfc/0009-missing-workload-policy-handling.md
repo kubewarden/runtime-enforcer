@@ -182,17 +182,19 @@ flowchart TD
 
 ## Code changes
 
-- `internal/resolver`: the missing-policy path becomes configurable via a
-  `failOpen` flag threaded through `AddPodContainerFromNri` into
-  `applyPolicyToPodIfPresent` — when open, it logs a warning and continues;
-  when closed, it returns today's error. This flag is how the two NRI
-  callbacks select different behavior.
+- `internal/resolver`: when a pod refers to a WorkloadPolicy that does not
+  exist, `AddPodContainerFromNri` returns a wrapped
+  `ErrWorkloadPolicyNotFound` sentinel error. The resolver keeps the pod in
+  its cache. A later WorkloadPolicy reconcile applies the policy. The
+  resolver has no fail-open flag; each caller decides what to do.
 - `internal/nri`: the plugin reads the new `POLICY_FAILOPEN` env var (with
-  a default of `false`). `Synchronize()` always calls the resolver in
-  fail-open mode, so a missing policy can never abort startup
-  synchronization (this fixes #853). `StartContainer()` uses the configured
-  value, and a resulting error still flows through the existing
-  `NRI_FAILOPEN` handling.
+  a default of `false`). Each NRI hook uses `errors.Is` to find
+  `ErrWorkloadPolicyNotFound`. `Synchronize()` logs a warning and continues,
+  so a missing policy can never abort startup synchronization (this fixes
+  #853). `StartContainer()` first uses `POLICY_FAILOPEN`: when it is `true`,
+  the hook logs a warning and the container starts without enforcement.
+  When it is `false`, the error flows through the existing `NRI_FAILOPEN`
+  handling.
 - Helm chart: add `agent.policyFailopen` to `values.yaml`,
   `values.schema.json`, and the DaemonSet env, mirroring how
   `agent.nriFailopen` is wired today. Document it in the chart README,

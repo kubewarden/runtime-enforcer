@@ -93,6 +93,21 @@ The top-level keys of [`values.yaml`](https://github.com/kubewarden/runtime-enfo
 
 See the comments in `values.yaml` for the full list of options.
 
+### Fail-open behavior
+
+| Key                    | Default | Description                                                                                       |
+| ---------------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| `agent.nriFailopen`    | `false` | When `true`, a container starts if the agent cannot process it. This includes a missing policy.   |
+| `agent.policyFailopen` | `false` | When `true`, a new container starts without enforcement if its pod refers to a missing policy.    |
+
+A pod refers to a WorkloadPolicy with the `runtimeenforcer.kubewarden.io/policy` label.
+If this WorkloadPolicy does not exist, the agent keeps the pod in its cache.
+The agent applies the policy to the pod when you create the WorkloadPolicy.
+
+`agent.policyFailopen` affects only new containers (the NRI `StartContainer` event).
+When both keys are `false`, the agent blocks a new container whose pod refers to a missing policy.
+The agent startup synchronization never fails because of a missing policy.
+
 ### CRDs
 
 CRDs are installed with the `helm.sh/resource-policy: keep` annotation:

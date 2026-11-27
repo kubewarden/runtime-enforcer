@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/kubewarden/runtime-enforcer/api/v1alpha1"
+	"github.com/kubewarden/runtime-enforcer/internal/bpf"
 	agentv1 "github.com/kubewarden/runtime-enforcer/proto/agent/v1"
 )
 
@@ -95,4 +96,56 @@ func TestHandleWP_Lifecycle(t *testing.T) {
 	require.NotContains(t, r.wpState, key)
 	statuses = r.GetPolicyStatuses()
 	require.NotContains(t, statuses, key)
+}
+
+// TestAddPodContainerFromNri checks that a pod with a missing policy stays in the cache
+// and that the policy applies to the pod when the policy appears later.
+func TestAddPodContainerFromNri(t *testing.T) {
+	type cgroupAssoc struct {
+		polID PolicyID
+		cgIDs []CgroupID
+		op    bpf.CgroupPolicyOperation
+	}
+	r := NewTestResolver(t)
+	var assocs []cgroupAssoc
+	r.cgroupToPolicyMapUpdateFunc = func(polID PolicyID, cgIDs []CgroupID, op bpf.CgroupPolicyOperation) error {
+		assocs = append(assocs, cgroupAssoc{polID: polID, cgIDs: cgIDs, op: op})
+		return nil
+	}
+
+	err := r.AddPodContainerFromNri(PodInput{
+		Meta: PodMeta{
+			ID:           "pod-uid",
+			Namespace:    "test-ns",
+			Name:         "test-pod",
+			WorkloadName: "test-pod",
+			WorkloadType: "Pod",
+			Labels:       map[string]string{v1alpha1.PolicyLabelKey: "missing"},
+		},
+		Containers: map[ContainerID]ContainerInput{
+			cid1: {ContainerMeta: ContainerMeta{CgroupID: 100, Name: c1, ID: cid1}},
+		},
+	})
+	require.ErrorIs(t, err, ErrWorkloadPolicyNotFound)
+	require.ErrorContains(t, err, "test-ns/test-pod")
+	require.ErrorContains(t, err, "missing")
+	require.Contains(t, r.PodCacheSnapshot(), "pod-uid")
+	require.Empty(t, assocs)
+
+	wp := &v1alpha1.WorkloadPolicy{
+		Name: "missing", Namespace: "test-ns",
+		Spec: v1alpha1.WorkloadPolicySpec{
+			Mode: "protect",
+			RulesByContainer: map[string]*v1alpha1.WorkloadPolicyRules{
+				c1: {Executables: v1alpha1.WorkloadPolicyExecutables{Allowed: []string{"/bin/sleep"}}},
+			},
+		},
+	}
+	require.NoError(t, r.ReconcileWP(wp))
+
+	polID, ok := r.wpState[wp.NamespacedName()].polByContainer[c1]
+	require.True(t, ok)
+	require.Equal(t, []cgroupAssoc{
+		{polID: polID, cgIDs: []CgroupID{100}, op: bpf.AddPolicyToCgroups},
+	}, assocs)
 }

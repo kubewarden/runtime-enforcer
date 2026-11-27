@@ -2,6 +2,7 @@ package nri
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -23,6 +24,7 @@ type plugin struct {
 	resolver        *resolver.Resolver
 	lastErr         error
 	failOpen        bool
+	policyFailOpen  bool
 	resolveCgroupID func(container *api.Container) (resolver.CgroupID, string, error)
 }
 
@@ -162,7 +164,14 @@ func (p *plugin) Synchronize(
 		podLogger.DebugContext(ctx, "Synchronize pod with containers",
 			"containers", containers,
 		)
-		if err := p.resolver.AddPodContainerFromNri(podData); err != nil {
+		err := p.resolver.AddPodContainerFromNri(podData)
+		if errors.Is(err, resolver.ErrWorkloadPolicyNotFound) {
+			// The pod is in the cache. The policy applies to the pod when the policy appears.
+			podLogger.WarnContext(ctx, "pod references a missing WorkloadPolicy, the pod runs without enforcement",
+				"error", err)
+			continue
+		}
+		if err != nil {
 			// This could be recoverable. Returning an error so we can retry.
 			podLogger.InfoContext(ctx, nriSyncRetryMsg, "error", err)
 			return nil, fmt.Errorf("%s: %w", nriSyncRetryMsg, err)
@@ -182,7 +191,8 @@ func (p *plugin) StartContainer(
 	containerLogger := p.containerLogger(pod, container)
 	containerLogger.InfoContext(ctx, "Starting container")
 
-	handleError := func(reason string, err error) error {
+	// handleError returns blockedErr to block the container, unless nriFailopen is true.
+	handleError := func(reason string, err error, blockedErr error) error {
 		logger := containerLogger.With(
 			"reason", reason,
 			"error", err,
@@ -191,22 +201,21 @@ func (p *plugin) StartContainer(
 			logger.WarnContext(ctx, "container is starting WITHOUT enforcement due to nriFailopen=true")
 			return nil
 		}
-		nriErr := fmt.Errorf(
-			"runtime-enforcer has prevented the container '%s/%s' from starting. To change this behavior, set agent.nriFailopen=true in the helm chart",
-			pod.GetName(),
-			container.GetName(),
-		)
-
-		logger.ErrorContext(ctx, nriErr.Error())
-		return nriErr
+		logger.ErrorContext(ctx, blockedErr.Error())
+		return blockedErr
 	}
+	defaultBlockedErr := fmt.Errorf(
+		"runtime-enforcer has prevented the container '%s/%s' from starting. To change this behavior, set agent.nriFailopen=true in the helm chart",
+		pod.GetName(),
+		container.GetName(),
+	)
 
 	// Here we can ignore the cgroupPath because the container is not yet running so we cannot have nested cgroups.
 	cgroupID, _, err := p.resolveCgroupID(container)
 	if err != nil {
 		// this should never happen because we've succeeded before in Synchronize() call.
 		// When this happens, it indicates a serious inconsistency in the system.
-		return handleError("failed to get cgroup ID from container", err)
+		return handleError("failed to get cgroup ID from container", err, defaultBlockedErr)
 	}
 
 	workloadName, workloadKind := p.getWorkloadInfoAndLog(ctx, pod)
@@ -224,8 +233,22 @@ func (p *plugin) StartContainer(
 		},
 	}
 
-	if err = p.resolver.AddPodContainerFromNri(podData); err != nil {
-		return handleError("failed to add pod container from NRI", err)
+	err = p.resolver.AddPodContainerFromNri(podData)
+	if errors.Is(err, resolver.ErrWorkloadPolicyNotFound) {
+		if p.policyFailOpen {
+			containerLogger.WarnContext(ctx, "container is starting WITHOUT enforcement due to policyFailopen=true",
+				"error", err)
+			return nil
+		}
+		return handleError("pod references a missing WorkloadPolicy", err, fmt.Errorf(
+			"runtime-enforcer has prevented the container '%s/%s' from starting because its WorkloadPolicy '%s' does not exist. To change this behavior, set agent.policyFailopen=true in the helm chart",
+			pod.GetName(),
+			container.GetName(),
+			pod.GetLabels()[v1alpha1.PolicyLabelKey],
+		))
+	}
+	if err != nil {
+		return handleError("failed to add pod container from NRI", err, defaultBlockedErr)
 	}
 	return nil
 }

@@ -36,6 +36,7 @@ func newNRIPlugin(
 		logger:          logger.With("component", "nri-plugin"),
 		resolver:        resolver,
 		failOpen:        os.Getenv("NRI_FAILOPEN") == "true",
+		policyFailOpen:  os.Getenv("POLICY_FAILOPEN") == "true",
 		resolveCgroupID: cgroupFromContainer,
 	}
 

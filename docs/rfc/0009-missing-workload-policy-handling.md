@@ -21,8 +21,8 @@ prevents a single container from starting.
 This RFC introduces a unified approach to handle these errors.
 
 runtime-enforcer will never abort agent startup (`Synchronize`) because of a
-missing policy anymore, regardless of configuration. Instead, a warning is
-printed on error and the agent continues, so a single misconfigured or dangling
+missing policy anymore, regardless of configuration. Instead, a message is
+logged and the agent continues, so a single misconfigured or dangling
 reference can never prevent the agent from becoming `Ready` and protecting
 the rest of the cluster. The real enforcement decision — whether to let an
 unprotected workload start — happens at container-creation time
@@ -142,7 +142,7 @@ environment.
 
 | Call site          | `policyFailopen=true` (fail open)                                   | `policyFailopen=false` (default, hardened)                                                      |
 | ------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `Synchronize()`    | Log `Warn`, skip enforcement for that pod, sync continues/completes | Flag has no effect — same as the left column (unconditionally non-blocking)                     |
+| `Synchronize()`    | Log `Info`, skip enforcement for that pod, sync continues/completes | Flag has no effect — same as the left column (unconditionally non-blocking)                     |
 | `StartContainer()` | Log `Warn`, allow the container to start unprotected                | Today's behavior: return error, blocking the container from starting, subject to `NRI_FAILOPEN` |
 
 `Synchronize()` behaves identically regardless of `policyFailopen` — a
@@ -165,7 +165,7 @@ flowchart TD
     B -- No --> Z1["No policy to apply\n(unchanged today)"]
     B -- Yes --> C{"WorkloadPolicy\nfound in cache?"}
     C -- Yes --> D1["Apply policy to pod\n(unchanged today)"]
-    C -- No --> F1["Log warning, continue\nPod stays cached, unenforced\n(unconditional, ignores policyFailopen)"]
+    C -- No --> F1["Log info, continue\nPod stays cached, unenforced\n(unconditional, ignores policyFailopen)"]
 
     A2["StartContainer()\n(new container)"] --> B2{"Pod has policy label?"}
     B2 -- No --> Z2["No policy to apply\n(unchanged today)"]
@@ -182,17 +182,19 @@ flowchart TD
 
 ## Code changes
 
-- `internal/resolver`: the missing-policy path becomes configurable via a
-  `failOpen` flag threaded through `AddPodContainerFromNri` into
-  `applyPolicyToPodIfPresent` — when open, it logs a warning and continues;
-  when closed, it returns today's error. This flag is how the two NRI
-  callbacks select different behavior.
+- `internal/resolver`: when a pod refers to a WorkloadPolicy that does not
+  exist, `AddPodContainerFromNri` returns a wrapped
+  `ErrWorkloadPolicyNotFound` sentinel error. The resolver keeps the pod in
+  its cache. A later WorkloadPolicy reconcile applies the policy. The
+  resolver has no fail-open flag; each caller decides what to do.
 - `internal/nri`: the plugin reads the new `POLICY_FAILOPEN` env var (with
-  a default of `false`). `Synchronize()` always calls the resolver in
-  fail-open mode, so a missing policy can never abort startup
-  synchronization (this fixes #853). `StartContainer()` uses the configured
-  value, and a resulting error still flows through the existing
-  `NRI_FAILOPEN` handling.
+  a default of `false`). Each NRI hook uses `errors.Is` to find
+  `ErrWorkloadPolicyNotFound`. `Synchronize()` logs an `Info` message and continues,
+  so a missing policy can never abort startup synchronization (this fixes
+  #853). `StartContainer()` first uses `POLICY_FAILOPEN`: when it is `true`,
+  the hook logs a warning and the container starts without enforcement.
+  When it is `false`, the error flows through the existing `NRI_FAILOPEN`
+  handling.
 - Helm chart: add `agent.policyFailopen` to `values.yaml`,
   `values.schema.json`, and the DaemonSet env, mirroring how
   `agent.nriFailopen` is wired today. Document it in the chart README,
@@ -202,8 +204,15 @@ flowchart TD
 
 A missing policy is always logged with structured fields (`pod.namespace`,
 `pod.name`, `pod.policy`) so it's discoverable via logs regardless of
-mode. The resolver logs a `Warn` whenever the pod/container is allowed
-through (`Synchronize` always, `StartContainer` when `policyFailopen=true`).
+mode. `StartContainer` logs a `Warn` when it lets the container start
+(`policyFailopen=true`). `Synchronize` logs at `Info` level. At agent
+startup, NRI can synchronize before the agent reconciles the
+WorkloadPolicies. Thus, a policy that exists can look missing for a short
+time. This occurs on each agent restart, so it is not a warning. The
+policy applies to the cached pod when the agent reconciles it, and the
+agent becomes `Ready` only after it reconciles all WorkloadPolicies. If
+no WorkloadPolicy with that name exists in the namespace, the pod label
+is dangling and the pod runs without enforcement.
 When `StartContainer` blocks the container (`policyFailopen=false`), the
 returned error is logged as `Error` by the plugin's existing `handleError`,
 which already carries pod/container context. Exposing this as a first-class
